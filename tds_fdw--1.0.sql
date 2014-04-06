@@ -1,4 +1,4 @@
-#*------------------------------------------------------------------
+/*------------------------------------------------------------------
 #
 #				Foreign data wrapper for TDS (Sybase and Microsoft SQL Server)
 #
@@ -13,7 +13,7 @@
 # This foreign data wrapper requires requires a library that uses the DB-Library interface,
 # such as FreeTDS (http://www.freetds.org/). This has been tested with FreeTDS, but not
 # the proprietary implementations of DB-Library.
-#----------------------------------------------------------------------------
+#----------------------------------------------------------------------------*/
 
 CREATE FUNCTION tds_fdw_handler()
 RETURNS fdw_handler
