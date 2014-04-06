@@ -30,6 +30,7 @@
 #include "catalog/pg_user_mapping.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
+#include "commands/explain.h"
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
 #include "miscadmin.h"
@@ -102,7 +103,7 @@ typedef struct TdsFdwExecutionState
 /* functions called via SQL */
 
 extern Datum tds_fdw_handler(PG_FUNCTION_ARGS);
-extern Datum tds_fdw_validator(PG_FUNCTION_ARGS)
+extern Datum tds_fdw_validator(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(tds_fdw_handler);
 PG_FUNCTION_INFO_V1(tds_fdw_validator);
@@ -371,7 +372,7 @@ static void tdsGetOptions(Oid foreigntableid, char **address, int *port,
 	#endif
 	
 	f_table = GetForeignTable(foreigntableid);
-	f_serber = GetForeignServer(f_table->serverid);
+	f_server = GetForeignServer(f_table->serverid);
 	f_mapping = GetUserMapping(GetUserId(), f_table->serverid);
 	
 	options = NIL;
@@ -471,7 +472,15 @@ static void tdsGetOptions(Oid foreigntableid, char **address, int *port,
 	
 	if (!*address)
 	{
-		*address = DEFAULT_ADDRESS;
+		if ((*address = palloc((strlen(DEFAULT_ADDRESS) + 1) * sizeof(char))) == NULL)
+        	{
+                	ereport(ERROR,
+                        	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                                	errmsg("Failed to allocate memory for connection string")
+                        	));
+        	}
+
+		sprintf(*address, "%s", DEFAULT_ADDRESS);
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
@@ -497,7 +506,7 @@ static void tdsGetOptions(Oid foreigntableid, char **address, int *port,
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_SYNTAX_ERROR),
-				erromsg("Either a table or a query must be specified")
+				errmsg("Either a table or a query must be specified")
 			));
 	}
 	
@@ -550,7 +559,7 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	#endif
 	
 	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_address, 
-		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, %svr_table);
+		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
 		
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -892,7 +901,7 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 							));
 					#endif
 					
-					if (dbwillconvert(col_Type, SYBCHAR) != FALSE)
+					if (dbwillconvert(col_type, SYBCHAR) != FALSE)
 					{
 						DBINT data_len;
 						BYTE* data;
@@ -1063,6 +1072,8 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 			(errmsg("----> finishing tdsIterateForeignScan")
 			));
 	#endif
+
+	return slot;
 }
 
 /* rescan foreign table */
@@ -1145,9 +1156,10 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 	LOGINREC *login;
 	DBPROCESS *dbproc;
 	RETCODE erc;
+	int ret_code;
 	char *conn_string;
 	char *query;
-	char error_str[1000];
+	char err_str[1000];
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1156,7 +1168,7 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 	#endif
 	
 	tdsGetOptions(foreigntableid, &svr_address, 
-		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, %svr_table);
+		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
 		
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1365,15 +1377,12 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 		
 		baserel->rows = 0;
 		
-		if ((ret_code = dbnextrow(festate->dbproc)) != NO_MORE_ROWS)
+		if ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
 		{
-			int ncols, ncol;
-			char **values;
-		
 			switch (ret_code)
 			{
 				case REG_ROW:
-					row++;
+					rows++;
 					break;
 				case BUF_FULL:
 					sprintf(err_str, "Buffer filled up getting plan for query");
@@ -1396,7 +1405,7 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
-				(errmsg("We counted %i rows, and dbcount says %i rows", row, (int) baserel->rows);
+				(errmsg("We counted %i rows, and dbcount says %i rows", rows, (int) baserel->rows);
 				));
 		#endif		
 	}
@@ -1426,11 +1435,6 @@ cleanup_before_login:
 	
 cleanup_before_init:
 	;
-	
-	ereport(ERROR,
-		(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-		errmsg(err_str)
-		));
 }
 
 static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *startup_cost, Cost *total_cost, Oid foreigntableid)
@@ -1450,7 +1454,7 @@ static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *start
 	#endif
 	
 	tdsGetOptions(foreigntableid, &svr_address, 
-		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, %svr_table);	
+		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);	
 	
 	
 	if (strcmp(svr_address, "127.0.0.1") == 0 || strcmp(svr_address, "localhost") == 0)
@@ -1864,6 +1868,8 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
 			errmsg("----> finishing tds_err_handler")
 			));
 	#endif
+
+	return INT_CANCEL;
 }
 
 int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line)
@@ -1884,4 +1890,6 @@ int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, 
 			errmsg("----> finishing tds_msg_handler")
 			));
 	#endif
+
+	return 0;
 }
