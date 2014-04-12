@@ -1163,7 +1163,7 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tdsGetForeignRelSize")
+			(errmsg("----> starting tdsGetForeignRelSize")
 			));
 	#endif
 	
@@ -1405,7 +1405,7 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
-				(errmsg("We counted %i rows, and dbcount says %i rows", rows, (int) baserel->rows);
+				(errmsg("We counted %i rows, and dbcount says %i rows", rows, (int) baserel->rows)
 				));
 		#endif		
 	}
@@ -1418,7 +1418,7 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> finishing tdsGetForeignRelSize")
+			(errmsg("----> finishing tdsGetForeignRelSize")
 			));
 	#endif
 	
@@ -1449,7 +1449,7 @@ static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *start
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tdsEstimateCosts")
+			(errmsg("----> starting tdsEstimateCosts")
 			));
 	#endif
 	
@@ -1466,7 +1466,7 @@ static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *start
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> finishing tdsEstimateCosts")
+			(errmsg("----> finishing tdsEstimateCosts")
 			));
 	#endif
 }
@@ -1478,7 +1478,7 @@ static void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid forei
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tdsGetForeignPaths")
+			(errmsg("----> starting tdsGetForeignPaths")
 			));
 	#endif
 	
@@ -1490,7 +1490,7 @@ static void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid forei
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> finishing tdsGetForeignPaths")
+			(errmsg("----> finishing tdsGetForeignPaths")
 			));
 	#endif
 }
@@ -1499,13 +1499,13 @@ static bool tdsAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *fun
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tdsAnalyzeForeignTable")
+			(errmsg("----> starting tdsAnalyzeForeignTable")
 			));
 	#endif
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> finishing tdsAnalyzeForeignTable")
+			(errmsg("----> finishing tdsAnalyzeForeignTable")
 			));
 	#endif
 	
@@ -1518,7 +1518,7 @@ static ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	Index scan_relid = baserel->relid;
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tdsGetForeignPlan")
+			(errmsg("----> starting tdsGetForeignPlan")
 			));
 	#endif
 	
@@ -1526,7 +1526,7 @@ static ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> finishing tdsGetForeignPlan")
+			(errmsg("----> finishing tdsGetForeignPlan")
 			));
 	#endif
 	
@@ -1555,7 +1555,7 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tdsPlanForeignScan")
+			(errmsg("----> starting tdsPlanForeignScan")
 			));
 	#endif
 	
@@ -1853,7 +1853,7 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tds_err_handler")
+			(errmsg("----> starting tds_err_handler")
 			));
 	#endif
 	
@@ -1865,7 +1865,7 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> finishing tds_err_handler")
+			(errmsg("----> finishing tds_err_handler")
 			));
 	#endif
 
@@ -1876,7 +1876,7 @@ int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, 
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> starting tds_msg_handler")
+			(errmsg("----> starting tds_msg_handler")
 			));
 	#endif
 	
@@ -1887,7 +1887,7 @@ int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, 
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			errmsg("----> finishing tds_msg_handler")
+			(errmsg("----> finishing tds_msg_handler")
 			));
 	#endif
 
