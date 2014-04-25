@@ -68,7 +68,7 @@ typedef struct TdsFdwOption
 
 static struct TdsFdwOption valid_options[] =
 {
-	{ "address",		ForeignServerRelationId },
+	{ "servername",		ForeignServerRelationId },
 	{ "port",			ForeignServerRelationId },
 	{ "username",		UserMappingRelationId },
 	{ "password",		UserMappingRelationId },
@@ -140,11 +140,7 @@ int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, 
 
 /* default IP address */
 
-static const char *DEFAULT_ADDRESS = "127.0.0.1";
-
-/* default port */
-
-static const int DEFAULT_PORT = 5000;
+static const char *DEFAULT_SERVERNAME = "127.0.0.1";
 
 Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 {
@@ -184,7 +180,7 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 {
 	List *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
 	Oid catalog = PG_GETARG_OID(1);
-	char *svr_address = NULL;
+	char *svr_servername = NULL;
 	int svr_port = 0;
 	char *svr_username = NULL;
 	char *svr_password = NULL;
@@ -228,15 +224,15 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 				));
 		}
 		
-		if (strcmp(def->defname, "address") == 0)
+		if (strcmp(def->defname, "servername") == 0)
 		{
-			if (svr_address)
+			if (svr_servername)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Redundant option: address (%s)", defGetString(def))
+						errmsg("Redundant option: servername (%s)", defGetString(def))
 					));
 					
-			svr_address = defGetString(def);	
+			svr_servername = defGetString(def);	
 		}
 		
 		else if (strcmp(def->defname, "port") == 0)
@@ -356,7 +352,7 @@ static bool tdsIsValidOption(const char *option, Oid context)
 
 /* get options for FOREIGN TABLE and FOREIGN SERVER objects using this module */
 
-static void tdsGetOptions(Oid foreigntableid, char **address, int *port, 
+static void tdsGetOptions(Oid foreigntableid, char **servername, int *port, 
 	char **username, char **password, char **database, char **query, char **table)
 {
 	ForeignTable *f_table;
@@ -390,13 +386,13 @@ static void tdsGetOptions(Oid foreigntableid, char **address, int *port,
 				));
 		#endif
 		
-		if (strcmp(def->defname, "address") == 0)
+		if (strcmp(def->defname, "servername") == 0)
 		{
-			*address = defGetString(def);
+			*servername = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Address is %s", *address)
+					(errmsg("Servername is %s", *servername)
 					));
 			#endif
 		}
@@ -470,9 +466,9 @@ static void tdsGetOptions(Oid foreigntableid, char **address, int *port,
 	
 	/* Default values, if not set */
 	
-	if (!*address)
+	if (!*servername)
 	{
-		if ((*address = palloc((strlen(DEFAULT_ADDRESS) + 1) * sizeof(char))) == NULL)
+		if ((*servername = palloc((strlen(DEFAULT_SERVERNAME) + 1) * sizeof(char))) == NULL)
         	{
                 	ereport(ERROR,
                         	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
@@ -480,22 +476,11 @@ static void tdsGetOptions(Oid foreigntableid, char **address, int *port,
                         	));
         	}
 
-		sprintf(*address, "%s", DEFAULT_ADDRESS);
+		sprintf(*servername, "%s", DEFAULT_SERVERNAME);
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
-				(errmsg("Set address to default: %s", *address)
-				));
-		#endif
-	}
-	
-	if (!*port)
-	{
-		*port = DEFAULT_PORT;
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Set port to default: %i", *port)
+				(errmsg("Set servername to default: %s", *servername)
 				));
 		#endif
 	}
@@ -538,7 +523,7 @@ static void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
 
 static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 {
-	char *svr_address = NULL;
+	char *svr_servername = NULL;
 	int svr_port = 0;
 	char *svr_username = NULL;
 	char *svr_password = NULL;
@@ -558,7 +543,7 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 			));
 	#endif
 	
-	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_address, 
+	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_servername, 
 		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
 		
 	#ifdef DEBUG
@@ -608,7 +593,7 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	
 	DBSETLPWD(login, svr_password);	
 	
-	if ((conn_string = palloc((strlen(svr_address) + 10) * sizeof(char))) == NULL)
+	if ((conn_string = palloc((strlen(svr_servername) + 10) * sizeof(char))) == NULL)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
@@ -618,12 +603,12 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	
 	if (svr_port)
 	{
-		sprintf(conn_string, "%s:%i", svr_address, svr_port);
+		sprintf(conn_string, "%s:%i", svr_servername, svr_port);
 	}
 	
 	else
 	{
-		sprintf(conn_string, "%s", svr_address);
+		sprintf(conn_string, "%s", svr_servername);
 	}
 	
 	#ifdef DEBUG
