@@ -69,6 +69,8 @@ typedef struct TdsFdwOption
 static struct TdsFdwOption valid_options[] =
 {
 	{ "servername",		ForeignServerRelationId },
+	{ "language",		ForeignServerRelationId },
+	{ "character_set",		ForeignServerRelationId },
 	{ "port",			ForeignServerRelationId },
 	{ "username",		UserMappingRelationId },
 	{ "password",		UserMappingRelationId },
@@ -131,7 +133,7 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 /* Helper functions */
 
 static bool tdsIsValidOption(const char *option, Oid context);
-static void tdsGetOptions(Oid foreigntableid, char **address, int *port, char **username, char **password, char **database, char **query, char **table);
+static void tdsGetOptions(Oid foreigntableid, char **servername, char **language, char **character_set, int *port, char **username, char **password, char **database, char **query, char **table);
 
 /* Helper functions for DB-Library API */
 
@@ -181,6 +183,8 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 	List *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
 	Oid catalog = PG_GETARG_OID(1);
 	char *svr_servername = NULL;
+	char *svr_language = NULL;
+	char *svr_charset = NULL;
 	int svr_port = 0;
 	char *svr_username = NULL;
 	char *svr_password = NULL;
@@ -233,6 +237,28 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 					));
 					
 			svr_servername = defGetString(def);	
+		}
+		
+		else if (strcmp(def->defname, "language") == 0)
+		{
+			if (svr_language)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: language (%s)", defGetString(def))
+					));
+					
+			svr_language = defGetString(def);	
+		}
+		
+		else if (strcmp(def->defname, "character_set") == 0)
+		{
+			if (svr_charset)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: character_set (%s)", defGetString(def))
+					));
+					
+			svr_charset = defGetString(def);	
 		}
 		
 		else if (strcmp(def->defname, "port") == 0)
@@ -352,7 +378,7 @@ static bool tdsIsValidOption(const char *option, Oid context)
 
 /* get options for FOREIGN TABLE and FOREIGN SERVER objects using this module */
 
-static void tdsGetOptions(Oid foreigntableid, char **servername, int *port, 
+static void tdsGetOptions(Oid foreigntableid, char **servername, char** language, char** character_set, int *port, 
 	char **username, char **password, char **database, char **query, char **table)
 {
 	ForeignTable *f_table;
@@ -393,6 +419,28 @@ static void tdsGetOptions(Oid foreigntableid, char **servername, int *port,
 			#ifdef DEBUG
 				ereport(NOTICE,
 					(errmsg("Servername is %s", *servername)
+					));
+			#endif
+		}
+		
+		else if (strcmp(def->defname, "language") == 0)
+		{
+			*language = defGetString(def);
+			
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Language is %s", *language)
+					));
+			#endif
+		}
+		
+		else if (strcmp(def->defname, "character_set") == 0)
+		{
+			*character_set = defGetString(def);
+			
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Character set is %s", *character_set)
 					));
 			#endif
 		}
@@ -524,6 +572,8 @@ static void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
 static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 {
 	char *svr_servername = NULL;
+	char* svr_language = NULL;
+	char* svr_charset = NULL;
 	int svr_port = 0;
 	char *svr_username = NULL;
 	char *svr_password = NULL;
@@ -543,8 +593,8 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 			));
 	#endif
 	
-	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_servername, 
-		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
+	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_servername, &svr_language,
+		&svr_charset, &svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
 		
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -592,6 +642,28 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	#endif
 	
 	DBSETLPWD(login, svr_password);	
+	
+	if (svr_charset)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login character set to %s", svr_charset)
+				));
+		#endif
+	
+		DBSETLCHARSET(login, svr_charset);
+	}
+	
+	if (svr_language)
+	{
+		DBSETLNATLANG(login, svr_language);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login language to %s", svr_language)
+				));
+		#endif
+	}
 	
 	if ((conn_string = palloc((strlen(svr_servername) + 10) * sizeof(char))) == NULL)
 	{
@@ -1131,7 +1203,9 @@ static void tdsEndForeignScan(ForeignScanState *node)
 
 static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 {
-	char *svr_address = NULL;
+	char *svr_servername = NULL;
+	char *svr_language = NULL;
+	char *svr_charset = NULL;
 	int svr_port = 0;
 	char *svr_username = NULL;
 	char *svr_password = NULL;
@@ -1152,7 +1226,7 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 			));
 	#endif
 	
-	tdsGetOptions(foreigntableid, &svr_address, 
+	tdsGetOptions(foreigntableid, &svr_servername, &svr_language, &svr_charset, 
 		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
 		
 	#ifdef DEBUG
@@ -1196,9 +1270,31 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 			));
 	#endif
 	
-	DBSETLPWD(login, svr_password);	
+	DBSETLPWD(login, svr_password);
 	
-	if ((conn_string = palloc((strlen(svr_address) + 10) * sizeof(char))) == NULL)
+	if (svr_charset)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login character set to %s", svr_charset)
+				));
+		#endif
+	
+		DBSETLCHARSET(login, svr_charset);
+	}
+	
+	if (svr_language)
+	{
+		DBSETLNATLANG(login, svr_language);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login language to %s", svr_language)
+				));
+		#endif
+	}
+	
+	if ((conn_string = palloc((strlen(svr_servername) + 10) * sizeof(char))) == NULL)
 	{
 		sprintf(err_str, "Failed to allocate memory for connection string");
 		goto cleanup_before_open;
@@ -1206,12 +1302,12 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 	
 	if (svr_port)
 	{
-		sprintf(conn_string, "%s:%i", svr_address, svr_port);
+		sprintf(conn_string, "%s:%i", svr_servername, svr_port);
 	}
 	
 	else
 	{
-		sprintf(conn_string, "%s", svr_address);
+		sprintf(conn_string, "%s", svr_servername);
 	}
 	
 	#ifdef DEBUG
@@ -1424,7 +1520,9 @@ cleanup_before_init:
 
 static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *startup_cost, Cost *total_cost, Oid foreigntableid)
 {
-	char *svr_address = NULL;
+	char *svr_servername = NULL;
+	char *svr_language = NULL;
+	char *svr_charset = NULL;
 	int svr_port = 0;
 	char *svr_username = NULL;
 	char *svr_password = NULL;
@@ -1438,11 +1536,11 @@ static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *start
 			));
 	#endif
 	
-	tdsGetOptions(foreigntableid, &svr_address, 
+	tdsGetOptions(foreigntableid, &svr_servername, &svr_language, &svr_charset,
 		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);	
 	
 	
-	if (strcmp(svr_address, "127.0.0.1") == 0 || strcmp(svr_address, "localhost") == 0)
+	if (strcmp(svr_servername, "127.0.0.1") == 0 || strcmp(svr_servername, "localhost") == 0)
 		*startup_cost = 0;
 	else
 		*startup_cost = 25;
