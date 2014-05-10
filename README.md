@@ -7,11 +7,11 @@
 
 ## About
 
-This is a PostgreSQL foreign data wrapper for use to connect to databases that use TDS,
+This is a PostgreSQL foreign data wrapper for use to connect to databases that use the [Tabular Data Stream (TDS) protocol](http://en.wikipedia.org/wiki/Tabular_Data_Stream),
 such as Sybase databases and Microsoft SQL server.
 
 This foreign data wrapper requires requires a library that uses the DB-Library interface,
-such as FreeTDS (http://www.freetds.org/). This has been tested with FreeTDS, but not
+such as [FreeTDS](http://www.freetds.org). This has been tested with FreeTDS, but not
 the proprietary implementations of DB-Library.
 
 This was written to support PostgreSQL 9.1 and 9.2. It does not support write operations, 
@@ -23,7 +23,7 @@ Building was accomplished by doing the following under CentOS 6. Other Linux pla
 
 ### Install EPEL
 
-In CentOS, you need the EPEL to install FreeTDS.
+In CentOS, you need the [EPEL](https://fedoraproject.org/wiki/EPEL) to install FreeTDS.
 
 ```bash
 wget http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
@@ -39,6 +39,8 @@ sudo yum install freetds freetds-devel
 ### Build for PostgreSQL 9.1
 
 #### Install PostgreSQL 9.1
+
+Install PostgreSQL 9.1 via [yum](http://yum.postgresql.org/).
 
 ```bash
 wget http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/pgdg-centos91-9.1-4.noarch.rpm
@@ -68,6 +70,8 @@ postgres=# CREATE EXTENSION tds_fdw;
 
 #### Install PostgreSQL 9.2
 
+Install PostgreSQL 9.2 via [yum](http://yum.postgresql.org/).
+
 ```bash
 wget http://yum.postgresql.org/9.2/redhat/rhel-6-x86_64/pgdg-centos92-9.2-6.noarch.rpm
 sudo rpm -ivh pgdg-centos92-9.2-6.noarch.rpm
@@ -94,43 +98,47 @@ postgres=# CREATE EXTENSION tds_fdw;
 
 ## Usage
 
-The usage of tds_fdw is similar to mysql_fdw created by Dave Page.
+The usage of tds_fdw is similar to [mysql_fdw](https://github.com/dpage/mysql_fdw).
 
 ### Foreign server
 
 Foreign server parameters accepted:
 
 * *servername*		
-The servername, address or hostname of the foreign server server.
+Required: Yes
+
 Default: 127.0.0.1
 
-This can be a DSN, as specified in freetds.conf. See:
-http://www.freetds.org/userguide/name.lookup.htm
+The servername, address or hostname of the foreign server server.
+
+This can be a DSN, as specified in *freetds.conf*. See [FreeTDS name lookup](http://www.freetds.org/userguide/name.lookup.htm).
 				
 * *port*			
-The port of the foreign server.
-No Default (Optional. Instead, port can be in freetds.conf.)
+Required: No
+
+The port of the foreign server. This is optional. Instead of providing a port
+here, it can be specified in *freetds.conf* (if *servername* is a DSN).
 				
-* *language*		
+* *language*
+Required: No
+	
 The language to use for messages and the locale to use for date formats.
-No Default (Optional. FreeTDS may default to 'us_english' on most systems.)
+FreeTDS may default to *us_english* on most systems. You can probably also change
+this in freetds.conf.
 
-For information related to this for MS SQL Server, see:
-http://technet.microsoft.com/en-us/library/ms174398.aspx
+For information related to this for MS SQL Server, see [SET LANGUAGE in MS SQL Server](http://technet.microsoft.com/en-us/library/ms174398.aspx).
 
-For information related to Sybase ASE, see:
-http://infocenter.sybase.com/help/topic/com.sybase.infocenter.dc32300.1570/html/sqlug/X68290.htm
-and
-http://infocenter.sybase.com/help/topic/com.sybase.infocenter.dc36272.1572/html/commands/X64136.htm
+For information related to Sybase ASE, see [Sybase ASE login options](http://infocenter.sybase.com/help/topic/com.sybase.infocenter.dc32300.1570/html/sqlug/X68290.htm)
+and [SET LANGUAGE in Sybase ASE](http://infocenter.sybase.com/help/topic/com.sybase.infocenter.dc36272.1572/html/commands/X64136.htm).
 				
-* *character_set*	
+* *character_set*
+Required: No
+
 The client character set to use for the connection, if you need to set this 
 for some reason.
-No Default
 
 For TDS protocol versions 7.0+, the connection always uses UCS-2, so
-this parameter does nothing in those cases. See:
-http://www.freetds.org/userguide/localization.htm
+this parameter does nothing in those cases. See [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).
 				
 
 #### Foreign server example
@@ -145,21 +153,25 @@ CREATE SERVER mssql_svr
 	
 Foreign table parameters accepted:
 
-* *database*		
-The database name that the foreign table is a part of.
-Default: NULL
+* *database*
+Required: No
+	
+The database name that the foreign table is a part of. Since you can set your default login
+database on the server-side, this is optional.
 				
-* *query*			
+* *query*
+Required: Yes (mutually exclusive with *table*)
+	
 The query string to use to query the foreign table.
-Default: NULL
 				
-* *table*			
+* *table*
+Required: Yes (mutually exclusive with *query*)	
+
 The table on the foreign server to query.
-Default: NULL
-				
-The query and table paramters are mutually exclusive.
 
 #### Foreign table example
+
+Using a *table* definition:
 
 ```SQL
 CREATE FOREIGN TABLE mssql_table (
@@ -169,7 +181,7 @@ CREATE FOREIGN TABLE mssql_table (
 	OPTIONS (database 'mydb', table 'dbo.mytable');
 ```
 	
-Or:
+Or using a *query* definition:
 
 ```SQL
 CREATE FOREIGN TABLE mssql_table (
@@ -183,13 +195,15 @@ CREATE FOREIGN TABLE mssql_table (
 	
 User mapping parameters accepted:
 
-* *username*		
+* *username*	
+Required: Yes
+	
 The username of the account on the foreign server.
-Default: NULL
 				
-* *password*		
+* *password*	
+Required: Yes
+	
 The password of the account on the foreign server.
-Default: NULL
 
 #### User mapping example
 
@@ -209,16 +223,10 @@ CREATE USER MAPPING FOR postgres
 > ERROR:  DB-Library error: DB #: 4004, DB Msg: General SQL Server error: Check messages from 
 > the SQL Server, OS #: -1, OS Msg: (null), Level: 16
 
-You may have to manually set "tds version" in freetds.conf to 7.0 or higher. See:
-
-http://www.freetds.org/userguide/freetdsconf.htm
-and
-http://www.freetds.org/userguide/choosingtdsprotocol.htm
+You may have to manually set *tds version* in *freetds.conf* to 7.0 or higher. See [The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm).
+and [Choosing a TDS protocol version](http://www.freetds.org/userguide/choosingtdsprotocol.htm).
 
 2.) Although many newer versions of the TDS protocol will only use USC-2 to communicate
 with the server, FreeTDS converts the UCS-2 to the client character set of your choice.
-To set the client character set, you can set "client charset" in freetds.conf. See:
-
-http://www.freetds.org/userguide/freetdsconf.htm
-and
-http://www.freetds.org/userguide/localization.htm
+To set the client character set, you can set *client charset* in *freetds.conf*. See 
+[The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm) and [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).
