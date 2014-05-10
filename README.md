@@ -7,7 +7,7 @@
 
 ## About
 
-This is a PostgreSQL foreign data wrapper for use to connect to databases that use the [Tabular Data Stream (TDS) protocol](http://en.wikipedia.org/wiki/Tabular_Data_Stream),
+This is a [PostgreSQL foreign data wrapper](http://wiki.postgresql.org/wiki/Foreign_data_wrappers) that can connect to databases that use the [Tabular Data Stream (TDS) protocol](http://en.wikipedia.org/wiki/Tabular_Data_Stream),
 such as Sybase databases and Microsoft SQL server.
 
 This foreign data wrapper requires requires a library that uses the DB-Library interface,
