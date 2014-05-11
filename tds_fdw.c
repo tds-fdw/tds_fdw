@@ -64,6 +64,8 @@ typedef struct TdsFdwOption
 	Oid optcontext;
 } TdsFdwOption;
 
+
+
 /* these are valid options */
 
 static struct TdsFdwOption valid_options[] =
@@ -79,6 +81,21 @@ static struct TdsFdwOption valid_options[] =
 	{ "table",			ForeignTableRelationId },
 	{ NULL,				InvalidOid }
 };
+
+/* option values will be put here */
+
+typedef struct TdsFdwOptionSet
+{
+	char *servername;
+	char *language;
+	char *character_set;
+	int port;
+	char *username;
+	char *password;
+	char *database;
+	char *query;
+	char *table;
+} TdsFdwOptionSet;
 
 /* a column */
 
@@ -133,7 +150,11 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 /* Helper functions */
 
 static bool tdsIsValidOption(const char *option, Oid context);
-static void tdsGetOptions(Oid foreigntableid, char **servername, char **language, char **character_set, int *port, char **username, char **password, char **database, char **query, char **table);
+static void tdsOptionSetInit(TdsFdwOptionSet* option_set);
+static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set);
+static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc);
+static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
+static int tdsGetStartupCost(TdsFdwOptionSet* option_set);
 
 /* Helper functions for DB-Library API */
 
@@ -182,15 +203,7 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 {
 	List *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
 	Oid catalog = PG_GETARG_OID(1);
-	char *svr_servername = NULL;
-	char *svr_language = NULL;
-	char *svr_charset = NULL;
-	int svr_port = 0;
-	char *svr_username = NULL;
-	char *svr_password = NULL;
-	char *svr_database = NULL;
-	char *svr_query = NULL;
-	char *svr_table = NULL;
+	TdsFdwOptionSet option_set;
 	ListCell *cell;
 	
 	#ifdef DEBUG
@@ -198,6 +211,8 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 			(errmsg("----> starting tds_fdw_validator")
 			));
 	#endif
+	
+	tdsOptionSetInit(&option_set);	
 	
 	foreach (cell, options_list)
 	{
@@ -230,113 +245,113 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 		
 		if (strcmp(def->defname, "servername") == 0)
 		{
-			if (svr_servername)
+			if (option_set.servername)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: servername (%s)", defGetString(def))
 					));
 					
-			svr_servername = defGetString(def);	
+			option_set.servername = defGetString(def);	
 		}
 		
 		else if (strcmp(def->defname, "language") == 0)
 		{
-			if (svr_language)
+			if (option_set.language)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: language (%s)", defGetString(def))
 					));
 					
-			svr_language = defGetString(def);	
+			option_set.language = defGetString(def);	
 		}
 		
 		else if (strcmp(def->defname, "character_set") == 0)
 		{
-			if (svr_charset)
+			if (option_set.character_set)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: character_set (%s)", defGetString(def))
 					));
 					
-			svr_charset = defGetString(def);	
+			option_set.character_set = defGetString(def);	
 		}
 		
 		else if (strcmp(def->defname, "port") == 0)
 		{
-			if (svr_port)
+			if (option_set.port)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: port (%s)", defGetString(def))
 					));
 					
-			svr_port = atoi(defGetString(def));	
+			option_set.port = atoi(defGetString(def));	
 		}
 		
 		else if (strcmp(def->defname, "username") == 0)
 		{
-			if (svr_username)
+			if (option_set.username)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: username (%s)", defGetString(def))
 					));
 					
-			svr_username = defGetString(def);	
+			option_set.username = defGetString(def);	
 		}
 		
 		else if (strcmp(def->defname, "password") == 0)
 		{
-			if (svr_password)
+			if (option_set.password)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: password (%s)", defGetString(def))
 					));
 					
-			svr_password = defGetString(def);
+			option_set.password = defGetString(def);
 		}
 		
 		else if (strcmp(def->defname, "database") == 0)
 		{
-			if (svr_database)
+			if (option_set.database)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: database (%s)", defGetString(def))
 					));
 					
-			svr_database = defGetString(def);
+			option_set.database = defGetString(def);
 		}
 		
 		else if (strcmp(def->defname, "query") == 0)
 		{
-			if (svr_table)
+			if (option_set.table)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Conflicting options: query cannot be used with table")
 					));
 					
-			if (svr_query)
+			if (option_set.query)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: query (%s)", defGetString(def))
 					));
 					
-			svr_query = defGetString(def);
+			option_set.query = defGetString(def);
 		}
 		
 		else if (strcmp(def->defname, "table") == 0)
 		{
-			if (svr_query)
+			if (option_set.query)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Conflicting options: table cannot be used with query")
 					));
 					
-			if (svr_table)
+			if (option_set.table)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: table (%s)", defGetString(def))
 					));
 					
-			svr_table = defGetString(def);
+			option_set.table = defGetString(def);
 		}
 	}
 	
@@ -376,10 +391,36 @@ static bool tdsIsValidOption(const char *option, Oid context)
 	return false;
 }
 
+/* initialize the option set */
+
+static void tdsOptionSetInit(TdsFdwOptionSet* option_set)
+{
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsOptionSetInit")
+			));
+	#endif
+
+	option_set->servername = NULL;
+	option_set->language = NULL;
+	option_set->character_set = NULL;
+	option_set->port = 0;
+	option_set->username = NULL;
+	option_set->password = NULL;
+	option_set->database = NULL;
+	option_set->query = NULL;
+	option_set->table = NULL;
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsOptionSetInit")
+			));
+	#endif	
+}
+
 /* get options for FOREIGN TABLE and FOREIGN SERVER objects using this module */
 
-static void tdsGetOptions(Oid foreigntableid, char **servername, char** language, char** character_set, int *port, 
-	char **username, char **password, char **database, char **query, char **table)
+static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set)
 {
 	ForeignTable *f_table;
 	ForeignServer *f_server;
@@ -392,6 +433,8 @@ static void tdsGetOptions(Oid foreigntableid, char **servername, char** language
 			(errmsg("----> starting tdsGetOptions")
 			));
 	#endif
+	
+	tdsOptionSetInit(option_set);
 	
 	f_table = GetForeignTable(foreigntableid);
 	f_server = GetForeignServer(f_table->serverid);
@@ -414,99 +457,99 @@ static void tdsGetOptions(Oid foreigntableid, char **servername, char** language
 		
 		if (strcmp(def->defname, "servername") == 0)
 		{
-			*servername = defGetString(def);
+			option_set->servername = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Servername is %s", *servername)
+					(errmsg("Servername is %s", option_set->servername)
 					));
 			#endif
 		}
 		
 		else if (strcmp(def->defname, "language") == 0)
 		{
-			*language = defGetString(def);
+			option_set->language = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Language is %s", *language)
+					(errmsg("Language is %s", option_set->language)
 					));
 			#endif
 		}
 		
 		else if (strcmp(def->defname, "character_set") == 0)
 		{
-			*character_set = defGetString(def);
+			option_set->character_set = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Character set is %s", *character_set)
+					(errmsg("Character set is %s", option_set->character_set)
 					));
 			#endif
 		}
 		
 		else if (strcmp(def->defname, "port") == 0)
 		{
-			*port = atoi(defGetString(def));
+			option_set->port = atoi(defGetString(def));
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Port is %i", *port)
+					(errmsg("Port is %i", option_set->port)
 					));
 			#endif
 		}
 		
 		else if (strcmp(def->defname, "username") == 0)
 		{
-			*username = defGetString(def);
+			option_set->username = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Username is %s", *username)
+					(errmsg("Username is %s", option_set->username)
 					));
 			#endif
 		}
 		
 		else if (strcmp(def->defname, "password") == 0)
 		{
-			*password = defGetString(def);
+			option_set->password = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Password is %s", *password)
+					(errmsg("Password is %s", option_set->password)
 					));
 			#endif
 		}
 
 		else if (strcmp(def->defname, "database") == 0)
 		{
-			*database = defGetString(def);
+			option_set->database = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Database is %s", *database)
+					(errmsg("Database is %s", option_set->database)
 					));
 			#endif
 		}
 
 		else if (strcmp(def->defname, "query") == 0)
 		{
-			*query = defGetString(def);
+			option_set->query = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Query is %s", *query)
+					(errmsg("Query is %s", option_set->query)
 					));
 			#endif
 		}
 
 		else if (strcmp(def->defname, "table") == 0)
 		{
-			*table = defGetString(def);
+			option_set->table = defGetString(def);
 			
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Table is %s", *table)
+					(errmsg("Table is %s", option_set->table)
 					));
 			#endif
 		}		
@@ -514,9 +557,9 @@ static void tdsGetOptions(Oid foreigntableid, char **servername, char** language
 	
 	/* Default values, if not set */
 	
-	if (!*servername)
+	if (!option_set->servername)
 	{
-		if ((*servername = palloc((strlen(DEFAULT_SERVERNAME) + 1) * sizeof(char))) == NULL)
+		if ((option_set->servername = palloc((strlen(DEFAULT_SERVERNAME) + 1) * sizeof(char))) == NULL)
         	{
                 	ereport(ERROR,
                         	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
@@ -524,18 +567,18 @@ static void tdsGetOptions(Oid foreigntableid, char **servername, char** language
                         	));
         	}
 
-		sprintf(*servername, "%s", DEFAULT_SERVERNAME);
+		sprintf(option_set->servername, "%s", DEFAULT_SERVERNAME);
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
-				(errmsg("Set servername to default: %s", *servername)
+				(errmsg("Set servername to default: %s", option_set->servername)
 				));
 		#endif
 	}
 	
 	/* Check required options */
 	
-	if (!*table && !*query)
+	if (!option_set->table && !option_set->query)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_SYNTAX_ERROR),
@@ -548,6 +591,367 @@ static void tdsGetOptions(Oid foreigntableid, char **servername, char** language
 			(errmsg("----> finishing tdsGetOptions")
 			));
 	#endif
+}
+
+/* set up connection */
+
+static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc)
+{
+	char* conn_string;
+	RETCODE erc;
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsSetupConnection")
+			));
+	#endif		
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Setting login user to %s", option_set->username)
+			));
+	#endif
+	
+	DBSETLUSER(login, option_set->username);
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Setting login password to %s", option_set->password)
+			));
+	#endif
+	
+	DBSETLPWD(login, option_set->password);	
+	
+	if (option_set->character_set)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login character set to %s", option_set->character_set)
+				));
+		#endif
+	
+		DBSETLCHARSET(login, option_set->character_set);
+	}
+	
+	if (option_set->language)
+	{
+		DBSETLNATLANG(login, option_set->language);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login language to %s", option_set->language)
+				));
+		#endif
+	}
+	
+	if ((conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char))) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to allocate memory for connection string")
+			));
+			
+		return -1;
+	}
+	
+	if (option_set->port)
+	{
+		sprintf(conn_string, "%s:%i", option_set->servername, option_set->port);
+	}
+	
+	else
+	{
+		sprintf(conn_string, "%s", option_set->servername);
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Connection string is %s", conn_string)
+			));
+		ereport(NOTICE,
+			(errmsg("Connecting to server")
+			));
+	#endif
+	
+	if ((*dbproc = dbopen(login, conn_string)) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+				errmsg("Failed to connect using connection string %s with user %s", conn_string, option_set->username)
+			));
+			
+		return -1;
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Connected successfully")
+			));
+	#endif
+	
+	pfree(conn_string);
+	
+	if (option_set->database)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Selecting database %s", option_set->database)
+				));
+		#endif
+		
+		if ((erc = dbuse(*dbproc, option_set->database)) == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+					errmsg("Failed to select database %s", option_set->database)
+				));
+				
+			return -1;
+		}
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Selected database")
+				));
+		#endif
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Getting query")
+			));
+	#endif
+	
+	if (option_set->query)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Query is explicitly set")
+				));
+		#endif
+	}
+	
+	else
+	{
+		size_t len;
+		static const char *query_prefix = "SELECT * FROM ";
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Building query using table")
+				));
+		#endif
+		
+		len = strlen(query_prefix) + strlen(option_set->table) + 1;
+		
+		if ((option_set->query = palloc(len * sizeof(char))) == NULL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+					errmsg("Failed to allocate memory for query")
+				));
+				
+			return -1;
+		}
+		
+		if (snprintf(option_set->query, len, "%s%s", query_prefix, option_set->table) < 0)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+					errmsg("Failed to build query")
+				));
+				
+			return -1;
+		}
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Value of query is %s", option_set->query)
+			));
+	#endif
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsSetupConnection")
+			));
+	#endif	
+	
+	return 0;
+}
+
+/* get the number of rows returned by a query */
+
+static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+{
+	int rows_report = 0;
+	int rows_increment = 0;
+	RETCODE erc;
+	int ret_code;
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsGetRowCount")
+			));
+	#endif		
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Setting database command to %s", option_set->query)
+			));
+	#endif
+	
+	if ((erc = dbcmd(dbproc, option_set->query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set current query to %s", option_set->query)
+			));		
+
+		goto cleanup;
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Executing the query")
+			));
+	#endif
+	
+	if ((erc = dbsqlexec(dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", option_set->query)
+			));	
+
+		goto cleanup;
+	}
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Query executed correctly")
+			));
+		ereport(NOTICE,
+			(errmsg("Getting results")
+			));				
+	#endif
+
+	erc = dbresults(dbproc);
+	
+	if (erc == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to get results from query %s", option_set->query)
+			));
+			
+		goto cleanup;
+	}
+	
+	else if (erc == NO_MORE_RESULTS)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("There appears to be no results from query %s", option_set->query)
+				));
+		#endif
+		
+		goto cleanup;
+	}
+	
+	else if (erc == SUCCEED)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Successfully got results")
+				));
+		#endif
+		
+		if ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			switch (ret_code)
+			{
+				case REG_ROW:
+					rows_increment++;
+					break;
+					
+				case BUF_FULL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+							errmsg("Buffer filled up while getting plan for query")
+						));					
+
+					goto cleanup;
+						
+				case FAIL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get row while getting plan for query")
+						));				
+
+					goto cleanup;
+				
+				default:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get plan for query. Unknown return code.")
+						));					
+
+					goto cleanup;
+			}
+		}
+		
+		rows_report = DBCOUNT(dbproc);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("We counted %i rows, and dbcount says %i rows", rows_increment, rows_report)
+				));
+		#endif		
+	}
+	
+	else
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Unknown return code getting results from query %s", option_set->query)
+			));		
+	}
+	
+cleanup:	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsGetRowCount")
+			));
+	#endif		
+	
+	return rows_report;
+}
+
+/* get the startup cost for the query */
+
+static int tdsGetStartupCost(TdsFdwOptionSet* option_set)
+{
+	int startup_cost;
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsGetStartupCost")
+			));
+	#endif	
+	
+	if (strcmp(option_set->servername, "127.0.0.1") == 0 || strcmp(option_set->servername, "localhost") == 0)
+		startup_cost = 0;
+	else
+		startup_cost = 25;
+		
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsGetStartupCost")
+			));
+	#endif		
+		
+	return startup_cost;
 }
 
 /* get output for EXPLAIN */
@@ -571,21 +975,10 @@ static void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
 
 static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 {
-	char *svr_servername = NULL;
-	char* svr_language = NULL;
-	char* svr_charset = NULL;
-	int svr_port = 0;
-	char *svr_username = NULL;
-	char *svr_password = NULL;
-	char *svr_database = NULL;
-	char *svr_query = NULL;
-	char *svr_table = NULL;
+	TdsFdwOptionSet option_set;
 	LOGINREC *login;
 	DBPROCESS *dbproc;
-	RETCODE erc;
 	TdsFdwExecutionState *festate;
-	char *conn_string;
-	char *query;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -593,8 +986,7 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 			));
 	#endif
 	
-	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &svr_servername, &svr_language,
-		&svr_charset, &svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
+	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &option_set);
 		
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -627,156 +1019,10 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 			));
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login user to %s", svr_username)
-			));
-	#endif
-	
-	DBSETLUSER(login, svr_username);
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login password to %s", svr_password)
-			));
-	#endif
-	
-	DBSETLPWD(login, svr_password);	
-	
-	if (svr_charset)
+	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login character set to %s", svr_charset)
-				));
-		#endif
-	
-		DBSETLCHARSET(login, svr_charset);
+		goto cleanup;
 	}
-	
-	if (svr_language)
-	{
-		DBSETLNATLANG(login, svr_language);
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login language to %s", svr_language)
-				));
-		#endif
-	}
-	
-	if ((conn_string = palloc((strlen(svr_servername) + 10) * sizeof(char))) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-				errmsg("Failed to allocate memory for connection string")
-			));
-	}
-	
-	if (svr_port)
-	{
-		sprintf(conn_string, "%s:%i", svr_servername, svr_port);
-	}
-	
-	else
-	{
-		sprintf(conn_string, "%s", svr_servername);
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connection string is %s", conn_string)
-			));
-		ereport(NOTICE,
-			(errmsg("Connecting to server")
-			));
-	#endif
-	
-	if ((dbproc = dbopen(login, conn_string)) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-				errmsg("Failed to connect using connection string %s with user %s", conn_string, svr_username)
-			));
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connected successfully")
-			));
-	#endif
-	
-	pfree(conn_string);
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Selecting database %s", svr_database)
-			));
-	#endif
-	
-	if ((erc = dbuse(dbproc, svr_database)) == FAIL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-				errmsg("Failed to select database %s", svr_database)
-			));
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Selected database")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting query")
-			));
-	#endif
-	
-	if (svr_query)
-	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Query is explicitly set")
-				));
-		#endif
-		
-		query = svr_query;
-	}
-	
-	else
-	{
-		size_t len;
-		static const char *query_prefix = "SELECT * FROM ";
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Building query using table")
-				));
-		#endif
-		
-		len = strlen(query_prefix) + strlen(svr_table) + 1;
-		
-		if ((query = palloc(len * sizeof(char))) == NULL)
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-					errmsg("Failed to allocate memory for query")
-				));
-		}
-		
-		if (snprintf(query, len, "%s%s", query_prefix, svr_table) < 0)
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-					errmsg("Failed to build query")
-				));
-		}
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Value of query is %s", query)
-			));
-	#endif	
 	
 	if ((festate = (TdsFdwExecutionState *) palloc(sizeof(TdsFdwExecutionState))) == NULL)
 	{
@@ -789,9 +1035,12 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	node->fdw_state = (void *) festate;
 	festate->login = login;
 	festate->dbproc = dbproc;
-	festate->query = query;
+	festate->query = option_set.query;
 	festate->first = 1;
 	festate->row = 0;
+	
+cleanup:
+	;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1203,22 +1452,9 @@ static void tdsEndForeignScan(ForeignScanState *node)
 
 static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 {
-	char *svr_servername = NULL;
-	char *svr_language = NULL;
-	char *svr_charset = NULL;
-	int svr_port = 0;
-	char *svr_username = NULL;
-	char *svr_password = NULL;
-	char *svr_database = NULL;
-	char *svr_query = NULL;
-	char *svr_table = NULL;
+	TdsFdwOptionSet option_set;
 	LOGINREC *login;
 	DBPROCESS *dbproc;
-	RETCODE erc;
-	int ret_code;
-	char *conn_string;
-	char *query;
-	char err_str[1000];
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1226,8 +1462,7 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 			));
 	#endif
 	
-	tdsGetOptions(foreigntableid, &svr_servername, &svr_language, &svr_charset, 
-		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);
+	tdsGetOptions(foreigntableid, &option_set);
 		
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1237,7 +1472,10 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 	
 	if (dbinit() == FAIL)
 	{
-		sprintf(err_str, "Failed to initialize DB-Library environment");
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library environment")
+			));
 		goto cleanup_before_init;
 	}
 	
@@ -1252,263 +1490,23 @@ static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 	
 	if ((login = dblogin()) == NULL)
 	{
-		sprintf(err_str, "Failed to initialize DB-Library login structure");
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library login structure")
+			));
 		goto cleanup_before_login;
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login user to %s", svr_username)
-			));
-	#endif
-	
-	DBSETLUSER(login, svr_username);
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login password to %s", svr_password)
-			));
-	#endif
-	
-	DBSETLPWD(login, svr_password);
-	
-	if (svr_charset)
+	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login character set to %s", svr_charset)
-				));
-		#endif
-	
-		DBSETLCHARSET(login, svr_charset);
-	}
-	
-	if (svr_language)
-	{
-		DBSETLNATLANG(login, svr_language);
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login language to %s", svr_language)
-				));
-		#endif
-	}
-	
-	if ((conn_string = palloc((strlen(svr_servername) + 10) * sizeof(char))) == NULL)
-	{
-		sprintf(err_str, "Failed to allocate memory for connection string");
-		goto cleanup_before_open;
-	}
-	
-	if (svr_port)
-	{
-		sprintf(conn_string, "%s:%i", svr_servername, svr_port);
-	}
-	
-	else
-	{
-		sprintf(conn_string, "%s", svr_servername);
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connection string is %s", conn_string)
-			));
-		ereport(NOTICE,
-			(errmsg("Connecting to server")
-			));
-	#endif
-	
-	if ((dbproc = dbopen(login, conn_string)) == NULL)
-	{
-		pfree(conn_string);
-		sprintf(err_str, "Failed to connect using connection string %s with user %s", conn_string, svr_username);
-		goto cleanup_before_open;
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connected successfully")
-			));
-	#endif
-	
-	pfree(conn_string);
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Selecting database %s", svr_database)
-			));
-	#endif
-	
-	if ((erc = dbuse(dbproc, svr_database)) == FAIL)
-	{
-		sprintf(err_str, "Failed to select database %s", svr_database);
-		goto cleanup_before_use;
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Selected database")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting query")
-			));
-	#endif
-	
-	if (svr_query)
-	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Query is explicitly set")
-				));
-		#endif
-		
-		query = svr_query;
-	}
-	
-	else
-	{
-		size_t len;
-		static const char *query_prefix = "SELECT * FROM ";
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Building query using table")
-				));
-		#endif
-		
-		len = strlen(query_prefix) + strlen(svr_table) + 1;
-		
-		if ((query = palloc(len * sizeof(char))) == NULL)
-		{
-			sprintf(err_str, "Failed to allocate memory for query");
-			goto cleanup;
-		}
-		
-		if (snprintf(query, len, "%s%s", query_prefix, svr_table) < 0)
-		{
-			sprintf(err_str, "Failed to build query");
-			goto cleanup;
-		}
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Value of query is %s", query)
-			));
-		ereport(NOTICE,
-			(errmsg("Setting database command to %s", query)
-			));
-	#endif
-	
-	if ((erc = dbcmd(dbproc, query)) == FAIL)
-	{
-		pfree(query);
-		sprintf(err_str, "Failed to set current query to %s", query);
 		goto cleanup;
 	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Executing the query")
-			));
-	#endif
-	
-	if ((erc = dbsqlexec(dbproc)) == FAIL)
-	{
-		pfree(query);
-		sprintf(err_str, "Failed to execute query %s", query);
-		goto cleanup;
-	}
-
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Query executed correctly")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting results")
-			));				
-	#endif
-	
-	pfree(query);
-
-	erc = dbresults(dbproc);
-	
-	if (erc == FAIL)
-	{
-		sprintf(err_str, "Failed to get results from query %s", query);
-		goto cleanup;
-	}
-	
-	else if (erc == NO_MORE_RESULTS)
-	{
-		sprintf(err_str, "There appears to be no results from query %s", query);
-		goto cleanup;
-	}
-	
-	else if (erc == SUCCEED)
-	{
-		int rows = 0;
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Successfully got results")
-				));
-		#endif
-		
-		baserel->rows = 0;
-		
-		if ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
-		{
-			switch (ret_code)
-			{
-				case REG_ROW:
-					rows++;
-					break;
-				case BUF_FULL:
-					sprintf(err_str, "Buffer filled up getting plan for query");
-					goto cleanup;
-					break;
-						
-				case FAIL:
-					sprintf(err_str, "Failed to get row getting plan for query");
-					goto cleanup;
-					break;
-				
-				default:
-					sprintf(err_str, "Failed to get plan for query. Unknown return code.");
-					goto cleanup;
-			}
-		}
-		
-		baserel->rows = DBCOUNT(dbproc);
-		baserel->tuples = baserel->rows;
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("We counted %i rows, and dbcount says %i rows", rows, (int) baserel->rows)
-				));
-		#endif		
-	}
-	
-	else
-	{
-		sprintf(err_str, "Unknown return code getting results from query %s", query);
-		goto cleanup;
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("----> finishing tdsGetForeignRelSize")
-			));
-	#endif
+	baserel->rows = tdsGetRowCount(&option_set, login, dbproc);
+	baserel->tuples = baserel->rows;
 	
 cleanup:
-	
-cleanup_before_use:
 	dbclose(dbproc);
-	
-cleanup_before_open:
 	dbloginfree(login);
 		
 cleanup_before_login:
@@ -1516,19 +1514,17 @@ cleanup_before_login:
 	
 cleanup_before_init:
 	;
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsGetForeignRelSize")
+			));
+	#endif	
 }
 
 static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *startup_cost, Cost *total_cost, Oid foreigntableid)
 {
-	char *svr_servername = NULL;
-	char *svr_language = NULL;
-	char *svr_charset = NULL;
-	int svr_port = 0;
-	char *svr_username = NULL;
-	char *svr_password = NULL;
-	char *svr_database = NULL;
-	char *svr_query = NULL;
-	char *svr_table = NULL;
+	TdsFdwOptionSet option_set;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1536,14 +1532,9 @@ static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *start
 			));
 	#endif
 	
-	tdsGetOptions(foreigntableid, &svr_servername, &svr_language, &svr_charset,
-		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, &svr_table);	
+	tdsGetOptions(foreigntableid, &option_set);	
 	
-	
-	if (strcmp(svr_servername, "127.0.0.1") == 0 || strcmp(svr_servername, "localhost") == 0)
-		*startup_cost = 0;
-	else
-		*startup_cost = 25;
+	*startup_cost = tdsGetStartupCost(&option_set);
 		
 	*total_cost = baserel->rows + *startup_cost;
 	
@@ -1622,19 +1613,9 @@ static ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 {
 	FdwPlan *fdwplan;
-	char *svr_address = NULL;
-	int svr_port = 0;
-	char *svr_username = NULL;
-	char *svr_password = NULL;
-	char *svr_database = NULL;
-	char *svr_query = NULL;
-	char *svr_table = NULL;
+	TdsFdwOptionSet option_set;
 	LOGINREC *login;
 	DBPROCESS *dbproc;
-	RETCODE erc;
-	char *conn_string;
-	char *query;
-	char error_str[1000];
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1644,15 +1625,10 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 	
 	fdwplan = makeNode(FdwPlan);
 	
-	tdsGetOptions(foreigntableid, &svr_address, 
-		&svr_port, &svr_username, &svr_password, &svr_database, &svr_query, %svr_table);	
+	tdsGetOptions(foreigntableid, &option_set);	
 	
-	
-	if (strcmp(svr_address, "127.0.0.1") == 0 || strcmp(svr_address, "localhost") == 0)
-		fdwplan->startup_cost = 0;
-	else
-		fdwplan->startup_cost = 25;
-	
+	fdwplan->startup_cost = tdsGetStartupCost(&option_set);
+		
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("Initiating DB-Library")
@@ -1661,7 +1637,10 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 	
 	if (dbinit() == FAIL)
 	{
-		sprintf(err_str, "Failed to initialize DB-Library environment");
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library environment")
+			));
 		goto cleanup_before_init;
 	}
 	
@@ -1676,258 +1655,39 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 	
 	if ((login = dblogin()) == NULL)
 	{
-		sprintf(err_str, "Failed to initialize DB-Library login structure");
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library login structure")
+			));
 		goto cleanup_before_login;
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login user to %s", svr_username)
-			));
-	#endif
-	
-	DBSETLUSER(login, svr_username);
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login password to %s", svr_password)
-			));
-	#endif
-	
-	DBSETLPWD(login, svr_password);	
-	
-	if ((conn_string = palloc((strlen(svr_address) + 10) * sizeof(char))) == NULL)
+	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
 	{
-		sprintf(err_str, "Failed to allocate memory for connection string");
-		goto cleanup_before_open;
-	}
-	
-	if (svr_port)
-	{
-		sprintf(conn_string, "%s:%i", svr_address, svr_port);
-	}
-	
-	else
-	{
-		sprintf(conn_string, "%s", svr_address);
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connection string is %s", conn_string)
-			));
-		ereport(NOTICE,
-			(errmsg("Connecting to server")
-			));
-	#endif
-	
-	if ((dbproc = dbopen(login, conn_string)) == NULL)
-	{
-		pfree(conn_string);
-		sprintf(err_str, "Failed to connect using connection string %s with user %s", conn_string, svr_username);
-		goto cleanup_before_open;
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connected successfully")
-			));
-	#endif
-	
-	pfree(conn_string);
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Selecting database %s", svr_database)
-			));
-	#endif
-	
-	if ((erc = dbuse(dbproc, svr_database)) == FAIL)
-	{
-		sprintf(err_str, "Failed to select database %s", svr_database);
-		goto cleanup_before_use;
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Selected database")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting query")
-			));
-	#endif
-	
-	if (svr_query)
-	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Query is explicitly set")
-				));
-		#endif
-		
-		query = svr_query;
-	}
-	
-	else
-	{
-		size_t len;
-		static const char *query_prefix = "SELECT * FROM ";
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Building query using table")
-				));
-		#endif
-		
-		len = strlen(query_prefix) + strlen(svr_table) + 1;
-		
-		if ((query = palloc(len * sizeof(char))) == NULL)
-		{
-			sprintf(err_str, "Failed to allocate memory for query");
-			goto cleanup;
-		}
-		
-		if (snprintf(query, len, "%s%s", query_prefix, svr_table) < 0)
-		{
-			sprintf(err_str, "Failed to build query");
-			goto cleanup;
-		}
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Value of query is %s", query)
-			));
-		ereport(NOTICE,
-			(errmsg("Setting database command to %s", query)
-			));
-	#endif
-	
-	if ((erc = dbcmd(dbproc, query)) == FAIL)
-	{
-		pfree(query);
-		sprintf(err_str, "Failed to set current query to %s", query);
 		goto cleanup;
 	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Executing the query")
-			));
-	#endif
-	
-	if ((erc = dbsqlexec(dbproc)) == FAIL)
-	{
-		pfree(query);
-		sprintf(err_str, "Failed to execute query %s", query);
-		goto cleanup;
-	}
-
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Query executed correctly")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting results")
-			));				
-	#endif
-	
-	pfree(query);
-
-	erc = dbresults(dbproc);
-	
-	if (erc == FAIL)
-	{
-		sprintf(err_str, "Failed to get results from query %s", query);
-		goto cleanup;
-	}
-	
-	else if (erc == NO_MORE_RESULTS)
-	{
-		sprintf(err_str, "There appears to be no results from query %s", query);
-		goto cleanup;
-	}
-	
-	else if (erc == SUCCEED)
-	{
-		int rows = 0;
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Successfully got results")
-				));
-		#endif
-		
-		baserel->rows = 0;
-		
-		if ((ret_code = dbnextrow(festate->dbproc)) != NO_MORE_ROWS)
-		{
-			int ncols, ncol;
-			char **values;
-		
-			switch (ret_code)
-			{
-				case REG_ROW:
-					row++;
-					break;
-				case BUF_FULL:
-					sprintf(err_str, "Buffer filled up getting plan for query");
-					goto cleanup;
-					break;
-						
-				case FAIL:
-					sprintf(err_str, "Failed to get row getting plan for query");
-					goto cleanup;
-					break;
-				
-				default:
-					sprintf(err_str, "Failed to get plan for query. Unknown return code.");
-					goto cleanup;
-			}
-		}
-		
-		baserel->rows = DBCOUNT(dbproc);
-		baserel->tuples = baserel->rows;
-		fdwplan->total_cost = baserel->rows + fdwplan->startup_cost;
-		fdwplan->fdw_private = NIL;
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("We counted %i rows, and dbcount says %i rows", row, (int) baserel->rows);
-				));
-		#endif		
-	}
-	
-	else
-	{
-		sprintf(err_str, "Unknown return code getting results from query %s", query);
-		goto cleanup;
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			errmsg("----> finishing tdsPlanForeignScan")
-			));
-	#endif
+	baserel->rows = tdsGetRowCount(&option_set, login, dbproc);
+	baserel->tuples = baserel->rows;
+	fdwplan->total_cost = baserel->rows + fdwplan->startup_cost;
+	fdwplan->fdw_private = NIL;
 	
 cleanup:
-	
-cleanup_before_use:
 	dbclose(dbproc);
-	
-cleanup_before_open:
 	dbloginfree(login);
 		
 cleanup_before_login:
 	dbexit();
 	
 cleanup_before_init:
-	;
 	
-	ereport(ERROR,
-		(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-		errmsg(err_str)
-		));	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsPlanForeignScan")
+			));
+	#endif	
+	
+	return fdwplan;
 }
 
 #endif
