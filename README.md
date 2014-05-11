@@ -238,3 +238,9 @@ CREATE USER MAPPING FOR postgres
 with the server, FreeTDS converts the UCS-2 to the client character set of your choice. 
 To set the client character set, you can set *client charset* in *freetds.conf*. See 
 [The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm) and [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).
+
+## Support
+
+If you find any bugs, or you would like to request enhancements, please submit your comments on the [project's GitHub Issues page](https://github.com/GeoffMontee/tds_fdw/issues).
+
+Additionally, I do subscribe to several [PostgreSQL mailing lists](http://www.postgresql.org/list/) including *pgsql-general* and *pgsql-hackers*. If tds_fdw is mentioned in an email sent to one of those lists, I typically see it.
