@@ -1,0 +1,43 @@
+{
+	"name": "tds_fdw",
+	"abstract": "TDS Foreign data wrapper",
+	"description": "This library contains a single PostgreSQL extension, a foreign data wrapper called \"tds_fdw\". It can be used to communicate with Microsoft SQL Server and Sybase databases.",
+	"version": "1.0.0-beta",
+	"maintainer": [
+		"Geoff Montee <geoff.montee@gmail.com>"
+	],
+	"license": "postgresql",
+	"provides": {
+		"tds_fdw": {
+			"abstract": "TDS Foreign data wrapper",
+			"file": "sql/tds_fdw.sql",
+			"docfile": "README.md",
+			"version": "1.0.0-beta"
+	}
+	},
+	"resources": {
+		"bugtracker": {
+			"web": "https://github.com/GeoffMontee/tds_fdw/issues"
+		},
+		"repository": {
+			"url":  "https://github.com/GeoffMontee/tds_fdw.git",
+			"web":  "https://github.com/GeoffMontee/tds_fdw",
+			"type": "git"
+		}
+	},
+	"generated_by": "Geoff Montee",
+	"meta-spec": {
+		"version": "1.0.0",
+		"url": "http://pgxn.org/meta/spec.txt"
+	},
+	"tags": [
+		"tds_fdw",
+		"foreign data wrapper",
+		"fdw",
+		"tds",
+		"tabular data stream",
+		"sybase",
+		"microsoft sql server",
+		"sql server"
+	]
+}

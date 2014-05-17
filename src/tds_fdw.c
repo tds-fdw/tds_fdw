@@ -4,7 +4,7 @@
 *
 * Author: Geoff Montee
 * Name: tds_fdw
-* File: tds_fdw/tds_fdw.c
+* File: tds_fdw/src/tds_fdw.c
 *
 * Description:
 * This is a PostgreSQL foreign data wrapper for use to connect to databases that use TDS,

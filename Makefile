@@ -15,25 +15,36 @@
 # the proprietary implementations of DB-Library.
 #----------------------------------------------------------------------------
 
-MODULE_big = tds_fdw
-OBJS = tds_fdw.o
-
 EXTENSION = tds_fdw
-DATA = tds_fdw--1.0.sql
 
-REGRESS = tds_fdw
+EXTVERSION   = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\\([^']*\\)'/\\1/")
+
+DATA         = $(filter-out $(wildcard sql/*--*.sql),$(wildcard sql/*.sql))
+
+# no tests yet
+# TESTS        = $(wildcard test/sql/*.sql)
+# REGRESS      = $(patsubst test/sql/%.sql,%,$(TESTS))
+# REGRESS_OPTS = --inputdir=test
+
+DOCS         = README.${EXTENSION}.md
+MODULES      = $(patsubst %.c,%,$(wildcard src/*.c))
+PG_CONFIG    = pg_config
 
 # modify these variables to point to FreeTDS, if needed
 SHLIB_LINK := -lsybdb
 # PG_CPPFLAGS :=
+# PG_LIBS :=
 
-ifdef USE_PGXS
-PG_CONFIG = pg_config
+all: sql/$(EXTENSION)--$(EXTVERSION).sql README.${EXTENSION}.md
+
+sql/$(EXTENSION)--$(EXTVERSION).sql: sql/$(EXTENSION).sql
+	cp $< $@
+	
+README.${EXTENSION}.md: README.md
+	cp $< $@
+
+DATA = $(wildcard sql/*--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql
+EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql README.${EXTENSION}.md
+
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-else
-subdir = contrib/tds_fdw
-top_builddir = ../..
-include $(top_builddir)/src/Makefile.global
-include $(top_srcdir)/contrib/contrib-global.mk
-endif
