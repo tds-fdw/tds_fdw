@@ -7,6 +7,13 @@
 		"Geoff Montee <geoff.montee@gmail.com>"
 	],
 	"license": "postgresql",
+	"prereqs": {
+		"runtime": {
+			"requires": {
+				"PostgreSQL": "9.1.0"
+		}
+	}
+	},
 	"provides": {
 		"tds_fdw": {
 			"abstract": "TDS Foreign data wrapper",
@@ -27,7 +34,7 @@
 	},
 	"generated_by": "Geoff Montee",
 	"meta-spec": {
-		"version": "1.0.0",
+		"version": "1.0.1",
 		"url": "http://pgxn.org/meta/spec.txt"
 	},
 	"tags": [
