@@ -155,6 +155,7 @@ static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set);
 static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc);
 static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 static int tdsGetStartupCost(TdsFdwOptionSet* option_set);
+static char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen);
 
 /* Helper functions for DB-Library API */
 
@@ -954,6 +955,89 @@ static int tdsGetStartupCost(TdsFdwOptionSet* option_set)
 	return startup_cost;
 }
 
+static char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen)
+{
+	char* dest = NULL;
+	int real_destlen;
+	DBINT destlen;
+	int desttype;
+	int ret_value;
+	
+	switch(srctype)
+	{
+		case SYBCHAR:
+		case SYBVARCHAR:
+		case SYBTEXT:
+			real_destlen = srclen + 1; /* the size of the array */
+			destlen = -1; /* the size to pass to dbconvert (-1 means to null terminate it) */
+			desttype = SYBCHAR;
+			break;
+		case SYBBINARY:
+		case SYBVARBINARY:
+			real_destlen = srclen;
+			destlen = srclen;
+			desttype = SYBBINARY;
+			break;
+		default:
+			real_destlen = 1000; /* Probably big enough */
+			destlen = -1; 
+			desttype = SYBCHAR;
+			break;
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Source type is %i. Destination type is %i", srctype, desttype)
+			));
+		ereport(NOTICE,
+			(errmsg("Source length is %i. Destination length is %i. Real destination length is %i", srclen, destlen, real_destlen)
+			));
+	#endif	
+	
+	if (dbwillconvert(srctype, desttype) != FALSE)
+	{
+		if ((dest = palloc(real_destlen * sizeof(char))) == NULL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to allocate memory for column value")
+				));
+		}
+		
+		ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, -1);
+		
+		if (ret_value == FAIL)
+		{
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Failed to convert column")
+					));
+			#endif	
+		}
+		
+		else if (ret_value == -1)
+		{
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Failed to convert column. Could have been a NULL pointer or bad data type.")
+					));
+			#endif	
+		}
+	}
+	
+	else
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Column cannot be converted to this type.")
+				));
+		#endif
+	}
+	
+	return dest;
+	
+}
+
 /* get output for EXPLAIN */
 
 static void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
@@ -1188,8 +1272,10 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				
 				for (ncol = 0; ncol < ncols; ncol++)
 				{
-					int col_type;
+					int srctype;
 					char *col_name;
+					DBINT srclen;
+					BYTE* src;
 					
 					col_name = dbcolname(festate->dbproc, ncol + 1);
 					
@@ -1199,121 +1285,49 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 							));
 					#endif
 					
-					col_type = dbcoltype(festate->dbproc, ncol + 1);
+					srctype = dbcoltype(festate->dbproc, ncol + 1);
 					
 					#ifdef DEBUG
 						ereport(NOTICE,
-							(errmsg("Type is %i", col_type)
+							(errmsg("Type is %i", srctype)
 							));
 					#endif
+			
+					srclen = dbdatlen(festate->dbproc, ncol + 1);
 					
-					if (dbwillconvert(col_type, SYBCHAR) != FALSE)
+					#ifdef DEBUG
+						ereport(NOTICE,
+							(errmsg("Data length is %i", srclen)
+							));
+					#endif					
+					
+					src = dbdata(festate->dbproc, ncol + 1);
+
+					if (srclen == 0)
 					{
-						DBINT data_len;
-						BYTE* data;
+						#ifdef DEBUG
+							ereport(NOTICE,
+								(errmsg("Column value is NULL")
+								));
+						#endif	
 						
-						data_len = dbdatlen(festate->dbproc, ncol + 1);
-						data = dbdata(festate->dbproc, ncol + 1);
+						values[ncol] = NULL;
+					}					
+					
+					else if (src == NULL)
+					{
+						#ifdef DEBUG
+							ereport(NOTICE,
+								(errmsg("Column value pointer is NULL, but probably shouldn't be")
+								));
+						#endif	
 						
-						if (data_len == 0)
-						{
-							#ifdef DEBUG
-								ereport(NOTICE,
-									(errmsg("Column value is NULL")
-									));
-							#endif	
-							
-							values[ncol] = NULL;
-						}
-						
-						else if (data == NULL)
-						{
-							#ifdef DEBUG
-								ereport(NOTICE,
-									(errmsg("Column value pointer is NULL, but probably shouldn't be")
-									));
-							#endif	
-							
-							values[ncol] = NULL;
-						}
-						
-						else
-						{
-							char *value;
-							int ret_value;
-							int dest_len = 1000; /* any portable way to get real length of converted value? */
-							
-							if ((value = palloc(dest_len * sizeof(char))) == NULL)
-							{
-								ereport(ERROR,
-									(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-									errmsg("Failed to allocate memory for tmp column value")
-									));
-							}
-							
-							ret_value = dbconvert(festate->dbproc, col_type, data, data_len, SYBCHAR, (BYTE *) value, -1);
-							
-							if (ret_value == FAIL)
-							{
-								#ifdef DEBUG
-									ereport(NOTICE,
-										(errmsg("Failed to convert value to SYBCHAR")
-										));
-								#endif	
-							
-								values[ncol] = NULL;
-							}
-							
-							else if (ret_value == -1)
-							{
-								#ifdef DEBUG
-									ereport(NOTICE,
-										(errmsg("Failed to convert value to SYBCHAR. Could have been a NULL pointer or bad data type.")
-										));
-								#endif	
-							
-								values[ncol] = NULL;
-							}
-							
-							else
-							{
-								int str_len = strlen(value);
-								
-								#ifdef DEBUG
-									ereport(NOTICE,
-										(errmsg("Column value: %s", value)
-										));
-								#endif
-								
-								if ((values[ncol] = palloc((str_len + 1) * sizeof(char))) == NULL)
-								{
-									ereport(ERROR,
-										(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-										errmsg("Failed to allocate memory for column value")
-										));
-								}
-								
-								strncpy(values[ncol], value, str_len);
-								values[ncol][str_len] = '\0';
-								
-								#ifdef DEBUG
-									ereport(NOTICE,
-										(errmsg("values[%i]: %s", ncol, values[ncol])
-										));
-								#endif
-							}
-						}
+						values[ncol] = NULL;
 					}
 					
 					else
 					{
-						#ifdef DEBUG
-							ereport(NOTICE,
-								(errmsg("Column cannot be converted to SYBCHAR")
-								));
-						#endif
-						
-						values[ncol] = NULL;
+						values[ncol] = tdsConvertToCString(festate->dbproc, srctype, src, srclen);
 					}
 				}
 				
