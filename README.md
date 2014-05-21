@@ -135,6 +135,7 @@ make USE_PGXS=1 install
 sudo /etc/init.d/postgresql start
 psql -U postgres
 postgres=# CREATE EXTENSION tds_fdw;
+```
 
 ## Usage
 
