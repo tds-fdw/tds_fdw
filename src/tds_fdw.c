@@ -1004,7 +1004,7 @@ static char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src
 				));
 		}
 		
-		ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, -1);
+		ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, destlen);
 		
 		if (ret_value == FAIL)
 		{
@@ -1273,13 +1273,18 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				for (ncol = 0; ncol < ncols; ncol++)
 				{
 					int srctype;
-					char *col_name;
+					
+					#ifdef DEBUG
+						char *col_name;
+					#endif
+					
 					DBINT srclen;
 					BYTE* src;
 					
-					col_name = dbcolname(festate->dbproc, ncol + 1);
-					
 					#ifdef DEBUG
+						col_name = dbcolname(festate->dbproc, ncol + 1);
+					
+					
 						ereport(NOTICE,
 							(errmsg("Fetching column %i (%s)", ncol, col_name)
 							));
