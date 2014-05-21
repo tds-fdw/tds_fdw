@@ -19,7 +19,7 @@
 			"abstract": "TDS Foreign data wrapper",
 			"file": "sql/tds_fdw.sql",
 			"docfile": "README.md",
-			"version": "1.0.0"
+			"version": "1.0.1"
 	}
 	},
 	"resources": {
