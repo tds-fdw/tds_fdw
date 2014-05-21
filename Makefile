@@ -23,14 +23,14 @@ OBJS = src/$(EXTENSION).o
 
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\\([^']*\\)'/\\1/")
 
-DATA = $(filter-out $(wildcard sql/*--*.sql),$(wildcard sql/*.sql))
-
 # no tests yet
 # TESTS        = $(wildcard test/sql/*.sql)
 # REGRESS      = $(patsubst test/sql/%.sql,%,$(TESTS))
 # REGRESS_OPTS = --inputdir=test
 
 DOCS         = README.${EXTENSION}.md
+
+DATA = sql/$(EXTENSION)--$(EXTVERSION).sql
 
 PG_CONFIG    = pg_config
 
@@ -47,7 +47,6 @@ sql/$(EXTENSION)--$(EXTVERSION).sql: sql/$(EXTENSION).sql
 README.${EXTENSION}.md: README.md
 	cp $< $@
 
-DATA = $(wildcard sql/*--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql
 EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql README.${EXTENSION}.md
 
 PGXS := $(shell $(PG_CONFIG) --pgxs)
