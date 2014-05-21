@@ -17,7 +17,7 @@ the proprietary implementations of DB-Library.
 This was written to support PostgreSQL 9.1 and 9.2. It does not yet support write operations, 
 as added in PostgreSQL 9.3. However, it should still support read operations in PostgreSQL 9.3.
 
-## Building
+## Building on CentOS 6
 
 Building was accomplished by doing the following under CentOS 6. Other Linux platforms should be similar.
 
@@ -40,7 +40,7 @@ sudo yum install freetds freetds-devel
 
 #### Install PostgreSQL 9.1
 
-Install PostgreSQL 9.1 via [yum](http://yum.postgresql.org/).
+Install PostgreSQL 9.1 via [yum](https://wiki.postgresql.org/wiki/YUM_Installation).
 
 ```bash
 wget http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/pgdg-centos91-9.1-4.noarch.rpm
@@ -70,7 +70,7 @@ postgres=# CREATE EXTENSION tds_fdw;
 
 #### Install PostgreSQL 9.2
 
-Install PostgreSQL 9.2 via [yum](http://yum.postgresql.org/).
+Install PostgreSQL 9.2 via [yum](https://wiki.postgresql.org/wiki/YUM_Installation).
 
 ```bash
 wget http://yum.postgresql.org/9.2/redhat/rhel-6-x86_64/pgdg-centos92-9.2-6.noarch.rpm
@@ -95,6 +95,46 @@ sudo /etc/init.d/postgresql-9.2 start
 /usr/pgsql-9.2/bin/psql -U postgres
 postgres=# CREATE EXTENSION tds_fdw;
 ```
+
+## Building on Ubuntu
+
+Building was accomplished by doing the following under Ubuntu 12.04. Other Ubuntu distributions should work too.
+
+### Install FreeTDS
+
+```bash
+sudo apt-get install libsybdb5 freetds-dev freetds-common
+```
+
+### Build for PostgreSQL 9.1
+
+#### Install PostgreSQL 9.1
+
+Install PostgreSQL 9.1 via [apt](https://wiki.postgresql.org/wiki/Apt).
+
+```bash
+sudo bash -c "echo \"deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -c -s)-pgdg main\" > /etc/apt/sources.list.d/pgdg.list"
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install postgresql-9.1 postgresql-client-9.1 postgresql-server-dev-9.1
+```
+
+#### Clone and build
+
+```bash
+git clone https://github.com/GeoffMontee/tds_fdw.git
+cd tds_fdw
+make USE_PGXS=1
+make USE_PGXS=1 install
+```
+
+#### Start server and install extension
+
+```bash
+sudo /etc/init.d/postgresql start
+psql -U postgres
+postgres=# CREATE EXTENSION tds_fdw;
 
 ## Usage
 
