@@ -17,9 +17,13 @@
 
 EXTENSION = tds_fdw
 
-EXTVERSION   = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\\([^']*\\)'/\\1/")
+MODULE_big = $(EXTENSION)
 
-DATA         = $(filter-out $(wildcard sql/*--*.sql),$(wildcard sql/*.sql))
+OBJS = src/$(EXTENSION).o
+
+EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\\([^']*\\)'/\\1/")
+
+DATA = $(filter-out $(wildcard sql/*--*.sql),$(wildcard sql/*.sql))
 
 # no tests yet
 # TESTS        = $(wildcard test/sql/*.sql)
@@ -27,7 +31,7 @@ DATA         = $(filter-out $(wildcard sql/*--*.sql),$(wildcard sql/*.sql))
 # REGRESS_OPTS = --inputdir=test
 
 DOCS         = README.${EXTENSION}.md
-MODULES      = $(patsubst %.c,%,$(wildcard src/*.c))
+
 PG_CONFIG    = pg_config
 
 # modify these variables to point to FreeTDS, if needed
