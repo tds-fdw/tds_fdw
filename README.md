@@ -96,6 +96,36 @@ sudo /etc/init.d/postgresql-9.2 start
 postgres=# CREATE EXTENSION tds_fdw;
 ```
 
+### Build for PostgreSQL 9.3
+
+#### Install PostgreSQL 9.3
+
+Install PostgreSQL 9.3 via [yum](https://wiki.postgresql.org/wiki/YUM_Installation).
+
+```bash
+wget http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-centos93-9.3-1.noarch.rpm
+sudo rpm -ivh pgdg-centos93-9.3-1.noarch.rpm
+sudo yum install postgresql93 postgresql93-server postgresql93-libs postgresql93-devel
+```
+
+#### Clone and build
+
+```bash
+git clone https://github.com/GeoffMontee/tds_fdw.git
+cd tds_fdw
+PATH=/usr/pgsql-9.3/bin:$PATH make USE_PGXS=1
+sudo PATH=/usr/pgsql-9.3/bin:$PATH make USE_PGXS=1 install
+```
+
+#### Start server and install extension
+
+```bash
+sudo /etc/init.d/postgresql-9.3 initdb
+sudo /etc/init.d/postgresql-9.3 start
+/usr/pgsql-9.3/bin/psql -U postgres
+postgres=# CREATE EXTENSION tds_fdw;
+```
+
 ## Building on Ubuntu
 
 Building was accomplished by doing the following under Ubuntu 12.04. Other Ubuntu distributions should work too.
@@ -118,6 +148,68 @@ wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-
 sudo apt-get update
 sudo apt-get upgrade
 sudo apt-get install postgresql-9.1 postgresql-client-9.1 postgresql-server-dev-9.1
+```
+
+#### Clone and build
+
+```bash
+git clone https://github.com/GeoffMontee/tds_fdw.git
+cd tds_fdw
+make USE_PGXS=1
+make USE_PGXS=1 install
+```
+
+#### Start server and install extension
+
+```bash
+sudo /etc/init.d/postgresql start
+psql -U postgres
+postgres=# CREATE EXTENSION tds_fdw;
+```
+
+### Build for PostgreSQL 9.2
+
+#### Install PostgreSQL 9.2
+
+Install PostgreSQL 9.2 via [apt](https://wiki.postgresql.org/wiki/Apt).
+
+```bash
+sudo bash -c "echo \"deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -c -s)-pgdg main\" > /etc/apt/sources.list.d/pgdg.list"
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install postgresql-9.2 postgresql-client-9.2 postgresql-server-dev-9.2
+```
+
+#### Clone and build
+
+```bash
+git clone https://github.com/GeoffMontee/tds_fdw.git
+cd tds_fdw
+make USE_PGXS=1
+make USE_PGXS=1 install
+```
+
+#### Start server and install extension
+
+```bash
+sudo /etc/init.d/postgresql start
+psql -U postgres
+postgres=# CREATE EXTENSION tds_fdw;
+```
+
+### Build for PostgreSQL 9.3
+
+#### Install PostgreSQL 9.3
+
+Install PostgreSQL 9.3 via [apt](https://wiki.postgresql.org/wiki/Apt).
+
+```bash
+sudo bash -c "echo \"deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -c -s)-pgdg main\" > /etc/apt/sources.list.d/pgdg.list"
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo apt-get update
+sudo apt-get upgrade
+sudo apt-get install postgresql-9.3 postgresql-client-9.3 postgresql-server-dev-9.3
 ```
 
 #### Clone and build
