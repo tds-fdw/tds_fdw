@@ -74,6 +74,9 @@ static struct TdsFdwOption valid_options[] =
 	{ "language",		ForeignServerRelationId },
 	{ "character_set",		ForeignServerRelationId },
 	{ "port",			ForeignServerRelationId },
+	{ "database",		ForeignServerRelationId },
+	{ "dbuse",			ForeignServerRelationId },
+	{ "tds_version",	ForeignServerRelationId },
 	{ "username",		UserMappingRelationId },
 	{ "password",		UserMappingRelationId },
 	{ "database",		ForeignTableRelationId },
@@ -90,9 +93,12 @@ typedef struct TdsFdwOptionSet
 	char *language;
 	char *character_set;
 	int port;
+	char *database;
+	int dbuse;
+	char* tds_version;
 	char *username;
 	char *password;
-	char *database;
+	char *table_database;
 	char *query;
 	char *table;
 } TdsFdwOptionSet;
@@ -149,6 +155,10 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 
 /* Helper functions */
 
+void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet *option_set);
+void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set);
+void tdsOptionsValidateContextFinal(TdsFdwOptionSet *option_set, Oid context);
+void tdsOptionsValidateFinal(TdsFdwOptionSet *option_set);
 static bool tdsIsValidOption(const char *option, Oid context);
 static void tdsOptionSetInit(TdsFdwOptionSet* option_set);
 static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set);
@@ -200,20 +210,15 @@ Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(fdwroutine);
 }
 
-Datum tds_fdw_validator(PG_FUNCTION_ARGS)
+void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet *option_set)
 {
-	List *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
-	Oid catalog = PG_GETARG_OID(1);
-	TdsFdwOptionSet option_set;
 	ListCell *cell;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			(errmsg("----> starting tds_fdw_validator")
+			(errmsg("----> starting tdsOptionsValidateInitial")
 			));
 	#endif
-	
-	tdsOptionSetInit(&option_set);	
 	
 	foreach (cell, options_list)
 	{
@@ -225,7 +230,7 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 			));
 		#endif
 		
-		if (!tdsIsValidOption(def->defname, catalog))
+		if (!tdsIsValidOption(def->defname, context))
 		{
 			TdsFdwOption *opt;
 			StringInfoData buf;
@@ -233,7 +238,7 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 			initStringInfo(&buf);
 			for (opt = valid_options; opt->optname; opt++)
 			{
-				if (catalog == opt->optcontext)
+				if (context == opt->optcontext)
 					appendStringInfo(&buf, "%s%s", (buf.len > 0) ? ", " : "", opt->optname);
 			}
 			
@@ -244,117 +249,248 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 				));
 		}
 		
-		if (strcmp(def->defname, "servername") == 0)
+		if (context == ForeignServerRelationId && strcmp(def->defname, "servername") == 0)
 		{
-			if (option_set.servername)
+			if (option_set->servername)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: servername (%s)", defGetString(def))
 					));
 					
-			option_set.servername = defGetString(def);	
+			option_set->servername = defGetString(def);	
 		}
 		
-		else if (strcmp(def->defname, "language") == 0)
+		else if (context == ForeignServerRelationId && strcmp(def->defname, "language") == 0)
 		{
-			if (option_set.language)
+			if (option_set->language)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: language (%s)", defGetString(def))
 					));
 					
-			option_set.language = defGetString(def);	
+			option_set->language = defGetString(def);	
 		}
 		
-		else if (strcmp(def->defname, "character_set") == 0)
+		else if (context == ForeignServerRelationId && strcmp(def->defname, "character_set") == 0)
 		{
-			if (option_set.character_set)
+			if (option_set->character_set)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: character_set (%s)", defGetString(def))
 					));
 					
-			option_set.character_set = defGetString(def);	
+			option_set->character_set = defGetString(def);	
 		}
 		
-		else if (strcmp(def->defname, "port") == 0)
+		else if (context == ForeignServerRelationId && strcmp(def->defname, "port") == 0)
 		{
-			if (option_set.port)
+			if (option_set->port)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: port (%s)", defGetString(def))
 					));
 					
-			option_set.port = atoi(defGetString(def));	
+			option_set->port = atoi(defGetString(def));	
 		}
 		
-		else if (strcmp(def->defname, "username") == 0)
+		else if (context == ForeignServerRelationId && strcmp(def->defname, "database") == 0)
 		{
-			if (option_set.username)
-				ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Redundant option: username (%s)", defGetString(def))
-					));
-					
-			option_set.username = defGetString(def);	
-		}
-		
-		else if (strcmp(def->defname, "password") == 0)
-		{
-			if (option_set.password)
-				ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Redundant option: password (%s)", defGetString(def))
-					));
-					
-			option_set.password = defGetString(def);
-		}
-		
-		else if (strcmp(def->defname, "database") == 0)
-		{
-			if (option_set.database)
+			if (option_set->database)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: database (%s)", defGetString(def))
 					));
 					
-			option_set.database = defGetString(def);
-		}
-		
-		else if (strcmp(def->defname, "query") == 0)
+			option_set->database = defGetString(def);	
+		}	
+
+		else if (context == ForeignServerRelationId && strcmp(def->defname, "dbuse") == 0)
 		{
-			if (option_set.table)
+			if (option_set->dbuse)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Conflicting options: query cannot be used with table")
+						errmsg("Redundant option: dbuse (%s)", defGetString(def))
 					));
 					
-			if (option_set.query)
+			option_set->dbuse = atoi(defGetString(def));	
+		}	
+
+		else if (context == ForeignServerRelationId && strcmp(def->defname, "tds_version") == 0)
+		{
+			if (option_set->tds_version)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: database (%s)", defGetString(def))
+					));
+					
+			option_set->tds_version = defGetString(def);	
+		}			
+		
+		else if (context == UserMappingRelationId && strcmp(def->defname, "username") == 0)
+		{
+			if (option_set->username)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: username (%s)", defGetString(def))
+					));
+					
+			option_set->username = defGetString(def);	
+		}
+		
+		else if (context == UserMappingRelationId && strcmp(def->defname, "password") == 0)
+		{
+			if (option_set->password)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: password (%s)", defGetString(def))
+					));
+					
+			option_set->password = defGetString(def);
+		}
+		
+		else if (context == ForeignTableRelationId && strcmp(def->defname, "database") == 0)
+		{
+			if (option_set->table_database)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: database (%s)", defGetString(def))
+					));
+					
+			option_set->table_database = defGetString(def);
+		}
+		
+		else if (context == ForeignTableRelationId && strcmp(def->defname, "query") == 0)
+		{			
+			if (option_set->query)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: query (%s)", defGetString(def))
 					));
 					
-			option_set.query = defGetString(def);
+			option_set->query = defGetString(def);
 		}
 		
-		else if (strcmp(def->defname, "table") == 0)
-		{
-			if (option_set.query)
-				ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Conflicting options: table cannot be used with query")
-					));
-					
-			if (option_set.table)
+		else if (context == ForeignTableRelationId && strcmp(def->defname, "table") == 0)
+		{			
+			if (option_set->table)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: table (%s)", defGetString(def))
 					));
 					
-			option_set.table = defGetString(def);
+			option_set->table = defGetString(def);
 		}
 	}
+}
+
+void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set)
+{
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsOptionsSetDefaults")
+			));
+	#endif
+	
+	if (!option_set->servername)
+	{
+		if ((option_set->servername = palloc((strlen(DEFAULT_SERVERNAME) + 1) * sizeof(char))) == NULL)
+        	{
+                	ereport(ERROR,
+                        	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                                	errmsg("Failed to allocate memory for connection string")
+                        	));
+        	}
+
+		sprintf(option_set->servername, "%s", DEFAULT_SERVERNAME);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Set servername to default: %s", option_set->servername)
+				));
+		#endif
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsOptionsSetDefaults")
+			));
+	#endif	
+}
+
+void tdsOptionsValidateFinal(TdsFdwOptionSet *option_set)
+{
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsOptionsValidateFinal")
+			));
+	#endif
+	
+	tdsOptionsValidateContextFinal(option_set, ForeignServerRelationId);
+	tdsOptionsValidateContextFinal(option_set, UserMappingRelationId);
+	tdsOptionsValidateContextFinal(option_set, ForeignTableRelationId);
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsOptionsValidateFinal")
+			));
+	#endif
+}
+
+void tdsOptionsValidateContextFinal(TdsFdwOptionSet *option_set, Oid context)
+{
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsOptionsValidateContextFinal")
+			));
+	#endif
+	
+	if (context == ForeignTableRelationId)
+	{
+		/* Check conflicting options */
+		
+		if (option_set->table && option_set->query)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Conflicting options: table and query options can't be used together.")
+				));
+		}
+		
+		/* Check required options */
+		
+		if (!option_set->table && !option_set->query)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Required options: either a table or a query must be specified")
+				));
+		}
+	}
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsOptionsValidateContextFinal")
+			));
+	#endif
+}
+
+Datum tds_fdw_validator(PG_FUNCTION_ARGS)
+{
+	List *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
+	Oid catalog = PG_GETARG_OID(1);
+	TdsFdwOptionSet option_set;
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tds_fdw_validator")
+			));
+	#endif
+	
+	tdsOptionSetInit(&option_set);	
+	
+	tdsOptionsValidateInitial(options_list, catalog, &option_set);
+	tdsOptionsSetDefaults(&option_set);
+	tdsOptionsValidateContextFinal(&option_set, catalog);
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -406,9 +542,12 @@ static void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->language = NULL;
 	option_set->character_set = NULL;
 	option_set->port = 0;
+	option_set->database = NULL;
+	option_set->dbuse = 0;
+	option_set->tds_version = NULL;
 	option_set->username = NULL;
 	option_set->password = NULL;
-	option_set->database = NULL;
+	option_set->table_database = NULL;
 	option_set->query = NULL;
 	option_set->table = NULL;
 	
@@ -426,8 +565,6 @@ static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set)
 	ForeignTable *f_table;
 	ForeignServer *f_server;
 	UserMapping *f_mapping;
-	List *options;
-	ListCell *lc;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -441,151 +578,11 @@ static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set)
 	f_server = GetForeignServer(f_table->serverid);
 	f_mapping = GetUserMapping(GetUserId(), f_table->serverid);
 	
-	options = NIL;
-	options = list_concat(options, f_table->options);
-	options = list_concat(options, f_server->options);
-	options = list_concat(options, f_mapping->options);
-	
-	foreach (lc, options)
-	{
-		DefElem *def = (DefElem *) lfirst(lc);
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Working on option %s", def->defname)
-				));
-		#endif
-		
-		if (strcmp(def->defname, "servername") == 0)
-		{
-			option_set->servername = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Servername is %s", option_set->servername)
-					));
-			#endif
-		}
-		
-		else if (strcmp(def->defname, "language") == 0)
-		{
-			option_set->language = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Language is %s", option_set->language)
-					));
-			#endif
-		}
-		
-		else if (strcmp(def->defname, "character_set") == 0)
-		{
-			option_set->character_set = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Character set is %s", option_set->character_set)
-					));
-			#endif
-		}
-		
-		else if (strcmp(def->defname, "port") == 0)
-		{
-			option_set->port = atoi(defGetString(def));
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Port is %i", option_set->port)
-					));
-			#endif
-		}
-		
-		else if (strcmp(def->defname, "username") == 0)
-		{
-			option_set->username = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Username is %s", option_set->username)
-					));
-			#endif
-		}
-		
-		else if (strcmp(def->defname, "password") == 0)
-		{
-			option_set->password = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Password is %s", option_set->password)
-					));
-			#endif
-		}
-
-		else if (strcmp(def->defname, "database") == 0)
-		{
-			option_set->database = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Database is %s", option_set->database)
-					));
-			#endif
-		}
-
-		else if (strcmp(def->defname, "query") == 0)
-		{
-			option_set->query = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Query is %s", option_set->query)
-					));
-			#endif
-		}
-
-		else if (strcmp(def->defname, "table") == 0)
-		{
-			option_set->table = defGetString(def);
-			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Table is %s", option_set->table)
-					));
-			#endif
-		}		
-	}
-	
-	/* Default values, if not set */
-	
-	if (!option_set->servername)
-	{
-		if ((option_set->servername = palloc((strlen(DEFAULT_SERVERNAME) + 1) * sizeof(char))) == NULL)
-        	{
-                	ereport(ERROR,
-                        	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                                	errmsg("Failed to allocate memory for connection string")
-                        	));
-        	}
-
-		sprintf(option_set->servername, "%s", DEFAULT_SERVERNAME);
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Set servername to default: %s", option_set->servername)
-				));
-		#endif
-	}
-	
-	/* Check required options */
-	
-	if (!option_set->table && !option_set->query)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("Either a table or a query must be specified")
-			));
-	}
+	tdsOptionsValidateInitial(f_server->options, ForeignServerRelationId, option_set);
+	tdsOptionsValidateInitial(f_mapping->options, UserMappingRelationId, option_set);
+	tdsOptionsValidateInitial(f_table->options, ForeignTableRelationId, option_set);
+	tdsOptionsSetDefaults(option_set);
+	tdsOptionsValidateFinal(option_set);
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -645,6 +642,74 @@ static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 		#endif
 	}
 	
+	if (option_set->tds_version)
+	{
+		BYTE tds_version = DBVERSION_UNKNOWN;
+		
+		if (strcmp(option_set->tds_version, "4.2") == 0)
+		{
+			tds_version = DBVER42;
+		}
+		
+		else if (strcmp(option_set->tds_version, "5.0") == 0)
+		{
+			tds_version = DBVERSION_100;
+		}
+		
+		else if (strcmp(option_set->tds_version, "7.0") == 0)
+		{
+			tds_version = DBVER60;
+		}
+		
+		#ifdef DBVERSION_71
+		else if (strcmp(option_set->tds_version, "7.1") == 0)
+		{
+			tds_version = DBVERSION_71;
+		}
+		#endif
+		
+		#ifdef DBVERSION_72
+		else if (strcmp(option_set->tds_version, "7.2") == 0)
+		{
+			tds_version = DBVERSION_72;
+		}
+		#endif
+
+		#ifdef DBVERSION_73
+		else if (strcmp(option_set->tds_version, "7.3") == 0)
+		{
+			tds_version = DBVERSION_73;
+		}
+		#endif
+		
+		if (tds_version == DBVERSION_UNKNOWN)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Unknown tds version: %s.", option_set->tds_version)
+				));
+		}
+		
+		dbsetlversion(login, tds_version);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login tds version tp  %s", option_set->tds_version)
+				));
+		#endif
+	}
+	
+	if (option_set->database && !option_set->dbuse)
+	{
+		DBSETLDBNAME(login, option_set->database);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Setting login database to %s", option_set->database)
+				));
+		#endif	
+	}
+	
 	if ((conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char))) == NULL)
 	{
 		ereport(ERROR,
@@ -692,7 +757,7 @@ static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 	
 	pfree(conn_string);
 	
-	if (option_set->database)
+	if (option_set->database && option_set->dbuse)
 	{
 		#ifdef DEBUG
 			ereport(NOTICE,
@@ -705,6 +770,32 @@ static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 			ereport(ERROR,
 				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
 					errmsg("Failed to select database %s", option_set->database)
+				));
+				
+			return -1;
+		}
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Selected database")
+				));
+		#endif
+	}
+	
+	/* Remove table_database in a future release? */
+	if (option_set->table_database)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Selecting database %s", option_set->table_database)
+				));
+		#endif
+		
+		if ((erc = dbuse(*dbproc, option_set->table_database)) == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+					errmsg("Failed to select database %s", option_set->table_database)
 				));
 				
 			return -1;

@@ -253,6 +253,24 @@ Required: No
   
 The port of the foreign server. This is optional. Instead of providing a port
 here, it can be specified in *freetds.conf* (if *servername* is a DSN).
+
+* *database*  
+  
+Required: No  
+  
+The database to connect to for this server.
+
+* *dbuse*
+
+Required: No
+
+Default: 0
+
+This option tells tds_fdw to connect directly to *database* if *dbuse* is 0.
+If *dbuse* is not 0, tds_fdw will connect to the server's default database, and
+then select *database* by calling DB-Library's dbuse() function.
+
+For Azure, *dbuse* currently needs to be set to 0.
 				
 * *language*  
   
@@ -275,7 +293,13 @@ The client character set to use for the connection, if you need to set this
 for some reason.  
   
 For TDS protocol versions 7.0+, the connection always uses UCS-2, so
-this parameter does nothing in those cases. See [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).				
+this parameter does nothing in those cases. See [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).		
+
+* *tds_version*  
+  
+Required: No  
+  
+The version of the TDS protocol to use for this server. See [Choosing a TDS protocol version](http://www.freetds.org/userguide/choosingtdsprotocol.htm) and [History of TDS Versions](http://www.freetds.org/userguide/tdshistory.htm).
 
 #### Foreign server example
 			
@@ -293,8 +317,11 @@ Foreign table parameters accepted:
   
 Required: No  
   
-The database name that the foreign table is a part of. Since you can set your default login
-database on the server-side, this is optional.
+The database name that the foreign table is a part of.
+
+If specified, the foreign tables database is always selected with *dbuse()* after connecting. Do not use this with Azure.
+
+This option might eventually be phased out and replaced with the *database* option supplied to the foreign server.
 				
 * *query*  
   
