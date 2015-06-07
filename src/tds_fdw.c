@@ -880,6 +880,7 @@ static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCES
 	int rows_increment = 0;
 	RETCODE erc;
 	int ret_code;
+	int iscount = 0;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -994,10 +995,14 @@ static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCES
 		}
 		
 		rows_report = DBCOUNT(dbproc);
+		iscount = dbiscount(dbproc);
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
-				(errmsg("We counted %i rows, and dbcount says %i rows", rows_increment, rows_report)
+				(errmsg("We counted %i rows, and dbcount says %i rows.", rows_increment, rows_report)
+				));
+			ereport(NOTICE,
+				(errmsg("dbiscount says %i.", iscount)
 				));
 		#endif		
 	}
@@ -1017,7 +1022,15 @@ cleanup:
 			));
 	#endif		
 	
-	return rows_report;
+	if (iscount)
+	{
+		return rows_report;
+	}
+	
+	else
+	{
+		return rows_increment;
+	}
 }
 
 /* get the startup cost for the query */
