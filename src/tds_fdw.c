@@ -968,7 +968,22 @@ static int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *logi
 		ereport(NOTICE,
 			(errmsg("Query executed correctly")
 			));			
+		ereport(NOTICE,
+			(errmsg("Getting results")
+			));				
 	#endif	
+	
+	erc = dbresults(dbproc);
+	
+	if (erc == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to get results from query %s", show_plan_query)
+			));
+			
+		goto cleanup_after_show_plan;
+	}
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1196,6 +1211,27 @@ cleanup_after_show_plan:
 
 		goto cleanup;
 	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Query executed correctly")
+			));
+		ereport(NOTICE,
+			(errmsg("Getting results")
+			));				
+	#endif	
+	
+	erc = dbresults(dbproc);
+	
+	if (erc == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to get results from query %s", show_plan_query)
+			));
+			
+		goto cleanup_after_show_plan;
+	}	
 
 cleanup:
 	#ifdef DEBUG
