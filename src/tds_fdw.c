@@ -70,19 +70,20 @@ typedef struct TdsFdwOption
 
 static struct TdsFdwOption valid_options[] =
 {
-	{ "servername",		ForeignServerRelationId },
-	{ "language",		ForeignServerRelationId },
-	{ "character_set",		ForeignServerRelationId },
-	{ "port",			ForeignServerRelationId },
-	{ "database",		ForeignServerRelationId },
-	{ "dbuse",			ForeignServerRelationId },
-	{ "tds_version",	ForeignServerRelationId },
-	{ "username",		UserMappingRelationId },
-	{ "password",		UserMappingRelationId },
-	{ "database",		ForeignTableRelationId },
-	{ "query", 			ForeignTableRelationId },
-	{ "table",			ForeignTableRelationId },
-	{ NULL,				InvalidOid }
+	{ "servername",				ForeignServerRelationId },
+	{ "language",				ForeignServerRelationId },
+	{ "character_set",			ForeignServerRelationId },
+	{ "port",					ForeignServerRelationId },
+	{ "database",				ForeignServerRelationId },
+	{ "dbuse",					ForeignServerRelationId },
+	{ "tds_version",			ForeignServerRelationId },
+	{ "username",				UserMappingRelationId },
+	{ "password",				UserMappingRelationId },
+	{ "database",				ForeignTableRelationId },
+	{ "query", 					ForeignTableRelationId },
+	{ "table",					ForeignTableRelationId },
+	{ "row_estimate_method",	ForeignTableRelationId },
+	{ NULL,						InvalidOid }
 };
 
 /* option values will be put here */
@@ -101,6 +102,7 @@ typedef struct TdsFdwOptionSet
 	char *table_database;
 	char *query;
 	char *table;
+	char* row_estimate_method;
 } TdsFdwOptionSet;
 
 /* a column */
@@ -175,6 +177,10 @@ int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, 
 /* default IP address */
 
 static const char *DEFAULT_SERVERNAME = "127.0.0.1";
+
+/* default method to use to estimate rows in results */
+
+static const char *DEFAULT_ROW_ESTIMATE_METHOD = "execute";
 
 Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 {
@@ -380,6 +386,26 @@ void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet 
 					
 			option_set->table = defGetString(def);
 		}
+		
+		else if (context == ForeignTableRelationId && strcmp(def->defname, "row_estimate_method") == 0)
+		{	
+			if (option_set->row_estimate_method)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: row_estimate_method (%s)", defGetString(def))
+					));
+					
+			option_set->row_estimate_method = defGetString(def);
+			
+			if ((strcmp(option_set->row_estimate_method, "execute") != 0)
+				&& (strcmp(option_set->row_estimate_method, "showplan_all") != 0))
+			{
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("row_estimate_method should be set to \"execute\" or \"showplan_all\". Currently set to %s", option_set->row_estimate_method)
+					));
+			}
+		}
 	}
 }
 
@@ -397,7 +423,7 @@ void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set)
         	{
                 	ereport(ERROR,
                         	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                                	errmsg("Failed to allocate memory for connection string")
+                                	errmsg("Failed to allocate memory for server name")
                         	));
         	}
 
@@ -406,6 +432,25 @@ void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set)
 		#ifdef DEBUG
 			ereport(NOTICE,
 				(errmsg("Set servername to default: %s", option_set->servername)
+				));
+		#endif
+	}
+	
+	if (!option_set->row_estimate_method)
+	{
+		if ((option_set->row_estimate_method = palloc((strlen(DEFAULT_ROW_ESTIMATE_METHOD) + 1) * sizeof(char))) == NULL)
+        	{
+                	ereport(ERROR,
+                        	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                                	errmsg("Failed to allocate memory for row estimate method")
+                        	));
+        	}
+
+		sprintf(option_set->row_estimate_method, "%s", DEFAULT_ROW_ESTIMATE_METHOD);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Set row_estimate_method to default: %s", option_set->row_estimate_method)
 				));
 		#endif
 	}
@@ -550,6 +595,7 @@ static void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->table_database = NULL;
 	option_set->query = NULL;
 	option_set->table = NULL;
+	option_set->row_estimate_method = NULL;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -872,9 +918,299 @@ static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 	return 0;
 }
 
+static int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+{
+	int rows = 0;
+	RETCODE erc;
+	int ret_code;
+	char* show_plan_query = "SET SHOWPLAN_ALL ON";
+	char* show_plan_query_off = "SET SHOWPLAN_ALL OFF";
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsGetRowCountShowPlanAll")
+			));
+	#endif	
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Setting database command to %s", show_plan_query)
+			));
+	#endif
+	
+	if ((erc = dbcmd(dbproc, show_plan_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set current query to %s", show_plan_query)
+			));		
+
+		goto cleanup;
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Executing the query")
+			));
+	#endif
+	
+	if ((erc = dbsqlexec(dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", show_plan_query)
+			));	
+
+		goto cleanup;
+	}
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Query executed correctly")
+			));			
+	#endif	
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Setting database command to %s", option_set->query)
+			));
+	#endif
+	
+	if ((erc = dbcmd(dbproc, option_set->query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set current query to %s", option_set->query)
+			));		
+
+		goto cleanup_after_show_plan;
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Executing the query")
+			));
+	#endif
+	
+	if ((erc = dbsqlexec(dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", option_set->query)
+			));	
+
+		goto cleanup_after_show_plan;
+	}
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Query executed correctly")
+			));
+		ereport(NOTICE,
+			(errmsg("Getting results")
+			));				
+	#endif
+
+	erc = dbresults(dbproc);
+	
+	if (erc == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to get results from query %s", option_set->query)
+			));
+			
+		goto cleanup_after_show_plan;
+	}
+	
+	else if (erc == NO_MORE_RESULTS)
+	{
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("There appears to be no results from query %s", option_set->query)
+				));
+		#endif
+		
+		goto cleanup_after_show_plan;
+	}
+	
+	else if (erc == SUCCEED)
+	{
+		int ncol;
+		int ncols;
+		int parent = 0;
+		int estimate_rows = 0;
+		
+		ncols = dbnumcols(dbproc);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("%i columns", ncols)
+				));
+		#endif
+		
+		for (ncol = 0; ncol < ncols; ncol++)
+		{
+			char *col_name;
+
+			col_name = dbcolname(dbproc, ncol + 1);
+			
+			if (strcmp(col_name, "Parent") == 0)
+			{
+				#ifdef DEBUG
+					ereport(NOTICE,
+						(errmsg("Binding column %s (%i)", col_name, ncol + 1)
+						));
+				#endif
+				
+				erc = dbbind(dbproc, ncol + 1, INTBIND, sizeof(int), (BYTE *)&parent);
+				
+				if (erc == FAIL)
+				{
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to bind results for column %s to a variable.", col_name)
+						));
+						
+					goto cleanup_after_show_plan;
+				}
+			}
+			
+			if (strcmp(col_name, "EstimateRows") == 0)
+			{
+				#ifdef DEBUG
+					ereport(NOTICE,
+						(errmsg("Binding column %s (%i)", col_name, ncol + 1)
+						));
+				#endif
+				
+				erc = dbbind(dbproc, ncol + 1, INTBIND, sizeof(int), (BYTE *)&estimate_rows);
+				
+				if (erc == FAIL)
+				{
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to bind results for column %s to a variable.", col_name)
+						));
+						
+					goto cleanup_after_show_plan;
+				}				
+			}
+		}
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Successfully got results")
+				));
+		#endif
+		
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			switch (ret_code)
+			{
+				case REG_ROW:
+
+					#ifdef DEBUG
+						ereport(NOTICE,
+							(errmsg("Parent is %i. EstimateRows is %i.", parent, estimate_rows)
+						));
+					#endif
+
+					if (parent == 0)
+					{
+						rows += estimate_rows;
+					}
+						
+					break;
+					
+				case BUF_FULL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+							errmsg("Buffer filled up while getting plan for query")
+						));					
+
+					goto cleanup_after_show_plan;
+						
+				case FAIL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get row while getting plan for query")
+						));				
+
+					goto cleanup_after_show_plan;
+				
+				default:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get plan for query. Unknown return code.")
+						));					
+
+					goto cleanup_after_show_plan;
+			}
+		}
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("We estimated %i rows.", rows)
+				));
+		#endif		
+	}
+	
+	else
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Unknown return code getting results from query %s", option_set->query)
+			));		
+	}
+	
+cleanup_after_show_plan:
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Setting database command to %s", show_plan_query_off)
+			));
+	#endif
+	
+	if ((erc = dbcmd(dbproc, show_plan_query_off)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set current query to %s", show_plan_query_off)
+			));		
+
+		goto cleanup;
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Executing the query")
+			));
+	#endif
+	
+	if ((erc = dbsqlexec(dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", show_plan_query_off)
+			));	
+
+		goto cleanup;
+	}
+
+cleanup:
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsGetRowCountShowPlanAll")
+			));
+	#endif		
+	
+
+	return rows;
+}
+
 /* get the number of rows returned by a query */
 
-static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+static int tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
 {
 	int rows_report = 0;
 	int rows_increment = 0;
@@ -884,7 +1220,7 @@ static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCES
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			(errmsg("----> starting tdsGetRowCount")
+			(errmsg("----> starting tdsGetRowCountExecute")
 			));
 	#endif		
 	
@@ -960,7 +1296,7 @@ static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCES
 				));
 		#endif
 		
-		if ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
 		{
 			switch (ret_code)
 			{
@@ -1018,7 +1354,7 @@ static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCES
 cleanup:	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			(errmsg("----> finishing tdsGetRowCount")
+			(errmsg("----> finishing tdsGetRowCountExecute")
 			));
 	#endif		
 	
@@ -1031,6 +1367,35 @@ cleanup:
 	{
 		return rows_increment;
 	}
+}
+
+static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+{
+	int rows = 0;
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsGetRowCount")
+			));
+	#endif		
+	
+	if (strcmp(option_set->row_estimate_method, "execute") == 0)
+	{
+		rows = tdsGetRowCountExecute(option_set, login, dbproc);
+	}
+	
+	else if (strcmp(option_set->row_estimate_method, "showplan_all") == 0)
+	{
+		rows = tdsGetRowCountShowPlanAll(option_set, login, dbproc);
+	}
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsGetRowCount")
+			));
+	#endif	
+
+	return rows;
 }
 
 /* get the startup cost for the query */
