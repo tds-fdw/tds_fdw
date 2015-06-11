@@ -40,6 +40,7 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/rel.h"
+#include "utils/memutils.h"
 
 #if (PG_VERSION_NUM >= 90200)
 #include "optimizer/pathnode.h"
@@ -63,7 +64,6 @@ typedef struct TdsFdwOption
 	const char *optname;
 	Oid optcontext;
 } TdsFdwOption;
-
 
 
 /* these are valid options */
@@ -110,8 +110,7 @@ typedef struct TdsFdwOptionSet
 typedef struct COL
 {
 	char *name;
-	char *buffer;
-	int type, size, status;
+	int srctype;
 } COL;
 
 /* this maintains state */
@@ -125,6 +124,7 @@ typedef struct TdsFdwExecutionState
 	COL *columns;
 	int ncols;
 	int row;
+	MemoryContext mem_cxt;
 } TdsFdwExecutionState;
 
 /* functions called via SQL */
@@ -157,16 +157,19 @@ static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOpt
 
 /* Helper functions */
 
-void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet *option_set);
-void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set);
-void tdsOptionsValidateContextFinal(TdsFdwOptionSet *option_set, Oid context);
-void tdsOptionsValidateFinal(TdsFdwOptionSet *option_set);
+static void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet *option_set);
+static void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set);
+static void tdsOptionsValidateContextFinal(TdsFdwOptionSet *option_set, Oid context);
+static void tdsOptionsValidateFinal(TdsFdwOptionSet *option_set);
 static bool tdsIsValidOption(const char *option, Oid context);
 static void tdsOptionSetInit(TdsFdwOptionSet* option_set);
 static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set);
 static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc);
 static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
+static int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
+static int tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 static int tdsGetStartupCost(TdsFdwOptionSet* option_set);
+static void tdsGetColumnMetadata(TdsFdwExecutionState *festate);
 static char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen);
 
 /* Helper functions for DB-Library API */
@@ -575,7 +578,7 @@ static bool tdsIsValidOption(const char *option, Oid context)
 
 /* initialize the option set */
 
-static void tdsOptionSetInit(TdsFdwOptionSet* option_set)
+void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -606,7 +609,7 @@ static void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 
 /* get options for FOREIGN TABLE and FOREIGN SERVER objects using this module */
 
-static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set)
+void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set)
 {
 	ForeignTable *f_table;
 	ForeignServer *f_server;
@@ -639,7 +642,7 @@ static void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set)
 
 /* set up connection */
 
-static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc)
+int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc)
 {
 	char* conn_string;
 	RETCODE erc;
@@ -918,7 +921,7 @@ static int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 	return 0;
 }
 
-static int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
 {
 	int rows = 0;
 	RETCODE erc;
@@ -1246,7 +1249,7 @@ cleanup:
 
 /* get the number of rows returned by a query */
 
-static int tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+int tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
 {
 	int rows_report = 0;
 	int rows_increment = 0;
@@ -1405,7 +1408,7 @@ cleanup:
 	}
 }
 
-static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
 {
 	int rows = 0;
 	
@@ -1436,7 +1439,7 @@ static int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCES
 
 /* get the startup cost for the query */
 
-static int tdsGetStartupCost(TdsFdwOptionSet* option_set)
+int tdsGetStartupCost(TdsFdwOptionSet* option_set)
 {
 	int startup_cost;
 	
@@ -1460,7 +1463,7 @@ static int tdsGetStartupCost(TdsFdwOptionSet* option_set)
 	return startup_cost;
 }
 
-static char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen)
+char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen)
 {
 	char* dest = NULL;
 	int real_destlen;
@@ -1545,7 +1548,7 @@ static char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src
 
 /* get output for EXPLAIN */
 
-static void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
+void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1562,12 +1565,13 @@ static void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
 
 /* initiate access to foreign server and database */
 
-static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
+void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 {
 	TdsFdwOptionSet option_set;
 	LOGINREC *login;
 	DBPROCESS *dbproc;
 	TdsFdwExecutionState *festate;
+	EState *estate = node->ss.ps.state;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1627,6 +1631,11 @@ static void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	festate->query = option_set.query;
 	festate->first = 1;
 	festate->row = 0;
+	festate->mem_cxt = AllocSetContextCreate(estate->es_query_cxt,
+											   "tds_fdw data",
+											   ALLOCSET_DEFAULT_MINSIZE,
+											   ALLOCSET_DEFAULT_INITSIZE,
+											   ALLOCSET_DEFAULT_MAXSIZE);
 	
 cleanup:
 	;
@@ -1638,10 +1647,47 @@ cleanup:
 	#endif
 }
 
+void tdsGetColumnMetadata(TdsFdwExecutionState *festate)
+{
+	int ncol;
+	
+	if ((festate->columns = palloc(festate->ncols * sizeof(COL))) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+			errmsg("Failed to allocate memory for column metadata array")
+			));
+	}
+
+	for (ncol = 0; ncol < festate->ncols; ncol++)
+	{	
+		COL* column;
+		
+		column = &festate->columns[ncol];
+		column->name = dbcolname(festate->dbproc, ncol + 1);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Fetching column %i (%s)", ncol, column->name)
+				));
+		#endif
+		
+		column->srctype = dbcoltype(festate->dbproc, ncol + 1);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Type is %i", column->srctype)
+				));
+		#endif
+		
+	}
+}
+
 /* get next row from foreign table */
 
-static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
+TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 {
+	MemoryContext old_cxt;
 	RETCODE erc;
 	int ret_code;
 	HeapTuple tuple;
@@ -1656,6 +1702,8 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 			(errmsg("----> starting tdsIterateForeignScan")
 			));
 	#endif
+	
+	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
 	
 	if (festate->first)
 	{
@@ -1721,11 +1769,30 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 		
 		else if (erc == SUCCEED)
 		{
+
 			#ifdef DEBUG
 				ereport(NOTICE,
 					(errmsg("Successfully got results")
 					));
 			#endif
+
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Getting column info")
+					));
+			#endif
+
+			festate->ncols = dbnumcols(festate->dbproc);
+
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("%i columns", festate->ncols)
+					));
+			#endif
+			
+			MemoryContextReset(festate->mem_cxt);
+		
+			tdsGetColumnMetadata(festate);
 		}
 		
 		else
@@ -1745,7 +1812,7 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 	
 	if ((ret_code = dbnextrow(festate->dbproc)) != NO_MORE_ROWS)
 	{
-		int ncols, ncol;
+		int ncol;
 		char **values;
 		
 		switch (ret_code)
@@ -1759,15 +1826,7 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 						));
 				#endif
 				
-				ncols = dbnumcols(festate->dbproc);
-				
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("%i columns", ncols)
-						));
-				#endif
-				
-				if ((values = palloc(ncols * sizeof(char *))) == NULL)
+				if ((values = palloc(festate->ncols * sizeof(char *))) == NULL)
 				{
 					ereport(ERROR,
 						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
@@ -1775,33 +1834,13 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 						));
 				}
 				
-				for (ncol = 0; ncol < ncols; ncol++)
+				for (ncol = 0; ncol < festate->ncols; ncol++)
 				{
-					int srctype;
-					
-					#ifdef DEBUG
-						char *col_name;
-					#endif
-					
+					COL* column;
 					DBINT srclen;
 					BYTE* src;
 					
-					#ifdef DEBUG
-						col_name = dbcolname(festate->dbproc, ncol + 1);
-					
-					
-						ereport(NOTICE,
-							(errmsg("Fetching column %i (%s)", ncol, col_name)
-							));
-					#endif
-					
-					srctype = dbcoltype(festate->dbproc, ncol + 1);
-					
-					#ifdef DEBUG
-						ereport(NOTICE,
-							(errmsg("Type is %i", srctype)
-							));
-					#endif
+					column = &festate->columns[ncol];
 			
 					srclen = dbdatlen(festate->dbproc, ncol + 1);
 					
@@ -1813,7 +1852,7 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 					
 					src = dbdata(festate->dbproc, ncol + 1);
 
-					if (srclen == 0)
+					if (srclen == 0 && src == NULL)
 					{
 						#ifdef DEBUG
 							ereport(NOTICE,
@@ -1821,8 +1860,8 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 								));
 						#endif	
 						
-						values[ncol] = NULL;
-					}					
+						values[ncol] = NULL;						
+					}				
 					
 					else if (src == NULL)
 					{
@@ -1837,16 +1876,16 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 					
 					else
 					{
-						values[ncol] = tdsConvertToCString(festate->dbproc, srctype, src, srclen);
+						values[ncol] = tdsConvertToCString(festate->dbproc, column->srctype, src, srclen);
 					}
 				}
 				
 				#ifdef DEBUG
 					ereport(NOTICE,
-						(errmsg("Printing all %i values", ncols)
+						(errmsg("Printing all %i values", festate->ncols)
 						));
 								
-					for (ncol = 0; ncol < ncols; ncol++)
+					for (ncol = 0; ncol < festate->ncols; ncol++)
 					{
 						if (values[ncol] != NULL)
 						{
@@ -1892,10 +1931,14 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 	
 	else
 	{
-		ereport(NOTICE,
-			(errmsg("No more rows")
-			));
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("No more rows")
+				));
+		#endif
 	}
+	
+	MemoryContextSwitchTo(old_cxt);
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1908,7 +1951,7 @@ static TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 
 /* rescan foreign table */
 
-static void tdsReScanForeignScan(ForeignScanState *node)
+void tdsReScanForeignScan(ForeignScanState *node)
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1925,7 +1968,7 @@ static void tdsReScanForeignScan(ForeignScanState *node)
 
 /* cleanup objects related to scan */
 
-static void tdsEndForeignScan(ForeignScanState *node)
+void tdsEndForeignScan(ForeignScanState *node)
 {
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *) node->fdw_state;
 	
@@ -1974,7 +2017,7 @@ static void tdsEndForeignScan(ForeignScanState *node)
 /* routines for 9.2.0+ */
 #if (PG_VERSION_NUM >= 90200)
 
-static void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
+void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 {
 	TdsFdwOptionSet option_set;
 	LOGINREC *login;
@@ -2046,7 +2089,7 @@ cleanup_before_init:
 	#endif	
 }
 
-static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *startup_cost, Cost *total_cost, Oid foreigntableid)
+void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *startup_cost, Cost *total_cost, Oid foreigntableid)
 {
 	TdsFdwOptionSet option_set;
 	
@@ -2069,7 +2112,7 @@ static void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *start
 	#endif
 }
 
-static void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
+void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid)
 {
 	Cost startup_cost;
 	Cost total_cost;
@@ -2093,7 +2136,7 @@ static void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid forei
 	#endif
 }
 
-static bool tdsAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *func, BlockNumber *totalpages)
+bool tdsAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *func, BlockNumber *totalpages)
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -2110,7 +2153,7 @@ static bool tdsAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *fun
 	return false;
 }
 
-static ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, 
+ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, 
 	Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses)
 {
 	Index scan_relid = baserel->relid;
@@ -2134,7 +2177,7 @@ static ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 /* routines for versions older than 9.2.0 */
 #else
 
-static FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
+FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
 {
 	FdwPlan *fdwplan;
 	TdsFdwOptionSet option_set;
