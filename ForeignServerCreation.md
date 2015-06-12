@@ -74,6 +74,14 @@ Required: No
   
 The version of the TDS protocol to use for this server. See [Choosing a TDS protocol version](http://www.freetds.org/userguide/choosingtdsprotocol.htm) and [History of TDS Versions](http://www.freetds.org/userguide/tdshistory.htm).
 
+* *msg_handler*  
+  
+Required: No  
+
+Default: blackhole
+  
+The function used for the TDS message handler. Options are "notice" and "blackhole." With the "notice" option, TDS messages are turned into PostgreSQL notices. With the "blackhole" option, TDS messages are ignored.
+
 ### Example
 			
 ```SQL			

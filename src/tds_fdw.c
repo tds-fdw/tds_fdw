@@ -77,6 +77,7 @@ static struct TdsFdwOption valid_options[] =
 	{ "database",				ForeignServerRelationId },
 	{ "dbuse",					ForeignServerRelationId },
 	{ "tds_version",			ForeignServerRelationId },
+	{ "msg_handler",			ForeignServerRelationId },
 	{ "username",				UserMappingRelationId },
 	{ "password",				UserMappingRelationId },
 	{ "database",				ForeignTableRelationId },
@@ -97,6 +98,7 @@ typedef struct TdsFdwOptionSet
 	char *database;
 	int dbuse;
 	char* tds_version;
+	char* msg_handler;
 	char *username;
 	char *password;
 	char *table_database;
@@ -175,7 +177,8 @@ static char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src
 /* Helper functions for DB-Library API */
 
 int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr);
-int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line);
+int tds_notice_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line);
+int tds_blackhole_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line);
 
 /* default IP address */
 
@@ -184,6 +187,10 @@ static const char *DEFAULT_SERVERNAME = "127.0.0.1";
 /* default method to use to estimate rows in results */
 
 static const char *DEFAULT_ROW_ESTIMATE_METHOD = "execute";
+
+/* default function used to handle TDS messages */
+
+static const char *DEFAULT_MSG_HANDLER = "blackhole";
 
 Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 {
@@ -326,6 +333,8 @@ void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet 
 
 		else if (context == ForeignServerRelationId && strcmp(def->defname, "tds_version") == 0)
 		{
+			int tds_version_test = 0;
+			
 			if (option_set->tds_version)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
@@ -333,7 +342,87 @@ void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet 
 					));
 					
 			option_set->tds_version = defGetString(def);	
-		}			
+			
+			if (strcmp(option_set->tds_version, "4.2") == 0)
+			{
+				tds_version_test = 1;
+			}
+			
+			else if (strcmp(option_set->tds_version, "5.0") == 0)
+			{
+				tds_version_test = 1;
+			}
+			
+			else if (strcmp(option_set->tds_version, "7.0") == 0)
+			{
+				tds_version_test = 1;
+			}
+			
+			#ifdef DBVERSION_71
+			else if (strcmp(option_set->tds_version, "7.1") == 0)
+			{
+				tds_version_test = 1;
+			}
+			#endif
+			
+			#ifdef DBVERSION_72
+			else if (strcmp(option_set->tds_version, "7.2") == 0)
+			{
+				tds_version_test = 1;
+			}
+			#endif
+
+			#ifdef DBVERSION_73
+			else if (strcmp(option_set->tds_version, "7.3") == 0)
+			{
+				tds_version_test = 1;
+			}
+			#endif
+			
+			if (!tds_version_test)
+			{
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Unknown tds version: %s.", option_set->tds_version)
+					));
+			}
+		}
+
+		else if (context == ForeignServerRelationId && strcmp(def->defname, "msg_handler") == 0)
+		{
+			int msg_handler_test;
+			
+			if (option_set->msg_handler)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: msg_handler (%s)", defGetString(def))
+					));
+					
+			option_set->msg_handler = defGetString(def);
+
+			if (strcmp(option_set->msg_handler, "notice") == 0)
+			{
+				msg_handler_test = 1;
+			}
+			
+			else if (strcmp(option_set->msg_handler, "blackhole") == 0)
+			{
+				msg_handler_test = 1;
+			}	
+			
+			else
+			{
+			
+			}
+
+			if (!msg_handler_test)
+			{
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Unknown msg handler: %s.", option_set->msg_handler)
+					));
+			}			
+		}				
 		
 		else if (context == UserMappingRelationId && strcmp(def->defname, "username") == 0)
 		{
@@ -454,6 +543,25 @@ void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set)
 		#ifdef DEBUG
 			ereport(NOTICE,
 				(errmsg("Set row_estimate_method to default: %s", option_set->row_estimate_method)
+				));
+		#endif
+	}
+	
+	if (!option_set->msg_handler)
+	{
+		if ((option_set->msg_handler= palloc((strlen(DEFAULT_MSG_HANDLER) + 1) * sizeof(char))) == NULL)
+        	{
+                	ereport(ERROR,
+                        	(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                                	errmsg("Failed to allocate memory for msg handler")
+                        	));
+        	}
+
+		sprintf(option_set->msg_handler, "%s", DEFAULT_MSG_HANDLER);
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Set msg_handler to default: %s", option_set->msg_handler)
 				));
 		#endif
 	}
@@ -593,6 +701,7 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->database = NULL;
 	option_set->dbuse = 0;
 	option_set->tds_version = NULL;
+	option_set->msg_handler = NULL;
 	option_set->username = NULL;
 	option_set->password = NULL;
 	option_set->table_database = NULL;
@@ -1596,7 +1705,27 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	}
 	
 	dberrhandle(tds_err_handler);
-	dbmsghandle(tds_msg_handler);
+	
+	if (option_set.msg_handler)
+	{
+		if (strcmp(option_set.msg_handler, "notice") == 0)
+		{
+			dbmsghandle(tds_notice_msg_handler);
+		}
+		
+		else if (strcmp(option_set.msg_handler, "blackhole") == 0)
+		{
+			dbmsghandle(tds_blackhole_msg_handler);
+		}
+		
+		else
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Unknown msg handler: %s.", option_set.msg_handler)
+				));
+		}
+	}
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -2047,7 +2176,27 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 	}
 	
 	dberrhandle(tds_err_handler);
-	dbmsghandle(tds_msg_handler);
+	
+	if (option_set.msg_handler)
+	{
+		if (strcmp(option_set.msg_handler, "notice") == 0)
+		{
+			dbmsghandle(tds_notice_msg_handler);
+		}
+		
+		else if (strcmp(option_set.msg_handler, "blackhole") == 0)
+		{
+			dbmsghandle(tds_blackhole_msg_handler);
+		}
+		
+		else
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Unknown msg handler: %s.", option_set.msg_handler)
+				));
+		}
+	}
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -2282,11 +2431,11 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
 	return INT_CANCEL;
 }
 
-int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line)
+int tds_notice_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line)
 {
 	#ifdef DEBUG
 		ereport(NOTICE,
-			(errmsg("----> starting tds_msg_handler")
+			(errmsg("----> starting tds_notice_msg_handler")
 			));
 	#endif
 	
@@ -2297,7 +2446,24 @@ int tds_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, 
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			(errmsg("----> finishing tds_msg_handler")
+			(errmsg("----> finishing tds_notice_msg_handler")
+			));
+	#endif
+
+	return 0;
+}
+
+int tds_blackhole_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line)
+{
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tds_blackhole_msg_handler")
+			));
+	#endif	
+	
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tds_blackhole_msg_handler")
 			));
 	#endif
 
