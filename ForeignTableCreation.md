@@ -9,16 +9,6 @@
 ### Options
 
 Foreign table parameters accepted:
-
-* *database*  
-  
-Required: No  
-  
-The database name that the foreign table is a part of.
-
-If specified, the foreign tables database is always selected with *dbuse()* after connecting. Do not use this with Azure.
-
-This option might eventually be phased out and replaced with the *database* option supplied to the foreign server.
 				
 * *query*  
   

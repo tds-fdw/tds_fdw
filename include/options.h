@@ -26,7 +26,6 @@ typedef struct TdsFdwOptionSet
 	char* msg_handler;
 	char *username;
 	char *password;
-	char *table_database;
 	char *query;
 	char *table;
 	char* row_estimate_method;

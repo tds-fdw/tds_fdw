@@ -61,7 +61,6 @@ static struct TdsFdwOption valid_options[] =
 	{ "row_estimate_method",	ForeignServerRelationId },
 	{ "username",				UserMappingRelationId },
 	{ "password",				UserMappingRelationId },
-	{ "database",				ForeignTableRelationId },
 	{ "query", 					ForeignTableRelationId },
 	{ "table",					ForeignTableRelationId },
 	{ "row_estimate_method",	ForeignTableRelationId },
@@ -756,7 +755,6 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->msg_handler = NULL;
 	option_set->username = NULL;
 	option_set->password = NULL;
-	option_set->table_database = NULL;
 	option_set->query = NULL;
 	option_set->table = NULL;
 	option_set->row_estimate_method = NULL;

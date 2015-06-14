@@ -313,32 +313,6 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 		#endif
 	}
 	
-	/* Remove table_database in a future release? */
-	if (option_set->table_database)
-	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Selecting database %s", option_set->table_database)
-				));
-		#endif
-		
-		if ((erc = dbuse(*dbproc, option_set->table_database)) == FAIL)
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-					errmsg("Failed to select database %s", option_set->table_database)
-				));
-				
-			return -1;
-		}
-		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Selected database")
-				));
-		#endif
-	}
-	
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("Getting query")
