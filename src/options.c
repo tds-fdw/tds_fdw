@@ -106,14 +106,6 @@ void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option
 		tdsGetUserMappingOptions(options_list, option_set);
 	}
 	
-	else
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_SYNTAX_ERROR),
-				errmsg("Invalid option context: (%i)", context)
-			));
-	}
-	
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsValidateOptions")
