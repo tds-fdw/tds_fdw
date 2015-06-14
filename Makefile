@@ -19,7 +19,7 @@ EXTENSION = tds_fdw
 
 MODULE_big = $(EXTENSION)
 
-OBJS = src/$(EXTENSION).o
+OBJS = src/tds_fdw.o src/options.o
 
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\\([^']*\\)'/\\1/")
 
@@ -36,7 +36,7 @@ PG_CONFIG    = pg_config
 
 # modify these variables to point to FreeTDS, if needed
 SHLIB_LINK := -lsybdb
-# PG_CPPFLAGS :=
+PG_CPPFLAGS := -I./include/
 # PG_LIBS :=
 
 all: sql/$(EXTENSION)--$(EXTVERSION).sql README.${EXTENSION}.md
