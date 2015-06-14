@@ -111,11 +111,7 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 			));
 	#endif
 	
-	tdsOptionSetInit(&option_set);	
-	
-	tdsOptionsValidateInitial(options_list, catalog, &option_set);
-	tdsOptionsSetDefaults(&option_set);
-	tdsOptionsValidateContextFinal(&option_set, catalog);
+	tdsValidateOptions(options_list, catalog, &option_set);
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1065,7 +1061,7 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 			));
 	#endif
 	
-	tdsGetOptions(RelationGetRelid(node->ss.ss_currentRelation), &option_set);
+	tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(node->ss.ss_currentRelation), &option_set);
 		
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1535,7 +1531,7 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 			));
 	#endif
 	
-	tdsGetOptions(foreigntableid, &option_set);
+	tdsGetForeignTableOptionsFromCatalog(foreigntableid, &option_set);
 		
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1625,7 +1621,7 @@ void tdsEstimateCosts(PlannerInfo *root, RelOptInfo *baserel, Cost *startup_cost
 			));
 	#endif
 	
-	tdsGetOptions(foreigntableid, &option_set);	
+	tdsGetForeignTableOptionsFromCatalog(foreigntableid, &option_set);	
 	
 	*startup_cost = tdsGetStartupCost(&option_set);
 		
@@ -1718,7 +1714,7 @@ FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *b
 	
 	fdwplan = makeNode(FdwPlan);
 	
-	tdsGetOptions(foreigntableid, &option_set);	
+	tdsGetForeignTableOptionsFromCatalog(foreigntableid, &option_set);	
 	
 	fdwplan->startup_cost = tdsGetStartupCost(&option_set);
 		
@@ -1738,7 +1734,27 @@ FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *b
 	}
 	
 	dberrhandle(tds_err_handler);
-	dbmsghandle(tds_msg_handler);
+	
+	if (option_set.msg_handler)
+	{
+		if (strcmp(option_set.msg_handler, "notice") == 0)
+		{
+			dbmsghandle(tds_notice_msg_handler);
+		}
+		
+		else if (strcmp(option_set.msg_handler, "blackhole") == 0)
+		{
+			dbmsghandle(tds_blackhole_msg_handler);
+		}
+		
+		else
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Unknown msg handler: %s.", option_set.msg_handler)
+				));
+		}
+	}
 	
 	#ifdef DEBUG
 		ereport(NOTICE,

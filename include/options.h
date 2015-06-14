@@ -32,12 +32,8 @@ typedef struct TdsFdwOptionSet
 	char* row_estimate_method;
 } TdsFdwOptionSet;
 
-void tdsOptionsValidateInitial(List *options_list, Oid context, TdsFdwOptionSet *option_set);
-void tdsOptionsSetDefaults(TdsFdwOptionSet *option_set);
-void tdsOptionsValidateContextFinal(TdsFdwOptionSet *option_set, Oid context);
-void tdsOptionsValidateFinal(TdsFdwOptionSet *option_set);
-bool tdsIsValidOption(const char *option, Oid context);
-void tdsOptionSetInit(TdsFdwOptionSet* option_set);
-void tdsGetOptions(Oid foreigntableid, TdsFdwOptionSet* option_set);
+void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set);
+void tdsGetForeignTableOptionsFromCatalog(Oid foreigntableid, TdsFdwOptionSet* option_set);
+void tdsValidateOptionSet(TdsFdwOptionSet* option_set);
 
 #endif
