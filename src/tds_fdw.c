@@ -1446,6 +1446,7 @@ void tdsReScanForeignScan(ForeignScanState *node)
 
 void tdsEndForeignScan(ForeignScanState *node)
 {
+	MemoryContext old_cxt;
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *) node->fdw_state;
 	
 	#ifdef DEBUG
@@ -1454,6 +1455,8 @@ void tdsEndForeignScan(ForeignScanState *node)
 			));
 	#endif
 	
+	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
+
 	if (festate->query)
 	{
 		pfree(festate->query);
@@ -1488,6 +1491,9 @@ void tdsEndForeignScan(ForeignScanState *node)
 			(errmsg("----> finishing tdsEndForeignScan")
 			));
 	#endif
+
+	MemoryContextSwitchTo(old_cxt);
+	MemoryContextReset(festate->mem_cxt);
 }
 
 /* routines for 9.2.0+ */
