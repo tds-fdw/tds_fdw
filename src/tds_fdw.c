@@ -44,6 +44,7 @@
 #include "utils/builtins.h"
 #include "utils/rel.h"
 #include "utils/memutils.h"
+#include "utils/guc.h"
 
 #if (PG_VERSION_NUM >= 90200)
 #include "optimizer/pathnode.h"
@@ -61,6 +62,19 @@ PG_MODULE_MAGIC;
 
 #include "tds_fdw.h"
 #include "options.h"
+
+/* run on module load */
+
+extern PGDLLEXPORT void _PG_init(void);
+
+static const bool DEFAULT_SHOW_FINISHED_MEMORY_STATS = false;
+static bool show_finished_memory_stats = false;
+
+static const bool DEFAULT_SHOW_BEFORE_ROW_MEMORY_STATS = false;
+static bool show_before_row_memory_stats = false;
+
+static const bool DEFAULT_SHOW_AFTER_ROW_MEMORY_STATS = false;
+static bool show_after_row_memory_stats = false;
 
 PG_FUNCTION_INFO_V1(tds_fdw_handler);
 PG_FUNCTION_INFO_V1(tds_fdw_validator);
@@ -120,6 +134,42 @@ Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 	#endif
 	
 	PG_RETURN_VOID();
+}
+
+void _PG_init(void)
+{
+	DefineCustomBoolVariable("tds_fdw.show_finished_memory_stats",
+		"Show finished memory stats",
+		"Set to true to show memory stats after a query finishes",
+		&show_finished_memory_stats,
+		DEFAULT_SHOW_FINISHED_MEMORY_STATS,
+		PGC_SUSET,
+		0,
+		NULL,
+		NULL,
+		NULL);
+		
+	DefineCustomBoolVariable("tds_fdw.show_before_row_memory_stats",
+		"Show before row memory stats",
+		"Set to true to show memory stats before fetching each row",
+		&show_before_row_memory_stats,
+		DEFAULT_SHOW_BEFORE_ROW_MEMORY_STATS,
+		PGC_SUSET,
+		0,
+		NULL,
+		NULL,
+		NULL);
+		
+	DefineCustomBoolVariable("tds_fdw.show_after_row_memory_stats",
+		"Show after row memory stats",
+		"Set to true to show memory stats after fetching each row",
+		&show_after_row_memory_stats,
+		DEFAULT_SHOW_AFTER_ROW_MEMORY_STATS,
+		PGC_SUSET,
+		0,
+		NULL,
+		NULL,
+		NULL);
 }
 
 /* set up connection */
@@ -1168,6 +1218,7 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 	int ret_code;
 	HeapTuple tuple;
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *) node->fdw_state;
+	EState *estate = node->ss.ps.state;
 	TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
 	
 	/* Cleanup */
@@ -1302,6 +1353,13 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 						));
 				#endif
 				
+				if (show_before_row_memory_stats)
+				{
+					fprintf(stderr,"Showing memory statistics before row %d.\n", festate->row);
+						
+					MemoryContextStats(estate->es_query_cxt);
+				}
+				
 				if ((values = palloc(festate->ncols * sizeof(char *))) == NULL)
 				{
 					ereport(ERROR,
@@ -1354,6 +1412,13 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 					{
 						values[ncol] = tdsConvertToCString(festate->dbproc, column->srctype, src, srclen);
 					}
+				}
+				
+				if (show_after_row_memory_stats)
+				{
+					fprintf(stderr,"Showing memory statistics after row %d.\n", festate->row);
+						
+					MemoryContextStats(estate->es_query_cxt);
 				}
 				
 				#ifdef DEBUG
@@ -1448,6 +1513,7 @@ void tdsEndForeignScan(ForeignScanState *node)
 {
 	MemoryContext old_cxt;
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *) node->fdw_state;
+	EState *estate = node->ss.ps.state;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1456,6 +1522,13 @@ void tdsEndForeignScan(ForeignScanState *node)
 	#endif
 	
 	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
+	
+	if (show_finished_memory_stats)
+	{
+		fprintf(stderr,"Showing memory statistics after query finished.\n");
+			
+		MemoryContextStats(estate->es_query_cxt);
+	}
 
 	if (festate->query)
 	{
