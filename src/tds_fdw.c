@@ -1745,8 +1745,12 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 			(errmsg("----> finishing tdsGetForeignPlan")
 			));
 	#endif
-	
-	return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL);
+
+	#if (PG_VERSION_NUM >= 90500)
+		return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL, NIL);
+	#else
+		return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL);
+	#endif
 }
 
 /* routines for versions older than 9.2.0 */
