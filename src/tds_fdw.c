@@ -1175,7 +1175,10 @@ cleanup:
 
 void tdsGetColumnMetadata(TdsFdwExecutionState *festate)
 {
+ 	MemoryContext old_cxt;
 	int ncol;
+
+	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
 	
 	if ((festate->columns = palloc(festate->ncols * sizeof(COL))) == NULL)
 	{
@@ -1207,13 +1210,14 @@ void tdsGetColumnMetadata(TdsFdwExecutionState *festate)
 		#endif
 		
 	}
+
+	MemoryContextSwitchTo(old_cxt);
 }
 
 /* get next row from foreign table */
 
 TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 {
-	MemoryContext old_cxt;
 	RETCODE erc;
 	int ret_code;
 	HeapTuple tuple;
@@ -1229,8 +1233,6 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 			(errmsg("----> starting tdsIterateForeignScan")
 			));
 	#endif
-	
-	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
 	
 	if (festate->first)
 	{
@@ -1447,7 +1449,6 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att), values);
 				ExecStoreTuple(tuple, slot, InvalidBuffer, true);
 				
-
 				for (ncol = 0; ncol < festate->ncols; ncol++)
 				{
 					if (values[ncol] != NULL)
@@ -1490,8 +1491,6 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				));
 		#endif
 	}
-	
-	MemoryContextSwitchTo(old_cxt);
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
