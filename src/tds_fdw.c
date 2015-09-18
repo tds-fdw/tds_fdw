@@ -1449,16 +1449,6 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att), values);
 				ExecStoreTuple(tuple, slot, InvalidBuffer, false);
 				
-				for (ncol = 0; ncol < festate->ncols; ncol++)
-				{
-					if (values[ncol] != NULL)
-					{
-						pfree(values[ncol]);
-					}
-				}
-
-				pfree(values);
-
 				break;
 				
 			case BUF_FULL:
