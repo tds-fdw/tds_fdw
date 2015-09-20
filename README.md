@@ -39,6 +39,10 @@ See [creating a foreign table](ForeignTableCreation.md).
 ### User mapping
 	
 See [creating a user mapping](UserMappingCreation.md).
+
+### Variables
+
+See [variables](Variables.md).
 	
 ## Notes about character sets/encoding
 
