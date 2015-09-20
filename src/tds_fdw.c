@@ -45,6 +45,7 @@
 #include "utils/rel.h"
 #include "utils/memutils.h"
 #include "utils/guc.h"
+#include "utils/timestamp.h"
 
 #if (PG_VERSION_NUM >= 90200)
 #include "optimizer/pathnode.h"
@@ -976,6 +977,9 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 	DBINT destlen;
 	int desttype;
 	int ret_value;
+	DBDATEREC datetime_in;
+	RETCODE erc;
+	int use_tds_conversion = 1;
 	
 	switch(srctype)
 	{
@@ -992,6 +996,59 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 			destlen = srclen;
 			desttype = SYBBINARY;
 			break;
+		case SYBDATETIME:
+			erc = dbdatecrack(dbproc, &datetime_in, (DBDATETIME *)src);
+			
+			if (erc == SUCCEED)
+			{
+				Datum datetime_out;
+				const char* datetime_str;
+				
+				#ifdef MSDBLIB
+					#ifdef DEBUG
+						ereport(NOTICE,
+							(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
+								datetime_in.year, datetime_in.month, datetime_in.day, 
+								datetime_in.hour, datetime_in.minute, datetime_in.second,
+								datetime_in.millisecond, datetime_in.tzone)
+						));
+					#endif
+					
+					datetime_out = DirectFunctionCall6(make_timestamp, 
+						datetime_in.year, datetime_in.month, datetime_in.day, 
+						datetime_in.hour, datetime_in.minute, datetime_in.second);
+						
+				#else
+					#ifdef DEBUG
+						ereport(NOTICE,
+							(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
+								datetime_in.dateyear, datetime_in.datemonth + 1, datetime_in.datedmonth, 
+								datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond,
+								datetime_in.datemsecond, datetime_in.datetzone)
+						));
+					#endif
+					
+					/* Sybase uses different field names, and it uses 0-11 for the month */
+					datetime_out = DirectFunctionCall6(make_timestamp, 
+						datetime_in.dateyear, datetime_in.datemonth + 1, datetime_in.datedmonth, 
+						datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond);
+						
+				#endif
+				
+				datetime_str = timestamptz_to_str(DatumGetTimestamp(datetime_out));
+				
+				if ((dest = palloc(strlen(datetime_str) * sizeof(char))) == NULL)
+				{
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+						errmsg("Failed to allocate memory for column value")
+						));
+				}
+				
+				strcpy(dest, datetime_str);
+				
+				use_tds_conversion = 0;
+			}
 		default:
 			real_destlen = 1000; /* Probably big enough */
 			destlen = -1; 
@@ -1008,44 +1065,47 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 			));
 	#endif	
 	
-	if (dbwillconvert(srctype, desttype) != FALSE)
+	if (use_tds_conversion)
 	{
-		if ((dest = palloc(real_destlen * sizeof(char))) == NULL)
+		if (dbwillconvert(srctype, desttype) != FALSE)
 		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-				errmsg("Failed to allocate memory for column value")
-				));
+			if ((dest = palloc(real_destlen * sizeof(char))) == NULL)
+			{
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+					errmsg("Failed to allocate memory for column value")
+					));
+			}
+			
+			ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, destlen);
+			
+			if (ret_value == FAIL)
+			{
+				#ifdef DEBUG
+					ereport(NOTICE,
+						(errmsg("Failed to convert column")
+						));
+				#endif	
+			}
+			
+			else if (ret_value == -1)
+			{
+				#ifdef DEBUG
+					ereport(NOTICE,
+						(errmsg("Failed to convert column. Could have been a NULL pointer or bad data type.")
+						));
+				#endif	
+			}
 		}
 		
-		ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, destlen);
-		
-		if (ret_value == FAIL)
+		else
 		{
 			#ifdef DEBUG
 				ereport(NOTICE,
-					(errmsg("Failed to convert column")
+					(errmsg("Column cannot be converted to this type.")
 					));
-			#endif	
+			#endif
 		}
-		
-		else if (ret_value == -1)
-		{
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Failed to convert column. Could have been a NULL pointer or bad data type.")
-					));
-			#endif	
-		}
-	}
-	
-	else
-	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Column cannot be converted to this type.")
-				));
-		#endif
 	}
 	
 	return dest;
