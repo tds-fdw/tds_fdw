@@ -996,6 +996,8 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 			destlen = srclen;
 			desttype = SYBBINARY;
 			break;
+
+		#if (PG_VERSION_NUM >= 90400)
 		case SYBDATETIME:
 			erc = dbdatecrack(dbproc, &datetime_in, (DBDATETIME *)src);
 			
@@ -1060,6 +1062,8 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 				
 				use_tds_conversion = 0;
 			}
+		#endif
+
 		default:
 			real_destlen = 1000; /* Probably big enough */
 			destlen = -1; 
