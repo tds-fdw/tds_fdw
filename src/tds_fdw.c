@@ -1003,8 +1003,11 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 			{
 				Datum datetime_out;
 				const char* datetime_str;
+				float8 seconds;
 				
 				#ifdef MSDBLIB
+					seconds = (float8)datetime_in.second + ((float8)datetime_in.millisecond/1000);
+					
 					#ifdef DEBUG
 						ereport(NOTICE,
 							(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
@@ -1012,13 +1015,18 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 								datetime_in.hour, datetime_in.minute, datetime_in.second,
 								datetime_in.millisecond, datetime_in.tzone)
 						));
-					#endif
+						ereport(NOTICE,
+							(errmsg("Seconds=%f", seconds)
+						));
+					#endif					
 					
 					datetime_out = DirectFunctionCall6(make_timestamp, 
-						datetime_in.year, datetime_in.month, datetime_in.day, 
-						datetime_in.hour, datetime_in.minute, datetime_in.second);
+						Int64GetDatum(datetime_in.year), Int64GetDatum(datetime_in.month), Int64GetDatum(datetime_in.day), 
+						Int64GetDatum(datetime_in.hour), Int64GetDatum(datetime_in.minute), Float8GetDatum(seconds));
 						
 				#else
+					seconds = (float8)datetime_in.datesecond + ((float8)datetime_in.datemsecond/1000);
+					
 					#ifdef DEBUG
 						ereport(NOTICE,
 							(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
@@ -1026,12 +1034,15 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 								datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond,
 								datetime_in.datemsecond, datetime_in.datetzone)
 						));
+						ereport(NOTICE,
+							(errmsg("Seconds=%f", seconds)
+						));
 					#endif
 					
 					/* Sybase uses different field names, and it uses 0-11 for the month */
 					datetime_out = DirectFunctionCall6(make_timestamp, 
-						datetime_in.dateyear, datetime_in.datemonth + 1, datetime_in.datedmonth, 
-						datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond);
+						Int64GetDatum(datetime_in.dateyear), Int64GetDatum(datetime_in.datemonth + 1), Int64GetDatum(datetime_in.datedmonth), 
+						Int64GetDatum(datetime_in.datehour), Int64GetDatum(datetime_in.dateminute), Float8GetDatum(seconds));
 						
 				#endif
 				
