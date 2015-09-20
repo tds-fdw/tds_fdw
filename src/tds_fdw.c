@@ -978,7 +978,9 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 	int desttype;
 	int ret_value;
 	DBDATEREC datetime_in;
+	#if (PG_VERSION_NUM >= 90400)
 	RETCODE erc;
+	#endif
 	int use_tds_conversion = 1;
 	
 	switch(srctype)
