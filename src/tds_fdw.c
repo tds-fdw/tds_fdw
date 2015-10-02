@@ -989,7 +989,7 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 		case SYBVARCHAR:
 		case SYBTEXT:
 			real_destlen = srclen + 1; /* the size of the array */
-			destlen = -1; /* the size to pass to dbconvert (-1 means to null terminate it) */
+			destlen = -2; /* the size to pass to dbconvert (-2 means to null terminate it) */
 			desttype = SYBCHAR;
 			break;
 		case SYBBINARY:
@@ -1068,7 +1068,7 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 
 		default:
 			real_destlen = 1000; /* Probably big enough */
-			destlen = -1; 
+			destlen = -2; 
 			desttype = SYBCHAR;
 			break;
 	}
