@@ -428,9 +428,9 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	return 0;
 }
 
-int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
 {
-	int rows = 0;
+	double rows = 0;
 	RETCODE erc;
 	int ret_code;
 	char* show_plan_query = "SET SHOWPLAN_ALL ON";
@@ -564,7 +564,7 @@ int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 		int ncol;
 		int ncols;
 		int parent = 0;
-		int estimate_rows = 0;
+		double estimate_rows = 0;
 		
 		ncols = dbnumcols(dbproc);
 		
@@ -609,7 +609,7 @@ int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 						));
 				#endif
 				
-				erc = dbbind(dbproc, ncol + 1, INTBIND, sizeof(int), (BYTE *)&estimate_rows);
+				erc = dbbind(dbproc, ncol + 1, FLT8BIND, sizeof(double), (BYTE *)&estimate_rows);
 				
 				if (erc == FAIL)
 				{
@@ -637,7 +637,7 @@ int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 
 					#ifdef DEBUG
 						ereport(NOTICE,
-							(errmsg("Parent is %i. EstimateRows is %i.", parent, estimate_rows)
+							(errmsg("Parent is %i. EstimateRows is %g.", parent, estimate_rows)
 						));
 					#endif
 
@@ -676,7 +676,7 @@ int tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPR
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
-				(errmsg("We estimated %i rows.", rows)
+				(errmsg("We estimated %g rows.", rows)
 				));
 		#endif		
 	}
@@ -756,10 +756,10 @@ cleanup:
 
 /* get the number of rows returned by a query */
 
-int tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
 {
 	int rows_report = 0;
-	int rows_increment = 0;
+	long long int rows_increment = 0;
 	RETCODE erc;
 	int ret_code;
 	int iscount = 0;
@@ -881,7 +881,7 @@ int tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCES
 		
 		#ifdef DEBUG
 			ereport(NOTICE,
-				(errmsg("We counted %i rows, and dbcount says %i rows.", rows_increment, rows_report)
+				(errmsg("We counted %lli rows, and dbcount says %i rows.", rows_increment, rows_report)
 				));
 			ereport(NOTICE,
 				(errmsg("dbiscount says %i.", iscount)
@@ -915,9 +915,9 @@ cleanup:
 	}
 }
 
-int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
+double tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
 {
-	int rows = 0;
+	double rows = 0;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -946,9 +946,9 @@ int tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbpr
 
 /* get the startup cost for the query */
 
-int tdsGetStartupCost(TdsFdwOptionSet* option_set)
+double tdsGetStartupCost(TdsFdwOptionSet* option_set)
 {
-	int startup_cost;
+	double startup_cost;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
