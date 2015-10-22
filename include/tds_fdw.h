@@ -22,10 +22,21 @@
 
 /* a column */
 
+typedef union COL_VALUE
+{
+	DBSMALLINT dbsmallint;
+	DBINT dbint;
+	DBBIGINT dbbigint;
+	DBREAL dbreal;
+	DBFLT8 dbflt8;
+} COL_VALUE;
+
 typedef struct COL
 {
 	char *name;
 	int srctype;
+	bool useraw;
+	COL_VALUE value;
 } COL;
 
 /* this maintains state */
@@ -34,9 +45,12 @@ typedef struct TdsFdwExecutionState
 {
 	LOGINREC *login;
 	DBPROCESS *dbproc;
+	AttInMetadata *attinmeta;
 	char *query;
 	int first;
 	COL *columns;
+	Datum *datums;
+	bool *isnull;
 	int ncols;
 	int row;
 	MemoryContext mem_cxt;
@@ -74,8 +88,11 @@ double tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *d
 double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 double tdsGetStartupCost(TdsFdwOptionSet* option_set);
-void tdsGetColumnMetadata(TdsFdwExecutionState *festate);
+void tdsGetColumnMetadata(ForeignScanState *node);
 char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen);
+#if (PG_VERSION_NUM >= 90400)
+int tdsDatetimeToDatum(DBPROCESS *dbproc, DBDATETIME *src, Datum *datetime_out);
+#endif
 
 /* Helper functions for DB-Library API */
 

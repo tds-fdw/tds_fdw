@@ -27,6 +27,7 @@
 
 #include "postgres.h"
 #include "funcapi.h"
+#include "access/htup_details.h"
 #include "access/reloptions.h"
 #include "catalog/pg_foreign_server.h"
 #include "catalog/pg_foreign_table.h"
@@ -970,6 +971,60 @@ double tdsGetStartupCost(TdsFdwOptionSet* option_set)
 	return startup_cost;
 }
 
+#if (PG_VERSION_NUM >= 90400)
+int tdsDatetimeToDatum(DBPROCESS *dbproc, DBDATETIME *src, Datum *datetime_out)
+{
+	DBDATEREC datetime_in;
+	RETCODE erc = dbdatecrack(dbproc, &datetime_in, src);
+			
+	if (erc == SUCCEED)
+	{
+		float8 seconds;
+				
+		#ifdef MSDBLIB
+			seconds = (float8)datetime_in.second + ((float8)datetime_in.millisecond/1000);
+					
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
+						datetime_in.year, datetime_in.month, datetime_in.day, 
+						datetime_in.hour, datetime_in.minute, datetime_in.second,
+						datetime_in.millisecond, datetime_in.tzone)
+					 ));
+				ereport(NOTICE,
+					(errmsg("Seconds=%f", seconds)
+					 ));
+			#endif
+					
+			*datetime_out = DirectFunctionCall6(make_timestamp, 
+				 Int64GetDatum(datetime_in.year), Int64GetDatum(datetime_in.month), Int64GetDatum(datetime_in.day), 
+				 Int64GetDatum(datetime_in.hour), Int64GetDatum(datetime_in.minute), Float8GetDatum(seconds));
+		#else
+			seconds = (float8)datetime_in.datesecond + ((float8)datetime_in.datemsecond/1000);
+					
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
+						datetime_in.dateyear, datetime_in.datemonth + 1, datetime_in.datedmonth, 
+						datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond,
+						datetime_in.datemsecond, datetime_in.datetzone)
+					 ));
+				ereport(NOTICE,
+					(errmsg("Seconds=%f", seconds)
+					 ));
+			#endif
+					
+			/* Sybase uses different field names, and it uses 0-11 for the month */
+			*datetime_out = DirectFunctionCall6(make_timestamp, 
+				 Int64GetDatum(datetime_in.dateyear), Int64GetDatum(datetime_in.datemonth + 1), Int64GetDatum(datetime_in.datedmonth), 
+				 Int64GetDatum(datetime_in.datehour), Int64GetDatum(datetime_in.dateminute), Float8GetDatum(seconds));
+		#endif
+	}
+
+	return erc;
+}
+#endif
+
 char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen)
 {
 	char* dest = NULL;
@@ -978,11 +1033,11 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 	int desttype;
 	int ret_value;
 	#if (PG_VERSION_NUM >= 90400)
-	DBDATEREC datetime_in;
+	Datum datetime_out;
 	RETCODE erc;
 	#endif
 	int use_tds_conversion = 1;
-	
+
 	switch(srctype)
 	{
 		case SYBCHAR:
@@ -1001,56 +1056,11 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 
 		#if (PG_VERSION_NUM >= 90400)
 		case SYBDATETIME:
-			erc = dbdatecrack(dbproc, &datetime_in, (DBDATETIME *)src);
+			erc = tdsDatetimeToDatum(dbproc, (DBDATETIME *)src, &datetime_out);
 			
 			if (erc == SUCCEED)
 			{
-				Datum datetime_out;
-				const char* datetime_str;
-				float8 seconds;
-				
-				#ifdef MSDBLIB
-					seconds = (float8)datetime_in.second + ((float8)datetime_in.millisecond/1000);
-					
-					#ifdef DEBUG
-						ereport(NOTICE,
-							(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
-								datetime_in.year, datetime_in.month, datetime_in.day, 
-								datetime_in.hour, datetime_in.minute, datetime_in.second,
-								datetime_in.millisecond, datetime_in.tzone)
-						));
-						ereport(NOTICE,
-							(errmsg("Seconds=%f", seconds)
-						));
-					#endif					
-					
-					datetime_out = DirectFunctionCall6(make_timestamp, 
-						Int64GetDatum(datetime_in.year), Int64GetDatum(datetime_in.month), Int64GetDatum(datetime_in.day), 
-						Int64GetDatum(datetime_in.hour), Int64GetDatum(datetime_in.minute), Float8GetDatum(seconds));
-						
-				#else
-					seconds = (float8)datetime_in.datesecond + ((float8)datetime_in.datemsecond/1000);
-					
-					#ifdef DEBUG
-						ereport(NOTICE,
-							(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
-								datetime_in.dateyear, datetime_in.datemonth + 1, datetime_in.datedmonth, 
-								datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond,
-								datetime_in.datemsecond, datetime_in.datetzone)
-						));
-						ereport(NOTICE,
-							(errmsg("Seconds=%f", seconds)
-						));
-					#endif
-					
-					/* Sybase uses different field names, and it uses 0-11 for the month */
-					datetime_out = DirectFunctionCall6(make_timestamp, 
-						Int64GetDatum(datetime_in.dateyear), Int64GetDatum(datetime_in.datemonth + 1), Int64GetDatum(datetime_in.datedmonth), 
-						Int64GetDatum(datetime_in.datehour), Int64GetDatum(datetime_in.dateminute), Float8GetDatum(seconds));
-						
-				#endif
-				
-				datetime_str = timestamptz_to_str(DatumGetTimestamp(datetime_out));
+				const char *datetime_str = timestamptz_to_str(DatumGetTimestamp(datetime_out));
 				
 				if ((dest = palloc(strlen(datetime_str) * sizeof(char))) == NULL)
 				{
@@ -1250,10 +1260,11 @@ cleanup:
 	#endif
 }
 
-void tdsGetColumnMetadata(TdsFdwExecutionState *festate)
+void tdsGetColumnMetadata(ForeignScanState *node)
 {
  	MemoryContext old_cxt;
 	int ncol;
+	TdsFdwExecutionState *festate = (TdsFdwExecutionState *)node->fdw_state;
 
 	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
 	
@@ -1264,6 +1275,24 @@ void tdsGetColumnMetadata(TdsFdwExecutionState *festate)
 			errmsg("Failed to allocate memory for column metadata array")
 			));
 	}
+
+	if ((festate->datums = palloc(festate->ncols * sizeof(*festate->datums))) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+			 errmsg("Failed to allocate memory for column datums array")
+			 ));
+	}
+
+	if ((festate->isnull = palloc(festate->ncols * sizeof(*festate->isnull))) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+			 errmsg("Failed to allocate memory for column isnull array")
+			 ));
+	}
+
+	festate->attinmeta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
 
 	for (ncol = 0; ncol < festate->ncols; ncol++)
 	{	
@@ -1285,7 +1314,7 @@ void tdsGetColumnMetadata(TdsFdwExecutionState *festate)
 				(errmsg("Type is %i", column->srctype)
 				));
 		#endif
-		
+
 	}
 
 	MemoryContextSwitchTo(old_cxt);
@@ -1301,7 +1330,8 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *) node->fdw_state;
 	EState *estate = node->ss.ps.state;
 	TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
-	
+	int ncol;
+
 	/* Cleanup */
 	ExecClearTuple(slot);
 	
@@ -1323,7 +1353,7 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 		#endif
 		
 		festate->first = 0;
-		
+
 		if ((erc = dbcmd(festate->dbproc, festate->query)) == FAIL)
 		{
 			ereport(ERROR,
@@ -1395,10 +1425,69 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 					(errmsg("%i columns", festate->ncols)
 					));
 			#endif
-			
+
 			MemoryContextReset(festate->mem_cxt);
 		
-			tdsGetColumnMetadata(festate);
+			tdsGetColumnMetadata(node);
+
+			for (ncol = 0; ncol < festate->ncols; ncol++) {
+				COL* column = &festate->columns[ncol];
+				const int srctype = column->srctype;
+				const Oid attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
+
+				erc = SUCCEED;
+				column->useraw = false;
+
+				if (srctype == SYBINT2 && attr_oid == INT2OID)
+			        {
+					erc = dbbind(festate->dbproc, ncol + 1, SMALLBIND, sizeof(DBSMALLINT), (BYTE *)(&column->value.dbsmallint));
+					column->useraw = true;
+				}
+				else if (srctype == SYBINT4 && attr_oid == INT4OID)
+				{
+					erc = dbbind(festate->dbproc, ncol + 1, INTBIND, sizeof(DBINT), (BYTE *)(&column->value.dbint));
+					column->useraw = true;
+				}
+				else if (srctype == SYBINT8 && attr_oid == INT8OID)
+				{
+					erc = dbbind(festate->dbproc, ncol + 1, BIGINTBIND, sizeof(DBBIGINT), (BYTE *)(&column->value.dbbigint));
+					column->useraw = true;
+				}
+				else if (srctype == SYBREAL && attr_oid == FLOAT4OID)
+				{
+					erc = dbbind(festate->dbproc, ncol + 1, REALBIND, sizeof(DBREAL), (BYTE *)(&column->value.dbreal));
+					column->useraw = true;
+				}
+				else if (srctype == SYBFLT8 && attr_oid == FLOAT8OID)
+				{
+					erc = dbbind(festate->dbproc, ncol + 1, FLT8BIND, sizeof(DBFLT8), (BYTE *)(&column->value.dbflt8));
+					column->useraw = true;
+				}
+				else if ((srctype == SYBCHAR || srctype == SYBVARCHAR || srctype == SYBTEXT) &&
+					 (attr_oid == TEXTOID))
+				{
+					column->useraw = true;
+				}
+				else if ((srctype == SYBBINARY || srctype == SYBVARBINARY || srctype == SYBIMAGE) &&
+					 (attr_oid == BYTEAOID))
+				{
+					column->useraw = true;
+				}
+				#if (PG_VERSION_NUM >= 90400)
+				else if (srctype == SYBDATETIME && attr_oid == TIMESTAMPOID)
+				{
+					column->useraw = true;
+				}
+				#endif
+
+				if (erc == FAIL)
+				{
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+						 errmsg("Failed to bind results for column %s to a variable.",
+							dbcolname(festate->dbproc, ncol + 1))));
+				}
+			}
 		}
 		
 		else
@@ -1419,7 +1508,6 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 	if ((ret_code = dbnextrow(festate->dbproc)) != NO_MORE_ROWS)
 	{
 		int ncol;
-		char **values;
 		
 		switch (ret_code)
 		{
@@ -1438,23 +1526,18 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 						
 					MemoryContextStats(estate->es_query_cxt);
 				}
-				
-				if ((values = palloc(festate->ncols * sizeof(char *))) == NULL)
-				{
-					ereport(ERROR,
-						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-						errmsg("Failed to allocate memory for column array")
-						));
-				}
-				
+
 				for (ncol = 0; ncol < festate->ncols; ncol++)
 				{
 					COL* column;
 					DBINT srclen;
 					BYTE* src;
-					
+					char *cstring;
+					const Oid attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
+					bytea *bytes;
+
 					column = &festate->columns[ncol];
-			
+
 					srclen = dbdatlen(festate->dbproc, ncol + 1);
 					
 					#ifdef DEBUG
@@ -1473,9 +1556,9 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 								));
 						#endif	
 						
-						values[ncol] = NULL;						
-					}				
-					
+ 						festate->isnull[ncol] = true;
+						continue;
+					}
 					else if (src == NULL)
 					{
 						#ifdef DEBUG
@@ -1483,13 +1566,66 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 								(errmsg("Column value pointer is NULL, but probably shouldn't be")
 								));
 						#endif	
-						
-						values[ncol] = NULL;
 					}
-					
 					else
 					{
-						values[ncol] = tdsConvertToCString(festate->dbproc, column->srctype, src, srclen);
+						festate->isnull[ncol] = false;
+					}
+
+					if (column->useraw)
+					{
+						switch (attr_oid)
+						{
+						case INT2OID:
+							festate->datums[ncol] = Int16GetDatum(column->value.dbsmallint);
+							break;
+						case INT4OID:
+							festate->datums[ncol] = Int32GetDatum(column->value.dbint);
+							break;
+						case INT8OID:
+							festate->datums[ncol] = Int64GetDatum(column->value.dbbigint);
+							break;
+						case FLOAT4OID:
+							festate->datums[ncol] = Float4GetDatum(column->value.dbreal);
+							break;
+						case FLOAT8OID:
+							festate->datums[ncol] = Float8GetDatum(column->value.dbflt8);
+							break;
+						case TEXTOID:
+							festate->datums[ncol] = PointerGetDatum(cstring_to_text_with_len((char *)src, srclen));
+							break;
+						case BYTEAOID:
+							bytes = palloc(srclen + VARHDRSZ);
+							SET_VARSIZE(bytes, srclen + VARHDRSZ);
+							memcpy(VARDATA(bytes), src, srclen);
+							festate->datums[ncol] = PointerGetDatum(bytes);
+							break;
+						#if (PG_VERSION_NUM >= 90400)
+						case TIMESTAMPOID:
+							erc = tdsDatetimeToDatum(festate->dbproc, (DBDATETIME *)src, &festate->datums[ncol]);
+							if (erc != SUCCEED)
+							{
+								ereport(ERROR,
+									(errcode(ERRCODE_FDW_INVALID_ATTRIBUTE_VALUE),
+									 errmsg("Possibly invalid date value")));
+							}
+							break;
+						#endif
+						default:
+							ereport(ERROR,
+								(errcode(ERRCODE_FDW_ERROR),
+								 errmsg("%s marked useraw but wrong type (internal tds_fdw error)",
+									dbcolname(festate->dbproc, ncol+1))));
+							break;
+						}
+					}
+					else
+					{
+						cstring = tdsConvertToCString(festate->dbproc, column->srctype, src, srclen);
+						festate->datums[ncol] = InputFunctionCall(&festate->attinmeta->attinfuncs[ncol],
+											  cstring,
+											  festate->attinmeta->attioparams[ncol],
+											  festate->attinmeta->atttypmods[ncol]);
 					}
 				}
 				
@@ -1499,31 +1635,8 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 						
 					MemoryContextStats(estate->es_query_cxt);
 				}
-				
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Printing all %i values", festate->ncols)
-						));
-								
-					for (ncol = 0; ncol < festate->ncols; ncol++)
-					{
-						if (values[ncol] != NULL)
-						{
-							ereport(NOTICE,
-								(errmsg("values[%i]: %s", ncol, values[ncol])
-								));
-						}
-						
-						else
-						{
-							ereport(NOTICE,
-								(errmsg("values[%i]: NULL", ncol)
-								));
-						}
-					}
-				#endif
-				
-				tuple = BuildTupleFromCStrings(TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att), values);
+
+				tuple = heap_form_tuple(node->ss.ss_currentRelation->rd_att, festate->datums, festate->isnull);
 				ExecStoreTuple(tuple, slot, InvalidBuffer, false);
 				
 				break;
