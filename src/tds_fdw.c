@@ -27,7 +27,6 @@
 
 #include "postgres.h"
 #include "funcapi.h"
-#include "access/htup_details.h"
 #include "access/reloptions.h"
 #include "catalog/pg_foreign_server.h"
 #include "catalog/pg_foreign_table.h"
@@ -47,6 +46,12 @@
 #include "utils/memutils.h"
 #include "utils/guc.h"
 #include "utils/timestamp.h"
+
+#if (PG_VERSION_NUM >= 90300)
+#include "access/htup_details.h"
+#else
+#include "access/htup.h"
+#endif
 
 #if (PG_VERSION_NUM >= 90200)
 #include "optimizer/pathnode.h"
