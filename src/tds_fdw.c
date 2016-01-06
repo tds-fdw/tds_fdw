@@ -1898,7 +1898,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 	
 	add_path(baserel, 
 		(Path *) create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost,
-			NIL, NULL, NIL));
+			NIL, NULL, NULL, NIL));
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -1925,7 +1925,7 @@ bool tdsAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *func, Bloc
 }
 
 ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, 
-	Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses)
+	Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses, Plan *outer_plan)
 {
 	Index scan_relid = baserel->relid;
 	#ifdef DEBUG
@@ -1943,7 +1943,7 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	#endif
 
 	#if (PG_VERSION_NUM >= 90500)
-		return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL, NIL);
+		return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL, NIL, NIL, NULL);
 	#else
 		return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, NIL);
 	#endif
