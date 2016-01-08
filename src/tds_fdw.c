@@ -1299,6 +1299,17 @@ void tdsGetColumnMetadata(ForeignScanState *node)
 
 	festate->attinmeta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
 
+	if (festate->ncols != festate->attinmeta->tupdesc->natts)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
+			errmsg("Table definition mismatch: Foreign source has %d column(s),"
+				" but target table has %d column(s)",
+				festate->ncols,
+				festate->attinmeta->tupdesc->natts)
+			));
+	}
+
 	for (ncol = 0; ncol < festate->ncols; ncol++)
 	{	
 		COL* column;
