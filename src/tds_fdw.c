@@ -1299,7 +1299,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 
 	festate->attinmeta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
 
-	if (festate->ncols != festate->attinmeta->tupdesc->natts)
+	if (!option_set->match_column_names && festate->ncols != festate->attinmeta->tupdesc->natts)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
