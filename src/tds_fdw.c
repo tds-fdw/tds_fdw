@@ -63,7 +63,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-#define DEBUG
+/* #define DEBUG */
 
 PG_MODULE_MAGIC;
 
@@ -1339,7 +1339,7 @@ void tdsGetColumnMetadata(ForeignScanState *node)
 			ereport(WARNING,
  				(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
  				errmsg("Table definition mismatch: Foreign source has column named %s,"
- 				" but target table does not. Column will be ignored.)",
+ 				" but target table does not. Column will be ignored.",
  				column->name)
  			));
 		}
