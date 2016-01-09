@@ -1269,6 +1269,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 {
  	MemoryContext old_cxt;
 	int ncol, local_ncol;
+	char* local_columns_found = NULL;
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *)node->fdw_state;
 
 	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
@@ -1310,6 +1311,22 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 			));
 	}
 
+	if (option_set->match_column_names)
+	{
+		if ((local_columns_found = palloc(festate->attinmeta->tupdesc->natts)) == NULL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+			 	errmsg("Failed to allocate memory to track local columns")
+			 	));
+		}
+
+		for (ncol = 0; ncol < festate->attinmeta->tupdesc->natts; ncol++)
+		{
+			local_columns_found[ncol] = 0;
+		}
+	}
+
 	for (ncol = 0; ncol < festate->ncols; ncol++)
 	{	
 		COL* column;
@@ -1343,6 +1360,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				{
 					column->local_index = local_ncol;
 					column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
+					local_columns_found[local_ncol] = 1;
 					break;
 				}
 			}
@@ -1362,6 +1380,24 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 		{
 			column->local_index = ncol;
 		}
+	}
+
+	if (option_set->match_column_names)
+	{
+		for (ncol = 0; ncol < festate->attinmeta->tupdesc->natts; ncol++)
+		{
+			if (local_columns_found[ncol] == 0)
+			{
+				ereport(WARNING,
+ 					(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
+ 					errmsg("Table definition mismatch: Could not match local column %s"
+ 					" with column from foreign table",
+ 					festate->attinmeta->tupdesc->attrs[ncol]->attname.data)
+ 				));
+			}
+		}
+
+		pfree(local_columns_found);
 	}
 
 	MemoryContextSwitchTo(old_cxt);
