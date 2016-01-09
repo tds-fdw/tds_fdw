@@ -94,7 +94,7 @@ double tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *d
 double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 double tdsGetStartupCost(TdsFdwOptionSet* option_set);
-void tdsGetColumnMetadata(ForeignScanState *node);
+void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set);
 char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen);
 #if (PG_VERSION_NUM >= 90400)
 int tdsDatetimeToDatum(DBPROCESS *dbproc, DBDATETIME *src, Datum *datetime_out);

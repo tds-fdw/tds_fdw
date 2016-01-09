@@ -1265,7 +1265,7 @@ cleanup:
 	#endif
 }
 
-void tdsGetColumnMetadata(ForeignScanState *node)
+void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 {
  	MemoryContext old_cxt;
 	int ncol, local_ncol;
@@ -1320,28 +1320,36 @@ void tdsGetColumnMetadata(ForeignScanState *node)
 				));
 		#endif
 
-		column->local_index = -1;
-
-	        for (local_ncol = 0; local_ncol < festate->attinmeta->tupdesc->natts; local_ncol++)
+		if (option_set->match_column_names)
 		{
-			char* local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
+			column->local_index = -1;
 
-			if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
+	        	for (local_ncol = 0; local_ncol < festate->attinmeta->tupdesc->natts; local_ncol++)
 			{
-				column->local_index = local_ncol;
-				column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
-				break;
+				char* local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
+
+				if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
+				{
+					column->local_index = local_ncol;
+					column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
+					break;
+				}
+			}
+
+			if (column->local_index == -1)
+			{
+				ereport(WARNING,
+ 					(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
+ 					errmsg("Table definition mismatch: Foreign source has column named %s,"
+ 					" but target table does not. Column will be ignored.",
+ 					column->name)
+ 				));
 			}
 		}
 
-		if (column->local_index == -1)
+		else
 		{
-			ereport(WARNING,
- 				(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
- 				errmsg("Table definition mismatch: Foreign source has column named %s,"
- 				" but target table does not. Column will be ignored.",
- 				column->name)
- 			));
+			column->local_index = ncol;
 		}
 	}
 
@@ -1352,6 +1360,7 @@ void tdsGetColumnMetadata(ForeignScanState *node)
 
 TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 {
+	TdsFdwOptionSet option_set;
 	RETCODE erc;
 	int ret_code;
 	HeapTuple tuple;
@@ -1455,8 +1464,9 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 			#endif
 
 			MemoryContextReset(festate->mem_cxt);
-		
-			tdsGetColumnMetadata(node);
+	
+			tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(node->ss.ss_currentRelation), &option_set);	
+			tdsGetColumnMetadata(node, &option_set);
 
 			for (ncol = 0; ncol < festate->ncols; ncol++) {
 				COL* column = &festate->columns[ncol];

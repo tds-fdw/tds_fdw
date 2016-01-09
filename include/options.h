@@ -29,6 +29,7 @@ typedef struct TdsFdwOptionSet
 	char *query;
 	char *table;
 	char* row_estimate_method;
+	int match_column_names;
 } TdsFdwOptionSet;
 
 void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set);

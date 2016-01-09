@@ -64,6 +64,7 @@ static struct TdsFdwOption valid_options[] =
 	{ "query", 					ForeignTableRelationId },
 	{ "table",					ForeignTableRelationId },
 	{ "row_estimate_method",	ForeignTableRelationId },
+	{ "match_column_names",		ForeignTableRelationId },
 	{ NULL,						InvalidOid }
 };
 
@@ -78,6 +79,10 @@ static const char *DEFAULT_ROW_ESTIMATE_METHOD = "execute";
 /* default function used to handle TDS messages */
 
 static const char *DEFAULT_MSG_HANDLER = "blackhole";
+
+/* whether to match on column names by default. if not, we use column order. */
+
+static const int DEFAULT_MATCH_COLUMN_NAMES = 0;
 
 void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set)
 {
@@ -498,6 +503,17 @@ void tdsGetForeignTableOptions(List *options_list, TdsFdwOptionSet *option_set)
 					));
 			}
 		}
+
+		else if (strcmp(def->defname, "match_column_names") == 0)
+		{
+			if (option_set->match_column_names)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: match_column_names (%s)", defGetString(def))
+					));
+					
+			option_set->match_column_names = atoi(defGetString(def));	
+		}
 	}
 	
 	#ifdef DEBUG
@@ -621,7 +637,7 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
 				));
 		#endif
 	}
-	
+
 	if (!option_set->msg_handler)
 	{
 		if ((option_set->msg_handler= palloc((strlen(DEFAULT_MSG_HANDLER) + 1) * sizeof(char))) == NULL)
@@ -750,6 +766,7 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->query = NULL;
 	option_set->table = NULL;
 	option_set->row_estimate_method = NULL;
+	option_set->match_column_names = DEFAULT_MATCH_COLUMN_NAMES;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
