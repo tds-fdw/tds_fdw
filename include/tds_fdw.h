@@ -37,6 +37,8 @@ typedef struct COL
 	int srctype;
 	bool useraw;
 	COL_VALUE value;
+	int local_index;
+	Oid attr_oid;
 } COL;
 
 /* this maintains state */

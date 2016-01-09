@@ -63,7 +63,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-/*#define DEBUG*/
+#define DEBUG
 
 PG_MODULE_MAGIC;
 
@@ -1268,7 +1268,7 @@ cleanup:
 void tdsGetColumnMetadata(ForeignScanState *node)
 {
  	MemoryContext old_cxt;
-	int ncol;
+	int ncol, local_ncol;
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *)node->fdw_state;
 
 	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
@@ -1320,6 +1320,29 @@ void tdsGetColumnMetadata(ForeignScanState *node)
 				));
 		#endif
 
+		column->local_index = -1;
+
+	        for (local_ncol = 0; local_ncol < festate->attinmeta->tupdesc->natts; local_ncol++)
+		{
+			char* local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
+
+			if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
+			{
+				column->local_index = local_ncol;
+				column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
+				break;
+			}
+		}
+
+		if (column->local_index == -1)
+		{
+			ereport(WARNING,
+ 				(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
+ 				errmsg("Table definition mismatch: Foreign source has column named %s,"
+ 				" but target table does not. Column will be ignored.)",
+ 				column->name)
+ 			));
+		}
 	}
 
 	MemoryContextSwitchTo(old_cxt);
@@ -1438,7 +1461,12 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 			for (ncol = 0; ncol < festate->ncols; ncol++) {
 				COL* column = &festate->columns[ncol];
 				const int srctype = column->srctype;
-				const Oid attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
+				const Oid attr_oid = column->attr_oid;
+
+				if (column->local_index == -1)
+				{
+					continue;
+				}
 
 				erc = SUCCEED;
 				column->useraw = false;
@@ -1538,10 +1566,22 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 					DBINT srclen;
 					BYTE* src;
 					char *cstring;
-					const Oid attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
+					Oid attr_oid;
 					bytea *bytes;
 
 					column = &festate->columns[ncol];
+					attr_oid = column->attr_oid;
+
+					if (column->local_index == -1)
+					{
+						#ifdef DEBUG
+							ereport(NOTICE,
+								(errmsg("Skipping column %s because it is not present in local table", column->name)
+							));
+						#endif
+
+						continue;
+					}
 
 					srclen = dbdatlen(festate->dbproc, ncol + 1);
 					
@@ -1561,7 +1601,7 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 								));
 						#endif	
 						
- 						festate->isnull[ncol] = true;
+ 						festate->isnull[column->local_index] = true;
 						continue;
 					}
 					else if (src == NULL)
@@ -1574,7 +1614,7 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 					}
 					else
 					{
-						festate->isnull[ncol] = false;
+						festate->isnull[column->local_index] = false;
 					}
 
 					if (column->useraw)
@@ -1582,32 +1622,32 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 						switch (attr_oid)
 						{
 						case INT2OID:
-							festate->datums[ncol] = Int16GetDatum(column->value.dbsmallint);
+							festate->datums[column->local_index] = Int16GetDatum(column->value.dbsmallint);
 							break;
 						case INT4OID:
-							festate->datums[ncol] = Int32GetDatum(column->value.dbint);
+							festate->datums[column->local_index] = Int32GetDatum(column->value.dbint);
 							break;
 						case INT8OID:
-							festate->datums[ncol] = Int64GetDatum(column->value.dbbigint);
+							festate->datums[column->local_index] = Int64GetDatum(column->value.dbbigint);
 							break;
 						case FLOAT4OID:
-							festate->datums[ncol] = Float4GetDatum(column->value.dbreal);
+							festate->datums[column->local_index] = Float4GetDatum(column->value.dbreal);
 							break;
 						case FLOAT8OID:
-							festate->datums[ncol] = Float8GetDatum(column->value.dbflt8);
+							festate->datums[column->local_index] = Float8GetDatum(column->value.dbflt8);
 							break;
 						case TEXTOID:
-							festate->datums[ncol] = PointerGetDatum(cstring_to_text_with_len((char *)src, srclen));
+							festate->datums[column->local_index] = PointerGetDatum(cstring_to_text_with_len((char *)src, srclen));
 							break;
 						case BYTEAOID:
 							bytes = palloc(srclen + VARHDRSZ);
 							SET_VARSIZE(bytes, srclen + VARHDRSZ);
 							memcpy(VARDATA(bytes), src, srclen);
-							festate->datums[ncol] = PointerGetDatum(bytes);
+							festate->datums[column->local_index] = PointerGetDatum(bytes);
 							break;
 						#if (PG_VERSION_NUM >= 90400)
 						case TIMESTAMPOID:
-							erc = tdsDatetimeToDatum(festate->dbproc, (DBDATETIME *)src, &festate->datums[ncol]);
+							erc = tdsDatetimeToDatum(festate->dbproc, (DBDATETIME *)src, &festate->datums[column->local_index]);
 							if (erc != SUCCEED)
 							{
 								ereport(ERROR,
@@ -1627,10 +1667,10 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 					else
 					{
 						cstring = tdsConvertToCString(festate->dbproc, column->srctype, src, srclen);
-						festate->datums[ncol] = InputFunctionCall(&festate->attinmeta->attinfuncs[ncol],
+						festate->datums[column->local_index] = InputFunctionCall(&festate->attinmeta->attinfuncs[column->local_index],
 											  cstring,
-											  festate->attinmeta->attioparams[ncol],
-											  festate->attinmeta->atttypmods[ncol]);
+											  festate->attinmeta->attioparams[column->local_index],
+											  festate->attinmeta->atttypmods[column->local_index]);
 					}
 				}
 				
