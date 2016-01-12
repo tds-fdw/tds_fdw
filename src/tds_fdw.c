@@ -298,15 +298,7 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 		#endif	
 	}
 	
-	if ((conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char))) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-				errmsg("Failed to allocate memory for connection string")
-			));
-			
-		return -1;
-	}
+	conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char));
 	
 	if (option_set->port)
 	{
@@ -333,8 +325,6 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
 				errmsg("Failed to connect using connection string %s with user %s", conn_string, option_set->username)
 			));
-			
-		return -1;
 	}
 	
 	#ifdef DEBUG
@@ -359,8 +349,6 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
 					errmsg("Failed to select database %s", option_set->database)
 				));
-				
-			return -1;
 		}
 		
 		#ifdef DEBUG
@@ -398,24 +386,14 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 		
 		len = strlen(query_prefix) + strlen(option_set->table) + 1;
 		
-		if ((option_set->query = palloc(len * sizeof(char))) == NULL)
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-					errmsg("Failed to allocate memory for query")
-				));
-				
-			return -1;
-		}
-		
+		option_set->query = palloc(len * sizeof(char));
+
 		if (snprintf(option_set->query, len, "%s%s", query_prefix, option_set->table) < 0)
 		{
 			ereport(ERROR,
 				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
 					errmsg("Failed to build query")
 				));
-				
-			return -1;
 		}
 	}
 	
@@ -460,8 +438,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to set current query to %s", show_plan_query)
 			));		
-
-		goto cleanup;
 	}
 	
 	#ifdef DEBUG
@@ -476,8 +452,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to execute query %s", show_plan_query)
 			));	
-
-		goto cleanup;
 	}
 
 	#ifdef DEBUG
@@ -497,8 +471,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to get results from query %s", show_plan_query)
 			));
-			
-		goto cleanup_after_show_plan;
 	}
 	
 	#ifdef DEBUG
@@ -513,8 +485,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to set current query to %s", option_set->query)
 			));		
-
-		goto cleanup_after_show_plan;
 	}
 	
 	#ifdef DEBUG
@@ -529,8 +499,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to execute query %s", option_set->query)
 			));	
-
-		goto cleanup_after_show_plan;
 	}
 
 	#ifdef DEBUG
@@ -550,8 +518,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to get results from query %s", option_set->query)
 			));
-			
-		goto cleanup_after_show_plan;
 	}
 	
 	else if (erc == NO_MORE_RESULTS)
@@ -602,8 +568,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 							errmsg("Failed to bind results for column %s to a variable.", col_name)
 						));
-						
-					goto cleanup_after_show_plan;
 				}
 			}
 			
@@ -623,8 +587,6 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 							errmsg("Failed to bind results for column %s to a variable.", col_name)
 						));
-						
-					goto cleanup_after_show_plan;
 				}				
 			}
 		}
@@ -659,24 +621,18 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
 							errmsg("Buffer filled up while getting plan for query")
 						));					
-
-					goto cleanup_after_show_plan;
 						
 				case FAIL:
 					ereport(ERROR,
 						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 							errmsg("Failed to get row while getting plan for query")
 						));				
-
-					goto cleanup_after_show_plan;
 				
 				default:
 					ereport(ERROR,
 						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 							errmsg("Failed to get plan for query. Unknown return code.")
 						));					
-
-					goto cleanup_after_show_plan;
 			}
 		}
 		
@@ -708,8 +664,6 @@ cleanup_after_show_plan:
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to set current query to %s", show_plan_query_off)
 			));		
-
-		goto cleanup;
 	}
 	
 	#ifdef DEBUG
@@ -724,8 +678,6 @@ cleanup_after_show_plan:
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to execute query %s", show_plan_query_off)
 			));	
-
-		goto cleanup;
 	}
 	
 	#ifdef DEBUG
@@ -745,11 +697,8 @@ cleanup_after_show_plan:
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to get results from query %s", show_plan_query)
 			));
-			
-		goto cleanup_after_show_plan;
 	}	
 
-cleanup:
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsGetRowCountShowPlanAll")
@@ -788,8 +737,6 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to set current query to %s", option_set->query)
 			));		
-
-		goto cleanup;
 	}
 	
 	#ifdef DEBUG
@@ -804,8 +751,6 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to execute query %s", option_set->query)
 			));	
-
-		goto cleanup;
 	}
 
 	#ifdef DEBUG
@@ -825,8 +770,6 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 				errmsg("Failed to get results from query %s", option_set->query)
 			));
-			
-		goto cleanup;
 	}
 	
 	else if (erc == NO_MORE_RESULTS)
@@ -861,24 +804,18 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
 							errmsg("Buffer filled up while getting plan for query")
 						));					
-
-					goto cleanup;
 						
 				case FAIL:
 					ereport(ERROR,
 						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 							errmsg("Failed to get row while getting plan for query")
 						));				
-
-					goto cleanup;
 				
 				default:
 					ereport(ERROR,
 						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 							errmsg("Failed to get plan for query. Unknown return code.")
 						));					
-
-					goto cleanup;
 			}
 		}
 		
@@ -1067,14 +1004,7 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 			{
 				const char *datetime_str = timestamptz_to_str(DatumGetTimestamp(datetime_out));
 				
-				if ((dest = palloc(strlen(datetime_str) * sizeof(char))) == NULL)
-				{
-					ereport(ERROR,
-						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-						errmsg("Failed to allocate memory for column value")
-						));
-				}
-				
+				dest = palloc(strlen(datetime_str) * sizeof(char));
 				strcpy(dest, datetime_str);
 				
 				use_tds_conversion = 0;
@@ -1101,14 +1031,7 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 	{
 		if (dbwillconvert(srctype, desttype) != FALSE)
 		{
-			if ((dest = palloc(real_destlen * sizeof(char))) == NULL)
-			{
-				ereport(ERROR,
-					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-					errmsg("Failed to allocate memory for column value")
-					));
-			}
-			
+			dest = palloc(real_destlen * sizeof(char));
 			ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, destlen);
 			
 			if (ret_value == FAIL)
@@ -1235,14 +1158,7 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 		goto cleanup;
 	}
 	
-	if ((festate = (TdsFdwExecutionState *) palloc(sizeof(TdsFdwExecutionState))) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-				errmsg("Failed to allocate memory for execution state")
-			));
-	}
-	
+	festate = (TdsFdwExecutionState *) palloc(sizeof(TdsFdwExecutionState));
 	node->fdw_state = (void *) festate;
 	festate->login = login;
 	festate->dbproc = dbproc;
@@ -1287,44 +1203,13 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 			));
 	}
 
-	if ((festate->columns = palloc(festate->ncols * sizeof(COL))) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-			errmsg("Failed to allocate memory for column metadata array")
-			));
-	}
-
-	if ((festate->datums = palloc(festate->attinmeta->tupdesc->natts * sizeof(*festate->datums))) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-			 errmsg("Failed to allocate memory for column datums array")
-			 ));
-	}
-
-	if ((festate->isnull = palloc(festate->attinmeta->tupdesc->natts * sizeof(*festate->isnull))) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-			 errmsg("Failed to allocate memory for column isnull array")
-			 ));
-	}
+	festate->columns = palloc(festate->ncols * sizeof(COL));
+	festate->datums =  palloc(festate->attinmeta->tupdesc->natts * sizeof(*festate->datums));
+	festate->isnull =  palloc(festate->attinmeta->tupdesc->natts * sizeof(*festate->isnull));
 
 	if (option_set->match_column_names)
 	{
-		if ((local_columns_found = palloc(festate->attinmeta->tupdesc->natts)) == NULL)
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-			 	errmsg("Failed to allocate memory to track local columns")
-			 	));
-		}
-
-		for (ncol = 0; ncol < festate->attinmeta->tupdesc->natts; ncol++)
-		{
-			local_columns_found[ncol] = 0;
-		}
+		local_columns_found = palloc0(festate->attinmeta->tupdesc->natts);
 	}
 
 	for (ncol = 0; ncol < festate->ncols; ncol++)
@@ -1932,7 +1817,6 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
 				errmsg("Failed to initialize DB-Library login structure")
 			));
-		goto cleanup_before_login;
 	}
 	
 	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
@@ -2131,7 +2015,6 @@ FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *b
 			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
 				errmsg("Failed to initialize DB-Library login structure")
 			));
-		goto cleanup_before_login;
 	}
 	
 	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
@@ -2148,7 +2031,6 @@ cleanup:
 	dbclose(dbproc);
 	dbloginfree(login);
 		
-cleanup_before_login:
 	dbexit();
 	
 cleanup_before_init:
