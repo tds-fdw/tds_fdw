@@ -1273,7 +1273,20 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *)node->fdw_state;
 
 	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
-	
+
+	festate->attinmeta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
+
+	if (!option_set->match_column_names && festate->ncols != festate->attinmeta->tupdesc->natts)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
+			errmsg("Table definition mismatch: Foreign source has %d columns,"
+				" but target table has %d columns",
+				festate->ncols,
+				festate->attinmeta->tupdesc->natts)
+			));
+	}
+
 	if ((festate->columns = palloc(festate->ncols * sizeof(COL))) == NULL)
 	{
 		ereport(ERROR,
@@ -1282,7 +1295,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 			));
 	}
 
-	if ((festate->datums = palloc(festate->ncols * sizeof(*festate->datums))) == NULL)
+	if ((festate->datums = palloc(festate->attinmeta->tupdesc->natts * sizeof(*festate->datums))) == NULL)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
@@ -1290,25 +1303,12 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 			 ));
 	}
 
-	if ((festate->isnull = palloc(festate->ncols * sizeof(*festate->isnull))) == NULL)
+	if ((festate->isnull = palloc(festate->attinmeta->tupdesc->natts * sizeof(*festate->isnull))) == NULL)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
 			 errmsg("Failed to allocate memory for column isnull array")
 			 ));
-	}
-
-	festate->attinmeta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
-
-	if (!option_set->match_column_names && festate->ncols != festate->attinmeta->tupdesc->natts)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
-			errmsg("Table definition mismatch: Foreign source has %d column(s),"
-				" but target table has %d column(s)",
-				festate->ncols,
-				festate->attinmeta->tupdesc->natts)
-			));
 	}
 
 	if (option_set->match_column_names)
@@ -1394,6 +1394,9 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
  					" with column from foreign table",
  					festate->attinmeta->tupdesc->attrs[ncol]->attname.data)
  				));
+
+				/* pretend this is NULL, so Pg won't try to access an invalid Datum */
+				festate->isnull[ncol] = 1;
 			}
 		}
 
