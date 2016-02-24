@@ -43,7 +43,7 @@ If you'd like to use one of the release packages, you can download and install t
 
 ```bash
 export TDS_FDW_VERSION="1.0.7"
-wget https://github.com/GeoffMontee/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz
+wget https://github.com/GeoffMontee/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz -O tds_fdw-${TDS_FDW_VERSION}.tar.gz
 tar -xvzf tds_fdw-${TDS_FDW_VERSION}.tar.gz
 cd tds_fdw-${TDS_FDW_VERSION}
 PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1
