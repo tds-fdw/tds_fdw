@@ -27,12 +27,12 @@ sudo yum install freetds freetds-devel
 
 ### Install PostgreSQL
 
-If you need to install PostgreSQL, do so by following the [yum installation directions](https://wiki.postgresql.org/wiki/YUM_Installation). For example, to install PostgreSQL 9.4 on CentOS 6:
+If you need to install PostgreSQL, do so by following the [yum installation directions](https://wiki.postgresql.org/wiki/YUM_Installation). For example, to install PostgreSQL 9.5 on CentOS 7:
 
 ```bash
-wget http://yum.postgresql.org/9.4/redhat/rhel-6-x86_64/pgdg-centos94-9.4-1.noarch.rpm
-sudo rpm -ivh pgdg-centos94-9.4-1.noarch.rpm
-sudo yum install postgresql94 postgresql94-server postgresql94-libs postgresql94-devel
+wget https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-2.noarch.rpm
+sudo rpm -ivh pgdg-centos95-9.5-2.noarch.rpm
+sudo yum install postgresql95 postgresql95-server postgresql95-libs postgresql95-devel
 ```
 
 ### Install tds_fdw
@@ -42,11 +42,12 @@ sudo yum install postgresql94 postgresql94-server postgresql94-libs postgresql94
 If you'd like to use one of the release packages, you can download and install them via something like the following:
 
 ```bash
-wget https://github.com/GeoffMontee/tds_fdw/archive/v1.0.2.tar.gz
-tar -xvzf tds_fdw-1.0.2.tar.gz
-cd tds_fdw-1.0.2
-PATH=/usr/pgsql-9.4/bin:$PATH make USE_PGXS=1
-sudo PATH=/usr/pgsql-9.4/bin:$PATH make USE_PGXS=1 install
+export TDS_FDW_VERSION="1.0.7"
+wget https://github.com/GeoffMontee/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz
+tar -xvzf tds_fdw-${TDS_FDW_VERSION}.tar.gz
+cd tds_fdw-${TDS_FDW_VERSION}
+PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1
+sudo PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1 install
 ```
 
 #### Build from repository
