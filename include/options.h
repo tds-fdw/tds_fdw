@@ -27,9 +27,13 @@ typedef struct TdsFdwOptionSet
 	char *username;
 	char *password;
 	char *query;
-	char *table;
+	char *schema_name;
+	char *table_name;
 	char* row_estimate_method;
 	int match_column_names;
+	int use_remote_estimate;
+	int fdw_startup_cost;
+	int fdw_tuple_cost;
 } TdsFdwOptionSet;
 
 void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set);

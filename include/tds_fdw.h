@@ -1,3 +1,21 @@
+/*------------------------------------------------------------------
+*
+*				Foreign data wrapper for TDS (Sybase and Microsoft SQL Server)
+*
+* Author: Geoff Montee
+* Name: tds_fdw
+* File: tds_fdw/include/tds_fdw.h
+*
+* Description:
+* This is a PostgreSQL foreign data wrapper for use to connect to databases that use TDS,
+* such as Sybase databases and Microsoft SQL server.
+*
+* This foreign data wrapper requires requires a library that uses the DB-Library interface,
+* such as FreeTDS (http://www.freetds.org/). This has been tested with FreeTDS, but not
+* the proprietary implementations of DB-Library.
+*----------------------------------------------------------------------------
+*/
+
 
 #ifndef TDS_FDW_H
 #define TDS_FDW_H
@@ -5,6 +23,8 @@
 /* postgres headers */
 
 #include "postgres.h"
+#include "funcapi.h"
+#include "commands/explain.h"
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
 
@@ -41,6 +61,39 @@ typedef struct COL
 	Oid attr_oid;
 } COL;
 
+/* This struct is similar to PgFdwRelationInfo from postgres_fdw */
+typedef struct TdsFdwRelationInfo
+{
+	/* baserestrictinfo clauses, broken down into safe and unsafe subsets. */
+	List	   *remote_conds;
+	List	   *local_conds;
+
+	/* Bitmap of attr numbers we need to fetch from the remote server. */
+	Bitmapset  *attrs_used;
+
+	/* Cost and selectivity of local_conds. */
+	QualCost	local_conds_cost;
+	Selectivity local_conds_sel;
+
+	/* Estimated size and cost for a scan with baserestrictinfo quals. */
+	double		rows;
+	int			width;
+	Cost		startup_cost;
+	Cost		total_cost;
+
+	/* Options extracted from catalogs. */
+	bool		use_remote_estimate;
+	Cost		fdw_startup_cost;
+	Cost		fdw_tuple_cost;
+	/* tds_fdw won't ship any PostgreSQL extensions. remove this later. */
+	//List	   *shippable_extensions;	/* OIDs of whitelisted extensions */
+
+	/* Cached catalog information. */
+	ForeignTable *table;
+	ForeignServer *server;
+	UserMapping *user;			/* only set in use_remote_estimate mode */
+} TdsFdwRelationInfo;
+
 /* this maintains state */
 
 typedef struct TdsFdwExecutionState
@@ -49,6 +102,7 @@ typedef struct TdsFdwExecutionState
 	DBPROCESS *dbproc;
 	AttInMetadata *attinmeta;
 	char *query;
+	List *retrieved_attrs;
 	int first;
 	COL *columns;
 	Datum *datums;
@@ -57,6 +111,13 @@ typedef struct TdsFdwExecutionState
 	int row;
 	MemoryContext mem_cxt;
 } TdsFdwExecutionState;
+
+/* Callback argument for ec_member_matches_foreign */
+typedef struct
+{
+	Expr	   *current;		/* current expr, or NULL if not yet found */
+	List	   *already_used;	/* expressions already dealt with */
+} ec_member_foreign_arg;
 
 /* functions called via SQL */
 
@@ -89,6 +150,10 @@ FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *b
 
 /* Helper functions */
 
+bool is_builtin(Oid objectId);
+Expr * find_em_expr_for_rel(EquivalenceClass *ec, RelOptInfo *rel);
+bool is_shippable(Oid objectId, Oid classId, TdsFdwRelationInfo *fpinfo);
+void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSet* option_set);
 int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc);
 double tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);

@@ -59,12 +59,19 @@ static struct TdsFdwOption valid_options[] =
 	{ "tds_version",			ForeignServerRelationId },
 	{ "msg_handler",			ForeignServerRelationId },
 	{ "row_estimate_method",	ForeignServerRelationId },
+	{ "use_remote_estimate",	ForeignServerRelationId },
+	{ "fdw_startup_cost", 		ForeignServerRelationId },
+	{ "fdw_tuple_cost", 		ForeignServerRelationId },
 	{ "username",				UserMappingRelationId },
 	{ "password",				UserMappingRelationId },
 	{ "query", 					ForeignTableRelationId },
 	{ "table",					ForeignTableRelationId },
+	{ "schema_name",			ForeignTableRelationId },
+	{ "table_name",				ForeignTableRelationId },
 	{ "row_estimate_method",	ForeignTableRelationId },
 	{ "match_column_names",		ForeignTableRelationId },
+	{ "use_remote_estimate",	ForeignTableRelationId },
+	{ "column_name", 			AttributeRelationId },
 	{ NULL,						InvalidOid }
 };
 
@@ -83,6 +90,18 @@ static const char *DEFAULT_MSG_HANDLER = "blackhole";
 /* whether to match on column names by default. if not, we use column order. */
 
 static const int DEFAULT_MATCH_COLUMN_NAMES = 0;
+
+/* by default we use remote estimates */
+
+static const int DEFAULT_USE_REMOTE_ESTIMATE = 1;
+
+/* by default we use remote estimates */
+
+static const int DEFAULT_FDW_STARTUP_COST = 100;
+
+/* by default we use remote estimates */
+
+static const int DEFAULT_FDW_TUPLE_COST = 100;
 
 void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set)
 {
@@ -347,6 +366,28 @@ void tdsGetForeignServerOptions(List *options_list, TdsFdwOptionSet *option_set)
 					));
 			}			
 		}
+		
+		else if (strcmp(def->defname, "fdw_startup_cost") == 0)
+		{
+			if (option_set->fdw_startup_cost)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: fdw_startup_cost (%s)", defGetString(def))
+					));
+					
+			option_set->fdw_startup_cost = atoi(defGetString(def));	
+		}
+		
+		else if (strcmp(def->defname, "fdw_tuple_cost") == 0)
+		{
+			if (option_set->fdw_tuple_cost)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: fdw_tuple_cost (%s)", defGetString(def))
+					));
+					
+			option_set->fdw_tuple_cost = atoi(defGetString(def));	
+		}
 	}
 	
 	#ifdef DEBUG
@@ -414,6 +455,17 @@ void tdsGetForeignServerTableOptions(List *options_list, TdsFdwOptionSet *option
 					));
 			}
 		}
+		
+		else if (strcmp(def->defname, "use_remote_estimate") == 0)
+		{
+			if (option_set->use_remote_estimate)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: use_remote_estimate (%s)", defGetString(def))
+					));
+					
+			option_set->use_remote_estimate = atoi(defGetString(def));	
+		}
 	}
 	
 	#ifdef DEBUG
@@ -473,15 +525,27 @@ void tdsGetForeignTableOptions(List *options_list, TdsFdwOptionSet *option_set)
 			option_set->query = defGetString(def);
 		}
 		
-		else if (strcmp(def->defname, "table") == 0)
+		else if (strcmp(def->defname, "schema_name") == 0)
 		{			
-			if (option_set->table)
+			if (option_set->schema_name)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Redundant option: table (%s)", defGetString(def))
+						errmsg("Redundant option: schema_name (%s)", defGetString(def))
 					));
 					
-			option_set->table = defGetString(def);
+			option_set->schema_name = defGetString(def);
+		}
+		
+		else if (strcmp(def->defname, "table") == 0
+			|| strcmp(def->defname, "table_name") == 0)
+		{			
+			if (option_set->table_name)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: %s (%s)", def->defname, defGetString(def))
+					));
+					
+			option_set->table_name = defGetString(def);
 		}
 	
 		else if (strcmp(def->defname, "row_estimate_method") == 0)
@@ -513,6 +577,17 @@ void tdsGetForeignTableOptions(List *options_list, TdsFdwOptionSet *option_set)
 					));
 					
 			option_set->match_column_names = atoi(defGetString(def));	
+		}
+		
+		else if (strcmp(def->defname, "use_remote_estimate") == 0)
+		{
+			if (option_set->use_remote_estimate)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: use_remote_estimate (%s)", defGetString(def))
+					));
+					
+			option_set->use_remote_estimate = atoi(defGetString(def));	
 		}
 	}
 	
@@ -657,6 +732,39 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
 		#endif
 	}
 	
+	if (!option_set->use_remote_estimate)
+	{
+		option_set->use_remote_estimate = DEFAULT_USE_REMOTE_ESTIMATE;
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Set use_remote_estimate to default: %d", option_set->use_remote_estimate)
+				));
+		#endif	
+	}
+	
+	if (!option_set->fdw_startup_cost)
+	{
+		option_set->fdw_startup_cost = DEFAULT_FDW_STARTUP_COST;
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Set fdw_startup_cost to default: %d", option_set->fdw_startup_cost)
+				));
+		#endif	
+	}
+	
+	if (!option_set->fdw_tuple_cost)
+	{
+		option_set->fdw_tuple_cost = DEFAULT_FDW_TUPLE_COST;
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Set fdw_tuple_cost to default: %d", option_set->fdw_tuple_cost)
+				));
+		#endif	
+	}
+	
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsSetDefaultOptions")
@@ -691,7 +799,7 @@ void tdsValidateForeignTableOptionSet(TdsFdwOptionSet *option_set)
 	
 	/* Check conflicting options */
 	
-	if (option_set->table && option_set->query)
+	if (option_set->table_name && option_set->query)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_SYNTAX_ERROR),
@@ -701,7 +809,7 @@ void tdsValidateForeignTableOptionSet(TdsFdwOptionSet *option_set)
 	
 	/* Check required options */
 	
-	if (!option_set->table && !option_set->query)
+	if (!option_set->table_name && !option_set->query)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_SYNTAX_ERROR),
@@ -764,9 +872,13 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->username = NULL;
 	option_set->password = NULL;
 	option_set->query = NULL;
-	option_set->table = NULL;
+	option_set->schema_name = NULL;
+	option_set->table_name = NULL;
 	option_set->row_estimate_method = NULL;
 	option_set->match_column_names = DEFAULT_MATCH_COLUMN_NAMES;
+	option_set->use_remote_estimate = 0;
+	option_set->fdw_startup_cost = 0;
+	option_set->fdw_tuple_cost = 0;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,

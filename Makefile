@@ -19,7 +19,7 @@ EXTENSION = tds_fdw
 
 MODULE_big = $(EXTENSION)
 
-OBJS = src/tds_fdw.o src/options.o
+OBJS = src/tds_fdw.o src/options.o src/deparse.o
 
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/default_version[[:space:]]*=[[:space:]]*'\\([^']*\\)'/\\1/")
 
