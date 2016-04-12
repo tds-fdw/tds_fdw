@@ -2325,6 +2325,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 	 * actually be an indexscan happening there).  We already did all the work
 	 * to estimate cost and size of this path.
 	 */
+	#if (PG_VERSION_NUM >= 90500)
 	path = create_foreignscan_path(root, baserel,
 								   fpinfo->rows,
 								   fpinfo->startup_cost,
@@ -2333,6 +2334,16 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								   NULL,		/* no outer rel either */
 								   NULL,		/* no extra plan */
 								   NIL);		/* no fdw_private list */
+	#else
+	path = create_foreignscan_path(root, baserel,
+								   fpinfo->rows,
+								   fpinfo->startup_cost,
+								   fpinfo->total_cost,
+								   NIL, /* no pathkeys */
+								   NULL,		/* no outer rel either */
+								   NIL);		/* no fdw_private list */	
+	#endif
+	
 	add_path(baserel, (Path *) path);
 
 	/*
@@ -2380,6 +2391,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								&rows, &width, &startup_cost, &total_cost, &option_set);
 
 		add_path(baserel, (Path *)
+		#if (PG_VERSION_NUM >= 90500)
 				 create_foreignscan_path(root, baserel,
 										 rows,
 										 startup_cost,
@@ -2388,6 +2400,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 										 NULL,
 										 NULL,
 										 NIL));
+		#else
+				 create_foreignscan_path(root, baserel,
+										 rows,
+										 startup_cost,
+										 total_cost,
+										 usable_pathkeys,
+										 NULL,
+										 NIL));
+		#endif
 	}
 
 	/*
@@ -2548,6 +2569,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 		param_info->ppi_rows = rows;
 
 		/* Make the path */
+		#if (PG_VERSION_NUM >= 90500)
 		path = create_foreignscan_path(root, baserel,
 									   rows,
 									   startup_cost,
@@ -2556,6 +2578,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 									   param_info->ppi_req_outer,
 									   NULL,
 									   NIL);	/* no fdw_private list */
+		#else
+		path = create_foreignscan_path(root, baserel,
+									   rows,
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NIL);	/* no fdw_private list */
+		#endif
 		add_path(baserel, (Path *) path);
 	}
 	
