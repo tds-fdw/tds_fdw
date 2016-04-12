@@ -71,6 +71,7 @@ static struct TdsFdwOption valid_options[] =
 	{ "row_estimate_method",	ForeignTableRelationId },
 	{ "match_column_names",		ForeignTableRelationId },
 	{ "use_remote_estimate",	ForeignTableRelationId },
+	{ "local_tuple_estimate",	ForeignTableRelationId },
 	{ "column_name", 			AttributeRelationId },
 	{ NULL,						InvalidOid }
 };
@@ -102,6 +103,10 @@ static const int DEFAULT_FDW_STARTUP_COST = 100;
 /* by default we use remote estimates */
 
 static const int DEFAULT_FDW_TUPLE_COST = 100;
+
+/* conservative default tuple count */
+
+static const int DEFAULT_LOCAL_TUPLE_ESTIMATE = 1000;
 
 void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set)
 {
@@ -589,6 +594,17 @@ void tdsGetForeignTableOptions(List *options_list, TdsFdwOptionSet *option_set)
 					
 			option_set->use_remote_estimate = atoi(defGetString(def));	
 		}
+		
+		else if (strcmp(def->defname, "local_tuple_estimate") == 0)
+		{
+			if (option_set->local_tuple_estimate)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: local_tuple_estimate (%s)", defGetString(def))
+					));
+					
+			option_set->local_tuple_estimate = atoi(defGetString(def));	
+		}
 	}
 	
 	#ifdef DEBUG
@@ -743,6 +759,17 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
 		#endif	
 	}
 	
+	if (!option_set->local_tuple_estimate)
+	{
+		option_set->local_tuple_estimate = DEFAULT_LOCAL_TUPLE_ESTIMATE;
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Set local_tuple_estimate to default: %d", option_set->local_tuple_estimate)
+				));
+		#endif	
+	}
+	
 	if (!option_set->fdw_startup_cost)
 	{
 		option_set->fdw_startup_cost = DEFAULT_FDW_STARTUP_COST;
@@ -879,6 +906,7 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->use_remote_estimate = 0;
 	option_set->fdw_startup_cost = 0;
 	option_set->fdw_tuple_cost = 0;
+	option_set->local_tuple_estimate = 0;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,

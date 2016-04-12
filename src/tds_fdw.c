@@ -66,7 +66,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-#define DEBUG
+/* #define DEBUG */
 
 PG_MODULE_MAGIC;
 
@@ -2254,11 +2254,9 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 		 * estimate of 10 pages, and divide by the column-datatype-based width
 		 * estimate to get the corresponding number of tuples.
 		 */
-		if (baserel->pages == 0 && baserel->tuples == 0)
+		if (baserel->tuples == 0)
 		{
-			baserel->pages = 10;
-			baserel->tuples =
-				(10 * BLCKSZ) / (baserel->width + MAXALIGN(SizeofHeapTupleHeader));
+			baserel->tuples = option_set.local_tuple_estimate;
 		}
 
 		/* Estimate baserel size as best we can with local statistics. */

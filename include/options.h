@@ -34,6 +34,7 @@ typedef struct TdsFdwOptionSet
 	int use_remote_estimate;
 	int fdw_startup_cost;
 	int fdw_tuple_cost;
+	int local_tuple_estimate;
 } TdsFdwOptionSet;
 
 void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set);
