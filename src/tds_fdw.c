@@ -2715,6 +2715,7 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 		/* Relation is UPDATE/DELETE target, so use FOR UPDATE */
 		appendStringInfoString(&sql, " FOR UPDATE");
 	}
+	#if (PG_VERSION_NUM >= 90500)
 	else
 	{
 		PlanRowMark *rc = get_plan_rowmark(root->rowMarks, baserel->relid);
@@ -2747,6 +2748,7 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 			}
 		}
 	}
+	#endif
 
 	/*
 	 * Build the fdw_private list that will be available to the executor.
