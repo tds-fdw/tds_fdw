@@ -25,15 +25,13 @@ def run_tests(path, conn, replaces):
             conn.commit()
             cursor.close()
             tests['ok'] += 1
-        except (psycopg2.Error) as e:
+        except Exception as e:
             print_error("Error running test %s" % file)
-            print_error(e.pgcode)
-            print_error(e.pgerror)
-            conn.rollback()
-            tests['errors'] += 1
-        except (Exception) as e:
-            print_error("Error running test %s" % file)
-            print_error(e)
+            try:
+                print_error(e.pgcode)
+                print_error(e.pgerror)
+            except:
+                print_error(e)
             conn.rollback()
             tests['errors'] += 1
         f.close()
