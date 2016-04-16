@@ -90,7 +90,7 @@ static const char *DEFAULT_MSG_HANDLER = "blackhole";
 
 /* whether to match on column names by default. if not, we use column order. */
 
-static const int DEFAULT_MATCH_COLUMN_NAMES = 0;
+static const int DEFAULT_MATCH_COLUMN_NAMES = 1;
 
 /* by default we use remote estimates */
 
