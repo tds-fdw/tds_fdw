@@ -552,6 +552,13 @@ foreign_expr_walker(Node *node,
 	return true;
 }
 
+#if (PG_VERSION_NUM >= 90600)
+bool is_builtin(Oid objectId)
+{
+	return (objectId < FirstBootstrapObjectId);
+}
+#endif
+
 /*
  * Convert type OID + typmod info into a type name we can ship to the remote
  * server.  Someplace else had better have verified that this type name is

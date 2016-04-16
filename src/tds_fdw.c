@@ -206,11 +206,6 @@ void _PG_init(void)
 		NULL);
 }
 
-bool is_builtin(Oid objectId)
-{
-	return (objectId < FirstBootstrapObjectId);
-}
-
 /*
  * Find an equivalence class member expression, all of whose Vars, come from
  * the indicated relation.
