@@ -90,7 +90,7 @@ static const char *DEFAULT_MSG_HANDLER = "blackhole";
 
 /* whether to match on column names by default. if not, we use column order. */
 
-static const int DEFAULT_MATCH_COLUMN_NAMES = 1;
+static const int DEFAULT_MATCH_COLUMN_NAMES = 0;
 
 /* by default we use remote estimates */
 
@@ -574,23 +574,12 @@ void tdsGetForeignTableOptions(List *options_list, TdsFdwOptionSet *option_set)
 		}
 
 		else if (strcmp(def->defname, "match_column_names") == 0)
-		{
-			if (option_set->match_column_names)
-				ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Redundant option: match_column_names (%s)", defGetString(def))
-					));
-					
+		{		
 			option_set->match_column_names = atoi(defGetString(def));	
 		}
 		
 		else if (strcmp(def->defname, "use_remote_estimate") == 0)
 		{
-			if (option_set->use_remote_estimate)
-				ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-						errmsg("Redundant option: use_remote_estimate (%s)", defGetString(def))
-					));
 					
 			option_set->use_remote_estimate = atoi(defGetString(def));	
 		}
