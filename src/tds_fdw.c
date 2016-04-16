@@ -1448,7 +1448,14 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 		else
 		{
 			column->local_index = ncol;
+			column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
 		}
+		
+		#ifdef DEBUG
+			ereport(NOTICE,
+				(errmsg("Local index = %i, local type OID = %i", column->local_index, column->attr_oid)
+				));
+		#endif
 	}
 
 	if (option_set->match_column_names)
@@ -1599,6 +1606,12 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 
 				erc = SUCCEED;
 				column->useraw = false;
+				
+				#ifdef DEBUG
+					ereport(NOTICE,
+						(errmsg("The foreign type is %i. The local type is %i.", srctype, attr_oid)
+						));
+				#endif	
 
 				if (srctype == SYBINT2 && attr_oid == INT2OID)
 			        {
