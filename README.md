@@ -20,7 +20,7 @@ The current version does not yet support WHERE clause push-down, column push-dow
 
 ## Build Status
 
-[![Build Status](https://jenkins-juliogonzalez.rhcloud.com/job/tds_fdw-build/badge/icon)](https://jenkins-juliogonzalez.rhcloud.com/job/tds_fdw-build/)
+[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/)
 
 ## Installing on CentOS
 
