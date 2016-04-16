@@ -52,7 +52,9 @@
 #include "postgres.h"
 
 #include "access/heapam.h"
+#if (PG_VERSION_NUM >= 90300)
 #include "access/htup_details.h"
+#endif
 #include "access/sysattr.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_namespace.h"
@@ -1424,7 +1426,7 @@ deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 	HeapTuple	proctup;
 	Form_pg_proc procform;
 	const char *proname;
-	bool		use_variadic;
+	bool		use_variadic = false;
 	bool		first;
 	ListCell   *arg;
 
@@ -1464,8 +1466,10 @@ deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 		elog(ERROR, "cache lookup failed for function %u", node->funcid);
 	procform = (Form_pg_proc) GETSTRUCT(proctup);
 
+	#if (PG_VERSION_NUM >= 90300)
 	/* Check if need to print VARIADIC (cf. ruleutils.c) */
 	use_variadic = node->funcvariadic;
+	#endif
 
 	/* Print schema name only if it's not pg_catalog */
 	if (procform->pronamespace != PG_CATALOG_NAMESPACE)

@@ -233,6 +233,8 @@ Expr * find_em_expr_for_rel(EquivalenceClass *ec, RelOptInfo *rel)
 	return NULL;
 }
 
+/* This is used for JOIN pushdowns, so it is only needed on 9.5+ */
+#if (PG_VERSION_NUM >= 90500)
 /*
  * Detect whether we want to process an EquivalenceClass member.
  *
@@ -263,6 +265,7 @@ ec_member_matches_foreign(PlannerInfo *root, RelOptInfo *rel,
 	state->current = expr;
 	return true;
 }
+#endif
 
 /*
  * is_shippable
@@ -2301,7 +2304,9 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 	TdsFdwOptionSet option_set;
 	TdsFdwRelationInfo *fpinfo = (TdsFdwRelationInfo *) baserel->fdw_private;
 	ForeignPath *path;
+	#if (PG_VERSION_NUM >= 90500)
 	List	   *ppi_list;
+	#endif
 	ListCell   *lc;
 	List	   *usable_pathkeys = NIL;
 	
@@ -2405,6 +2410,9 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 										 NIL));
 		#endif
 	}
+	
+	/* Don't worry about join pushdowns unless this is PostgreSQL 9.5+ */
+	#if (PG_VERSION_NUM >= 90500)
 
 	/*
 	 * If we're not using remote estimates, stop here.  We have no way to
@@ -2564,7 +2572,6 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 		param_info->ppi_rows = rows;
 
 		/* Make the path */
-		#if (PG_VERSION_NUM >= 90500)
 		path = create_foreignscan_path(root, baserel,
 									   rows,
 									   startup_cost,
@@ -2573,17 +2580,10 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 									   param_info->ppi_req_outer,
 									   NULL,
 									   NIL);	/* no fdw_private list */
-		#else
-		path = create_foreignscan_path(root, baserel,
-									   rows,
-									   startup_cost,
-									   total_cost,
-									   NIL,		/* no pathkeys */
-									   param_info->ppi_req_outer,
-									   NIL);	/* no fdw_private list */
-		#endif
 		add_path(baserel, (Path *) path);
 	}
+	
+	#endif
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
