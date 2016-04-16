@@ -1427,17 +1427,44 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 		if (option_set->match_column_names)
 		{
 			ListCell   *lc;
+		
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Matching foreign column with local column by name.")
+					));
+			#endif
 			
 			column->local_index = -1;
 
 	        //for (local_ncol = 0; local_ncol < festate->attinmeta->tupdesc->natts; local_ncol++)
 			foreach(lc, festate->retrieved_attrs)
 			{
-				int local_ncol = lfirst_int(lc);
-				char* local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
+				/* this is indexed starting from 1, not 0 */
+				int local_ncol = lfirst_int(lc) - 1;
+				char* local_name;
+				
+				#ifdef DEBUG
+					ereport(NOTICE,
+						(errmsg("Comparing it to the following retrived column: %i", local_ncol)
+						));
+				#endif
+				
+				local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
+				
+				#ifdef DEBUG
+					ereport(NOTICE,
+						(errmsg("Comparing it to the following retrived column name: %s", local_name)
+						));
+				#endif
 
 				if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
 				{
+					#ifdef DEBUG
+						ereport(NOTICE,
+							(errmsg("It matches!")
+							));
+					#endif
+					
 					column->local_index = local_ncol;
 					column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
 					local_columns_found[local_ncol] = 1;
@@ -1458,6 +1485,13 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 
 		else
 		{
+		
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Matching foreign column with local column by position.")
+					));
+			#endif
+			
 			column->local_index = ncol;
 			column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
 		}
