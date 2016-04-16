@@ -54,7 +54,8 @@ deparseSelectSql(StringInfo buf,
 				 PlannerInfo *root,
 				 RelOptInfo *baserel,
 				 Bitmapset *attrs_used,
-				 List **retrieved_attrs);
+				 List **retrieved_attrs,
+				 TdsFdwOptionSet* option_set);
 				 
 /*
  * deparse remote INSERT statement
@@ -67,7 +68,7 @@ void
 deparseInsertSql(StringInfo buf, PlannerInfo *root,
 				 Index rtindex, Relation rel,
 				 List *targetAttrs, bool doNothing,
-				 List *returningList, List **retrieved_attrs);
+				 List *returningList, List **retrieved_attrs, TdsFdwOptionSet* option_set);
 				 
 /*
  * deparse remote UPDATE statement
@@ -80,7 +81,8 @@ void
 deparseUpdateSql(StringInfo buf, PlannerInfo *root,
 				 Index rtindex, Relation rel,
 				 List *targetAttrs, List *returningList,
-				 List **retrieved_attrs);
+				 List **retrieved_attrs,
+				 TdsFdwOptionSet* option_set);
 				 
 /*
  * deparse remote DELETE statement
@@ -93,7 +95,8 @@ void
 deparseDeleteSql(StringInfo buf, PlannerInfo *root,
 				 Index rtindex, Relation rel,
 				 List *returningList,
-				 List **retrieved_attrs);
+				 List **retrieved_attrs,
+				 TdsFdwOptionSet* option_set);
 				 
 /*
  * Construct SELECT statement to acquire size in blocks of given relation.

@@ -66,7 +66,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-/* #define DEBUG */
+/* #define DEBUG */ 
 
 PG_MODULE_MAGIC;
 
@@ -360,7 +360,7 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 
 		initStringInfo(&sql);
 		deparseSelectSql(&sql, root, baserel, fpinfo->attrs_used,
-						 &retrieved_attrs);
+						 &retrieved_attrs, option_set);
 		if (fpinfo->remote_conds)
 			appendWhereClause(&sql, root, baserel, fpinfo->remote_conds,
 							  true, NULL);
@@ -1372,7 +1372,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 
 	festate->attinmeta = TupleDescGetAttInMetadata(node->ss.ss_currentRelation->rd_att);
 
-	if (festate->ncols != num_retrieved_attrs)
+	if (option_set->match_column_names && festate->ncols != num_retrieved_attrs)
 	{
 		ereport(ERROR,
 			(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
@@ -1380,6 +1380,17 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				" but query expected %d column(s)",
 				festate->ncols,
 				num_retrieved_attrs)
+			));
+	}
+	
+	else if (!option_set->match_column_names && festate->ncols < festate->attinmeta->tupdesc->natts)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
+			errmsg("Table definition mismatch: Foreign source returned %d column(s),"
+				" but local table has %d column(s)",
+				festate->ncols,
+				festate->attinmeta->tupdesc->natts)
 			));
 	}
 
@@ -2630,6 +2641,7 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 #endif
 {
 	TdsFdwRelationInfo *fpinfo = (TdsFdwRelationInfo *) baserel->fdw_private;
+	TdsFdwOptionSet option_set;
 	Index		scan_relid = baserel->relid;
 	List	   *fdw_private;
 	List	   *remote_conds = NIL;
@@ -2645,6 +2657,8 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 			(errmsg("----> starting tdsGetForeignPlan")
 			));
 	#endif
+	
+	tdsGetForeignTableOptionsFromCatalog(foreigntableid, &option_set);
 	
 	/*
 	 * Separate the scan_clauses into those that can be executed remotely and
@@ -2697,7 +2711,7 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	 */
 	initStringInfo(&sql);
 	deparseSelectSql(&sql, root, baserel, fpinfo->attrs_used,
-					 &retrieved_attrs);
+					 &retrieved_attrs, &option_set);
 	if (remote_conds)
 		appendWhereClause(&sql, root, baserel, remote_conds,
 						  true, &params_list);

@@ -131,12 +131,14 @@ static void deparseTargetList(StringInfo buf,
 				  Index rtindex,
 				  Relation rel,
 				  Bitmapset *attrs_used,
-				  List **retrieved_attrs);
+				  List **retrieved_attrs,
+				  TdsFdwOptionSet* option_set);
 static void deparseReturningList(StringInfo buf, PlannerInfo *root,
 					 Index rtindex, Relation rel,
 					 bool trig_after_row,
 					 List *returningList,
-					 List **retrieved_attrs);
+					 List **retrieved_attrs,
+					 TdsFdwOptionSet* option_set);
 static void deparseColumnRef(StringInfo buf, int varno, int varattno,
 				 PlannerInfo *root);
 static void deparseRelation(StringInfo buf, Relation rel);
@@ -599,7 +601,8 @@ deparseSelectSql(StringInfo buf,
 				 PlannerInfo *root,
 				 RelOptInfo *baserel,
 				 Bitmapset *attrs_used,
-				 List **retrieved_attrs)
+				 List **retrieved_attrs,
+				 TdsFdwOptionSet* option_set)
 {
 	RangeTblEntry *rte = planner_rt_fetch(baserel->relid, root);
 	Relation	rel;
@@ -615,7 +618,7 @@ deparseSelectSql(StringInfo buf,
 	 */
 	appendStringInfoString(buf, "SELECT ");
 	deparseTargetList(buf, root, baserel->relid, rel, attrs_used,
-					  retrieved_attrs);
+					  retrieved_attrs, option_set);
 
 	/*
 	 * Construct FROM clause
@@ -639,7 +642,8 @@ deparseTargetList(StringInfo buf,
 				  Index rtindex,
 				  Relation rel,
 				  Bitmapset *attrs_used,
-				  List **retrieved_attrs)
+				  List **retrieved_attrs,
+				 TdsFdwOptionSet* option_set)
 {
 	TupleDesc	tupdesc = RelationGetDescr(rel);
 	bool		have_wholerow;
@@ -647,6 +651,14 @@ deparseTargetList(StringInfo buf,
 	int			i;
 
 	*retrieved_attrs = NIL;
+	
+	/* If we are not matching remote and local column names, then we can't push down attributes */  
+	if (!option_set->match_column_names)
+	{
+		appendStringInfoString(buf, "* ");
+		
+		return;
+	}
 
 	/* If there's a whole-row reference, we'll need all the columns. */
 	have_wholerow = bms_is_member(0 - FirstLowInvalidHeapAttributeNumber,
@@ -766,7 +778,7 @@ void
 deparseInsertSql(StringInfo buf, PlannerInfo *root,
 				 Index rtindex, Relation rel,
 				 List *targetAttrs, bool doNothing,
-				 List *returningList, List **retrieved_attrs)
+				 List *returningList, List **retrieved_attrs, TdsFdwOptionSet* option_set)
 {
 	AttrNumber	pindex;
 	bool		first;
@@ -815,7 +827,7 @@ deparseInsertSql(StringInfo buf, PlannerInfo *root,
 
 	deparseReturningList(buf, root, rtindex, rel,
 					   rel->trigdesc && rel->trigdesc->trig_insert_after_row,
-						 returningList, retrieved_attrs);
+						 returningList, retrieved_attrs, option_set);
 }
 
 /*
@@ -829,7 +841,8 @@ void
 deparseUpdateSql(StringInfo buf, PlannerInfo *root,
 				 Index rtindex, Relation rel,
 				 List *targetAttrs, List *returningList,
-				 List **retrieved_attrs)
+				 List **retrieved_attrs,
+				 TdsFdwOptionSet* option_set)
 {
 	AttrNumber	pindex;
 	bool		first;
@@ -857,7 +870,7 @@ deparseUpdateSql(StringInfo buf, PlannerInfo *root,
 
 	deparseReturningList(buf, root, rtindex, rel,
 					   rel->trigdesc && rel->trigdesc->trig_update_after_row,
-						 returningList, retrieved_attrs);
+						 returningList, retrieved_attrs, option_set);
 }
 
 /*
@@ -871,7 +884,8 @@ void
 deparseDeleteSql(StringInfo buf, PlannerInfo *root,
 				 Index rtindex, Relation rel,
 				 List *returningList,
-				 List **retrieved_attrs)
+				 List **retrieved_attrs,
+				 TdsFdwOptionSet* option_set)
 {
 	appendStringInfoString(buf, "DELETE FROM ");
 	deparseRelation(buf, rel);
@@ -879,7 +893,7 @@ deparseDeleteSql(StringInfo buf, PlannerInfo *root,
 
 	deparseReturningList(buf, root, rtindex, rel,
 					   rel->trigdesc && rel->trigdesc->trig_delete_after_row,
-						 returningList, retrieved_attrs);
+						 returningList, retrieved_attrs, option_set);
 }
 
 /*
@@ -890,7 +904,8 @@ deparseReturningList(StringInfo buf, PlannerInfo *root,
 					 Index rtindex, Relation rel,
 					 bool trig_after_row,
 					 List *returningList,
-					 List **retrieved_attrs)
+					 List **retrieved_attrs,
+					 TdsFdwOptionSet* option_set)
 {
 	Bitmapset  *attrs_used = NULL;
 
@@ -915,7 +930,7 @@ deparseReturningList(StringInfo buf, PlannerInfo *root,
 	{
 		appendStringInfoString(buf, " RETURNING ");
 		deparseTargetList(buf, root, rtindex, rel, attrs_used,
-						  retrieved_attrs);
+						  retrieved_attrs, option_set);
 	}
 	else
 		*retrieved_attrs = NIL;
