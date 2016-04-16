@@ -566,11 +566,14 @@ foreign_expr_walker(Node *node,
 static char *
 deparse_type_name(Oid type_oid, int32 typemod)
 {
+	#if (PG_VERSION_NUM >= 90600)
 	if (is_builtin(type_oid))
 		return format_type_with_typemod(type_oid, typemod);
-	//tds_fdw should not need to ship custom PostgreSQL types to a MS SQL Server / Sybase database
-	//else
-		//return format_type_with_typemod_qualified(type_oid, typemod);
+	else
+		return format_type_with_typemod_qualified(type_oid, typemod);
+	#else
+	return format_type_with_typemod(type_oid, typemod);
+	#endif
 }
 
 
