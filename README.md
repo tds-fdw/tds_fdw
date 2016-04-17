@@ -14,9 +14,11 @@ This foreign data wrapper requires a library that implements the DB-Library inte
 such as [FreeTDS](http://www.freetds.org). This has been tested with FreeTDS, but not
 the proprietary implementations of DB-Library.
 
-This should support PostgreSQL 9.1+.
+This should support PostgreSQL 9.2+.
 
-The current version does not yet support WHERE clause push-down, column push-down, JOIN push-down, or write operations.
+The current version does not yet support JOIN push-down, or write operations.
+
+It does support WHERE and column pushdowns when *match_column_names* is enabled.
 
 ## Build Status
 
