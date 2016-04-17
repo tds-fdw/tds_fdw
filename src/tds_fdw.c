@@ -1367,6 +1367,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 	char* local_columns_found = NULL;
 	TdsFdwExecutionState *festate = (TdsFdwExecutionState *)node->fdw_state;
 	int num_retrieved_attrs = list_length(festate->retrieved_attrs);
+	Oid relOid = RelationGetRelid(node->ss.ss_currentRelation);
 
 	old_cxt = MemoryContextSwitchTo(festate->mem_cxt);
 
@@ -1441,7 +1442,9 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 			{
 				/* this is indexed starting from 1, not 0 */
 				int local_ncol = lfirst_int(lc) - 1;
-				char* local_name;
+				char* local_name = NULL;
+				List *options;
+				ListCell *inner_lc;
 				
 				#ifdef DEBUG
 					ereport(NOTICE,
@@ -1449,26 +1452,59 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 						));
 				#endif
 				
-				local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
+				options = GetForeignColumnOptions(relOid, local_ncol + 1);
 				
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Comparing it to the following retrived column name: %s", local_name)
-						));
-				#endif
-
-				if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
+				foreach(inner_lc, options)
 				{
+					DefElem    *def = (DefElem *) lfirst(inner_lc);
+					
 					#ifdef DEBUG
 						ereport(NOTICE,
-							(errmsg("It matches!")
+							(errmsg("Checking if column_name is set as an option:%s => %s", def->defname, defGetString(def))
 							));
 					#endif
+
+					if (strcmp(def->defname, "column_name") == 0 
+						&& strncmp(defGetString(def), column->name, NAMEDATALEN) == 0)
+					{
+						#ifdef DEBUG
+							ereport(NOTICE,
+								(errmsg("It matches!")
+								));
+						#endif
+						
+						local_name = defGetString(def);
+						column->local_index = local_ncol;
+						column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
+						local_columns_found[local_ncol] = 1;
+						break;
+					}
+				}
+				
+				if (!local_name)
+				{
+				
+					local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
 					
-					column->local_index = local_ncol;
-					column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
-					local_columns_found[local_ncol] = 1;
-					break;
+					#ifdef DEBUG
+						ereport(NOTICE,
+							(errmsg("Comparing retrieved column name to the following local column name: %s", local_name)
+							));
+					#endif
+
+					if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
+					{
+						#ifdef DEBUG
+							ereport(NOTICE,
+								(errmsg("It matches!")
+								));
+						#endif
+						
+						column->local_index = local_ncol;
+						column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
+						local_columns_found[local_ncol] = 1;
+						break;
+					}
 				}
 			}
 
