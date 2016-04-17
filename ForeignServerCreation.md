@@ -8,7 +8,7 @@
 
 ### Options
 
-Foreign server parameters accepted:
+#### Foreign server parameters accepted:
 
 * *servername*  
   
@@ -81,6 +81,25 @@ Required: No
 Default: blackhole
   
 The function used for the TDS message handler. Options are "notice" and "blackhole." With the "notice" option, TDS messages are turned into PostgreSQL notices. With the "blackhole" option, TDS messages are ignored.
+
+* *fdw_startup_cost*
+
+Required: No
+
+A cost that is used to represent the overhead of using this FDW used in query planning.
+
+* *fdw_tuple_cost*
+
+Required: No
+
+A cost that is used to represent the overhead of fetching rows from this server used in query planning.
+
+#### Foreign table parameters accepted in server definition:
+
+Some foreign table options can also be set at the server level. Those include:
+
+* *use_remote_estimate*
+* *row_estimate_method*
 
 ### Example
 			
