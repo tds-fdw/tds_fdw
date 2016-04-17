@@ -56,11 +56,9 @@
 #include "access/htup.h"
 #endif
 
-#if (PG_VERSION_NUM >= 90200)
 #include "optimizer/pathnode.h"
 #include "optimizer/restrictinfo.h"
 #include "optimizer/planmain.h"
-#endif
 
 /* DB-Library headers (e.g. FreeTDS */
 #include <sybfront.h>
