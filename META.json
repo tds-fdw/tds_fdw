@@ -24,16 +24,16 @@
 	},
 	"resources": {
 		"bugtracker": {
-			"web": "https://github.com/GeoffMontee/tds_fdw/issues"
+			"web": "https://github.com/tds-fdw/tds_fdw/issues"
 		},
 		"repository": {
-			"url":  "https://github.com/GeoffMontee/tds_fdw.git",
-			"web":  "https://github.com/GeoffMontee/tds_fdw",
+			"url":  "https://github.com/tds-fdw/tds_fdw.git",
+			"web":  "https://github.com/tds-fdw/tds_fdw",
 			"type": "git"
 		}
 	},
 	"generated_by": "Geoff Montee",
-	"release_status": "stable",
+	"release_status": "unstable",
 	"meta-spec": {
 		"version": "1.0.0",
 		"url": "http://pgxn.org/meta/spec.txt"
