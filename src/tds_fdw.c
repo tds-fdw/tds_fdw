@@ -2028,9 +2028,6 @@ void tdsEndForeignScan(ForeignScanState *node)
 	MemoryContextReset(festate->mem_cxt);
 }
 
-/* routines for 9.2.0+ */
-#if (PG_VERSION_NUM >= 90200)
-
 /*
  * estimate_path_cost_size
  *		Get cost and size estimates for a foreign scan
@@ -2878,109 +2875,6 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 		return make_foreignscan(tlist, local_exprs, scan_relid, params_list, fdw_private);
 	#endif
 }
-
-/* routines for versions older than 9.2.0 */
-#else
-
-FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel)
-{
-	FdwPlan *fdwplan;
-	TdsFdwOptionSet option_set;
-	LOGINREC *login;
-	DBPROCESS *dbproc;
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("----> starting tdsPlanForeignScan")
-			));
-	#endif
-	
-	fdwplan = makeNode(FdwPlan);
-	
-	tdsGetForeignTableOptionsFromCatalog(foreigntableid, &option_set);	
-	
-	fdwplan->startup_cost = tdsGetStartupCost(&option_set);
-		
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Initiating DB-Library")
-			));
-	#endif
-	
-	if (dbinit() == FAIL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-				errmsg("Failed to initialize DB-Library environment")
-			));
-		goto cleanup_before_init;
-	}
-	
-	dberrhandle(tds_err_handler);
-	
-	if (option_set.msg_handler)
-	{
-		if (strcmp(option_set.msg_handler, "notice") == 0)
-		{
-			dbmsghandle(tds_notice_msg_handler);
-		}
-		
-		else if (strcmp(option_set.msg_handler, "blackhole") == 0)
-		{
-			dbmsghandle(tds_blackhole_msg_handler);
-		}
-		
-		else
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_SYNTAX_ERROR),
-					errmsg("Unknown msg handler: %s.", option_set.msg_handler)
-				));
-		}
-	}
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Getting login structure")
-			));
-	#endif
-	
-	if ((login = dblogin()) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-				errmsg("Failed to initialize DB-Library login structure")
-			));
-	}
-	
-	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
-	{
-		goto cleanup;
-	}
-		
-	baserel->rows = tdsGetRowCount(&option_set, login, dbproc);
-	baserel->tuples = baserel->rows;
-	fdwplan->total_cost = baserel->rows + fdwplan->startup_cost;
-	fdwplan->fdw_private = NIL;
-	
-cleanup:
-	dbclose(dbproc);
-	dbloginfree(login);
-		
-	dbexit();
-	
-cleanup_before_init:
-	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("----> finishing tdsPlanForeignScan")
-			));
-	#endif	
-	
-	return fdwplan;
-}
-
-#endif
 
 int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
 {
