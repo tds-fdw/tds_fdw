@@ -64,7 +64,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-/* #define DEBUG */ 
+#define DEBUG 
 
 PG_MODULE_MAGIC;
 
@@ -299,17 +299,22 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 				(errmsg("Query is explicitly set")
 				));
 		#endif
+		
+		if (option_set->match_column_names)
+		{
+			/* do this, so that retrieved_attrs is filled in */
+			
+			StringInfoData sql;	
+
+			initStringInfo(&sql);
+			deparseSelectSql(&sql, root, baserel, attrs_used,
+							 retrieved_attrs, option_set);
+		}
 	}
 	
 	else
 	{
-		StringInfoData sql;
-
-		/*
-		 * Construct EXPLAIN query including the desired SELECT, FROM, and
-		 * WHERE clauses.  Params and other-relation Vars are replaced by
-		 * dummy values.
-		 */		
+		StringInfoData sql;	
 
 		initStringInfo(&sql);
 		deparseSelectSql(&sql, root, baserel, attrs_used,
@@ -1653,6 +1658,7 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 		
 		else if (erc == SUCCEED)
 		{
+			Oid relOid;
 
 			#ifdef DEBUG
 				ereport(NOTICE,
@@ -1675,8 +1681,16 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 			#endif
 
 			MemoryContextReset(festate->mem_cxt);
-	
-			tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(node->ss.ss_currentRelation), &option_set);	
+			
+			relOid = RelationGetRelid(node->ss.ss_currentRelation);
+			
+			#ifdef DEBUG
+				ereport(NOTICE,
+					(errmsg("Table OID is %i", relOid)
+					));
+			#endif
+			
+			tdsGetForeignTableOptionsFromCatalog(relOid, &option_set);	
 			tdsGetColumnMetadata(node, &option_set);
 
 			for (ncol = 0; ncol < festate->ncols; ncol++) {
@@ -2766,7 +2780,7 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	List	   *remote_exprs = NIL;
 	List	   *local_exprs = NIL;
 	List	   *params_list = NIL;
-	List	   *retrieved_attrs;
+	List	   *retrieved_attrs = NIL;
 	ListCell   *lc;
 	
 	#ifdef DEBUG
