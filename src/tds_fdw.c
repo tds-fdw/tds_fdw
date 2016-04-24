@@ -64,7 +64,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-#define DEBUG 
+/* #define DEBUG */ 
 
 PG_MODULE_MAGIC;
 
