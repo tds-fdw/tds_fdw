@@ -276,10 +276,10 @@ bool is_shippable(Oid objectId, Oid classId, TdsFdwRelationInfo *fpinfo)
 
 /* build query that gets sent to remote server */
 
-void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSet* option_set)
+void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSet* option_set, 
+	Bitmapset* attrs_used, List** retrieved_attrs, List* remote_conds, List* remote_join_conds, 
+	List* pathkeys)
 {
-	TdsFdwRelationInfo *fpinfo = (TdsFdwRelationInfo *) baserel->fdw_private;
-	
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tdsBuildForeignQuery")
@@ -303,52 +303,7 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 	
 	else
 	{
-		List	   *remote_join_conds;
-		List	   *local_join_conds;
 		StringInfoData sql;
-		List	   *retrieved_attrs;
-		List	   *usable_pathkeys = NIL;
-		ListCell   *lc;
-
-		/*
-		 * join_conds might contain both clauses that are safe to send across,
-		 * and clauses that aren't.
-		 */
-		classifyConditions(root, baserel, baserel->baserestrictinfo,
-						   &remote_join_conds, &local_join_conds);
-						   
-		/*
-		 * Determine whether we can potentially push query pathkeys to the remote
-		 * side, avoiding a local sort.
-		 */
-		foreach(lc, root->query_pathkeys)
-		{
-			PathKey    *pathkey = (PathKey *) lfirst(lc);
-			EquivalenceClass *pathkey_ec = pathkey->pk_eclass;
-			Expr	   *em_expr;
-
-			/*
-			 * is_foreign_expr would detect volatile expressions as well, but
-			 * ec_has_volatile saves some cycles.
-			 */
-			if (!pathkey_ec->ec_has_volatile &&
-				(em_expr = find_em_expr_for_rel(pathkey_ec, baserel)) &&
-				is_foreign_expr(root, baserel, em_expr))
-				usable_pathkeys = lappend(usable_pathkeys, pathkey);
-			else
-			{
-				/*
-				 * The planner and executor don't have any clever strategy for
-				 * taking data sorted by a prefix of the query's pathkeys and
-				 * getting it to be sorted by all of those pathekeys.  We'll just
-				 * end up resorting the entire data set.  So, unless we can push
-				 * down all of the query pathkeys, forget it.
-				 */
-				list_free(usable_pathkeys);
-				usable_pathkeys = NIL;
-				break;
-			}
-		}
 
 		/*
 		 * Construct EXPLAIN query including the desired SELECT, FROM, and
@@ -357,18 +312,69 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 		 */		
 
 		initStringInfo(&sql);
-		deparseSelectSql(&sql, root, baserel, fpinfo->attrs_used,
-						 &retrieved_attrs, option_set);
-		if (fpinfo->remote_conds)
-			appendWhereClause(&sql, root, baserel, fpinfo->remote_conds,
+		deparseSelectSql(&sql, root, baserel, attrs_used,
+						 retrieved_attrs, option_set);
+		if (remote_conds)
+			appendWhereClause(&sql, root, baserel, remote_conds,
 							  true, NULL);
 		if (remote_join_conds)
 			appendWhereClause(&sql, root, baserel, remote_join_conds,
-							  (fpinfo->remote_conds == NIL), NULL);
+							  (remote_conds == NIL), NULL);
 
-		if (usable_pathkeys)
-			appendOrderByClause(&sql, root, baserel, usable_pathkeys);
+		if (pathkeys)
+			appendOrderByClause(&sql, root, baserel, pathkeys);
 		
+		/*
+		 * Add FOR UPDATE/SHARE if appropriate.  We apply locking during the
+		 * initial row fetch, rather than later on as is done for local tables.
+		 * The extra roundtrips involved in trying to duplicate the local
+		 * semantics exactly don't seem worthwhile (see also comments for
+		 * RowMarkType).
+		 *
+		 * Note: because we actually run the query as a cursor, this assumes that
+		 * DECLARE CURSOR ... FOR UPDATE is supported, which it isn't before 8.3.
+		 */
+		if (baserel->relid == root->parse->resultRelation &&
+			(root->parse->commandType == CMD_UPDATE ||
+			 root->parse->commandType == CMD_DELETE))
+		{
+			/* Relation is UPDATE/DELETE target, so use FOR UPDATE */
+			appendStringInfoString(&sql, " FOR UPDATE");
+		}
+		#if (PG_VERSION_NUM >= 90500)
+		else
+		{
+			PlanRowMark *rc = get_plan_rowmark(root->rowMarks, baserel->relid);
+
+			if (rc)
+			{
+				/*
+				 * Relation is specified as a FOR UPDATE/SHARE target, so handle
+				 * that.  (But we could also see LCS_NONE, meaning this isn't a
+				 * target relation after all.)
+				 *
+				 * For now, just ignore any [NO] KEY specification, since (a) it's
+				 * not clear what that means for a remote table that we don't have
+				 * complete information about, and (b) it wouldn't work anyway on
+				 * older remote servers.  Likewise, we don't worry about NOWAIT.
+				 */
+				switch (rc->strength)
+				{
+					case LCS_NONE:
+						/* No locking needed */
+						break;
+					case LCS_FORKEYSHARE:
+					case LCS_FORSHARE:
+						appendStringInfoString(&sql, " FOR SHARE");
+						break;
+					case LCS_FORNOKEYUPDATE:
+					case LCS_FORUPDATE:
+						appendStringInfoString(&sql, " FOR UPDATE");
+						break;
+				}
+			}
+		}
+		#endif		
 		
 		/* now copy it to option_set->query */
 
@@ -391,7 +397,7 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
-			(errmsg("----> finishing tdsSetupConnection")
+			(errmsg("----> finishing tdsBuildForeignQuery")
 			));
 	#endif	
 }
@@ -2063,8 +2069,55 @@ estimate_path_cost_size(PlannerInfo *root,
 		DBPROCESS *dbproc;
 		Selectivity local_sel;
 		QualCost	local_cost;
+		List	   *remote_join_conds;
+		List	   *local_join_conds;
+		List	   *usable_pathkeys = NIL;
+		ListCell   *lc;
+		List *retrieved_attrs;
 		
-		tdsBuildForeignQuery(root, baserel, option_set);
+		/*
+		 * join_conds might contain both clauses that are safe to send across,
+		 * and clauses that aren't.
+		 */
+		classifyConditions(root, baserel, baserel->baserestrictinfo,
+						   &remote_join_conds, &local_join_conds);
+						   
+		/*
+		 * Determine whether we can potentially push query pathkeys to the remote
+		 * side, avoiding a local sort.
+		 */
+		foreach(lc, pathkeys)
+		{
+			PathKey    *pathkey = (PathKey *) lfirst(lc);
+			EquivalenceClass *pathkey_ec = pathkey->pk_eclass;
+			Expr	   *em_expr;
+
+			/*
+			 * is_foreign_expr would detect volatile expressions as well, but
+			 * ec_has_volatile saves some cycles.
+			 */
+			if (!pathkey_ec->ec_has_volatile &&
+				(em_expr = find_em_expr_for_rel(pathkey_ec, baserel)) &&
+				is_foreign_expr(root, baserel, em_expr))
+				usable_pathkeys = lappend(usable_pathkeys, pathkey);
+			else
+			{
+				/*
+				 * The planner and executor don't have any clever strategy for
+				 * taking data sorted by a prefix of the query's pathkeys and
+				 * getting it to be sorted by all of those pathekeys.  We'll just
+				 * end up resorting the entire data set.  So, unless we can push
+				 * down all of the query pathkeys, forget it.
+				 */
+				list_free(usable_pathkeys);
+				usable_pathkeys = NIL;
+				break;
+			}
+		}
+		
+		tdsBuildForeignQuery(root, baserel, option_set, 
+			fpinfo->attrs_used, &retrieved_attrs,
+			fpinfo->remote_conds, remote_join_conds, usable_pathkeys);
 
 		/* Get the remote estimate */
 
@@ -2714,7 +2767,6 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	List	   *local_exprs = NIL;
 	List	   *params_list = NIL;
 	List	   *retrieved_attrs;
-	StringInfoData sql;
 	ListCell   *lc;
 	
 	#ifdef DEBUG
@@ -2774,74 +2826,16 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	 * Build the query string to be sent for execution, and identify
 	 * expressions to be sent as parameters.
 	 */
-	initStringInfo(&sql);
-	deparseSelectSql(&sql, root, baserel, fpinfo->attrs_used,
-					 &retrieved_attrs, &option_set);
-	if (remote_conds)
-		appendWhereClause(&sql, root, baserel, remote_conds,
-						  true, &params_list);
-
-	/* Add ORDER BY clause if we found any useful pathkeys */
-	if (best_path->path.pathkeys)
-		appendOrderByClause(&sql, root, baserel, best_path->path.pathkeys);
-
-	/*
-	 * Add FOR UPDATE/SHARE if appropriate.  We apply locking during the
-	 * initial row fetch, rather than later on as is done for local tables.
-	 * The extra roundtrips involved in trying to duplicate the local
-	 * semantics exactly don't seem worthwhile (see also comments for
-	 * RowMarkType).
-	 *
-	 * Note: because we actually run the query as a cursor, this assumes that
-	 * DECLARE CURSOR ... FOR UPDATE is supported, which it isn't before 8.3.
-	 */
-	if (baserel->relid == root->parse->resultRelation &&
-		(root->parse->commandType == CMD_UPDATE ||
-		 root->parse->commandType == CMD_DELETE))
-	{
-		/* Relation is UPDATE/DELETE target, so use FOR UPDATE */
-		appendStringInfoString(&sql, " FOR UPDATE");
-	}
-	#if (PG_VERSION_NUM >= 90500)
-	else
-	{
-		PlanRowMark *rc = get_plan_rowmark(root->rowMarks, baserel->relid);
-
-		if (rc)
-		{
-			/*
-			 * Relation is specified as a FOR UPDATE/SHARE target, so handle
-			 * that.  (But we could also see LCS_NONE, meaning this isn't a
-			 * target relation after all.)
-			 *
-			 * For now, just ignore any [NO] KEY specification, since (a) it's
-			 * not clear what that means for a remote table that we don't have
-			 * complete information about, and (b) it wouldn't work anyway on
-			 * older remote servers.  Likewise, we don't worry about NOWAIT.
-			 */
-			switch (rc->strength)
-			{
-				case LCS_NONE:
-					/* No locking needed */
-					break;
-				case LCS_FORKEYSHARE:
-				case LCS_FORSHARE:
-					appendStringInfoString(&sql, " FOR SHARE");
-					break;
-				case LCS_FORNOKEYUPDATE:
-				case LCS_FORUPDATE:
-					appendStringInfoString(&sql, " FOR UPDATE");
-					break;
-			}
-		}
-	}
-	#endif
+	 
+	tdsBuildForeignQuery(root, baserel, &option_set, 
+		fpinfo->attrs_used, &retrieved_attrs, 
+		remote_conds, NULL, best_path->path.pathkeys);
 
 	/*
 	 * Build the fdw_private list that will be available to the executor.
 	 * Items in the list must match enum FdwScanPrivateIndex, above.
 	 */
-	fdw_private = list_make2(makeString(sql.data),
+	fdw_private = list_make2(makeString(option_set.query),
 							 retrieved_attrs);
 
 	/*
