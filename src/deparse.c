@@ -1860,9 +1860,9 @@ appendOrderByClause(StringInfo buf, PlannerInfo *root, RelOptInfo *baserel,
 			appendStringInfoString(buf, " ASC");
 		else
 			appendStringInfoString(buf, " DESC");
-
+/* NULLS FIRST is not supported by SQL Server
 		if (pathkey->pk_nulls_first)
-			appendStringInfoString(buf, " NULLS FIRST");
+			appendStringInfoString(buf, " NULLS FIRST"); */
 
 		delim = ", ";
 	}
