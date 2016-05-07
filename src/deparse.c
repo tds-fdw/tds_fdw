@@ -197,6 +197,8 @@ classifyConditions(PlannerInfo *root,
  */
 bool is_shippable(Oid objectId, Oid classId, TdsFdwRelationInfo *fpinfo)
 {
+	bool is_shippable = true;
+	
 	if (classId == OperatorRelationId)
 	{
 		HeapTuple	tuple;
@@ -211,11 +213,13 @@ bool is_shippable(Oid objectId, Oid classId, TdsFdwRelationInfo *fpinfo)
 		/* don't ship operators that are not in pg_catalog */
 		if (form->oprnamespace != PG_CATALOG_NAMESPACE)
 		{
-			return false;
+			is_shippable = false;
 		}
+		
+		ReleaseSysCache(tuple);
 	}
 	
-	return true;
+	return is_shippable;
 }
 
 /*
@@ -1294,8 +1298,7 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 
 	if (node->constisnull)
 	{
-		appendStringInfoString(buf, "NULL");
-		appendStringInfo(buf, "::%s",
+		appendStringInfo(buf, "CAST(NULL AS %s)",
 						 deparse_type_name(node->consttype,
 										   node->consttypmod));
 		return;
@@ -1304,6 +1307,31 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 	getTypeOutputInfo(node->consttype,
 					  &typoutput, &typIsVarlena);
 	extval = OidOutputFunctionCall(typoutput, node->constvalue);
+	
+	/*
+	 * Append ::typename unless the constant will be implicitly typed as the
+	 * right type when it is read in.
+	 *
+	 * XXX this code has to be kept in sync with the behavior of the parser,
+	 * especially make_const.
+	 */
+	switch (node->consttype)
+	{
+		case BOOLOID:
+		case INT4OID:
+		case UNKNOWNOID:
+			needlabel = false;
+			break;
+		case NUMERICOID:
+			needlabel = !isfloat || (node->consttypmod >= 0);
+			break;
+		default:
+			needlabel = true;
+			break;
+	}
+	
+	if (needlabel)
+			appendStringInfo(buf, " CAST(");
 
 	switch (node->consttype)
 	{
@@ -1347,29 +1375,9 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 			break;
 	}
 
-	/*
-	 * Append ::typename unless the constant will be implicitly typed as the
-	 * right type when it is read in.
-	 *
-	 * XXX this code has to be kept in sync with the behavior of the parser,
-	 * especially make_const.
-	 */
-	switch (node->consttype)
-	{
-		case BOOLOID:
-		case INT4OID:
-		case UNKNOWNOID:
-			needlabel = false;
-			break;
-		case NUMERICOID:
-			needlabel = !isfloat || (node->consttypmod >= 0);
-			break;
-		default:
-			needlabel = true;
-			break;
-	}
+
 	if (needlabel)
-		appendStringInfo(buf, "::%s",
+		appendStringInfo(buf, " AS %s)",
 						 deparse_type_name(node->consttype,
 										   node->consttypmod));
 }
