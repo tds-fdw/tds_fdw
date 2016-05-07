@@ -192,6 +192,33 @@ classifyConditions(PlannerInfo *root,
 }
 
 /*
+ * is_shippable
+ *	   Is this object (function/operator/type) shippable to foreign server?
+ */
+bool is_shippable(Oid objectId, Oid classId, TdsFdwRelationInfo *fpinfo)
+{
+	if (classId == OperatorRelationId)
+	{
+		HeapTuple	tuple;
+		Form_pg_operator form;
+		
+		/* Retrieve information about the operator from system catalog. */
+		tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(objectId));
+		if (!HeapTupleIsValid(tuple))
+			elog(ERROR, "cache lookup failed for operator %u", objectId);
+		form = (Form_pg_operator) GETSTRUCT(tuple);
+		
+		/* don't ship operators that are not in pg_catalog */
+		if (form->oprnamespace != PG_CATALOG_NAMESPACE)
+		{
+			return false;
+		}
+	}
+	
+	return true;
+}
+
+/*
  * Returns true if given expr is safe to evaluate on the foreign server.
  */
 bool
@@ -1591,21 +1618,8 @@ deparseOperatorName(StringInfo buf, Form_pg_operator opform)
 	/* opname is not a SQL identifier, so we should not quote it. */
 	opname = NameStr(opform->oprname);
 
-	/* Print schema name only if it's not pg_catalog */
-	if (opform->oprnamespace != PG_CATALOG_NAMESPACE)
-	{
-		const char *opnspname;
-
-		opnspname = get_namespace_name(opform->oprnamespace);
-		/* Print fully qualified operator name. */
-		appendStringInfo(buf, "OPERATOR(%s.%s)",
-						 quote_identifier(opnspname), opname);
-	}
-	else
-	{
-		/* Just print operator name. */
-		deparseTdsOperatorNameFromPgOp(buf, opname);
-	}
+	/* Just print operator name. */
+	deparseTdsOperatorNameFromPgOp(buf, opname);
 }
 
 /*

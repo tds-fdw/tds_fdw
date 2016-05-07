@@ -265,15 +265,6 @@ ec_member_matches_foreign(PlannerInfo *root, RelOptInfo *rel,
 }
 #endif
 
-/*
- * is_shippable
- *	   Is this object (function/operator/type) shippable to foreign server?
- */
-bool is_shippable(Oid objectId, Oid classId, TdsFdwRelationInfo *fpinfo)
-{
-	return true;
-}
-
 /* build query that gets sent to remote server */
 
 void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSet* option_set, 
