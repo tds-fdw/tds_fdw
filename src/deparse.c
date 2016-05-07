@@ -1566,6 +1566,20 @@ deparseOpExpr(OpExpr *node, deparse_expr_cxt *context)
 	ReleaseSysCache(tuple);
 }
 
+static void deparseTdsOperatorNameFromPgOp(StringInfo buf, char* opname)
+{
+	if (strncmp(opname, "!~~", NAMEDATALEN) == 0)
+	{
+		appendStringInfoString(buf, "NOT LIKE");
+	}
+	
+	else
+	{
+		appendStringInfoString(buf, opname);
+	}
+	
+}
+
 /*
  * Print the name of an operator.
  */
@@ -1590,7 +1604,7 @@ deparseOperatorName(StringInfo buf, Form_pg_operator opform)
 	else
 	{
 		/* Just print operator name. */
-		appendStringInfoString(buf, opname);
+		deparseTdsOperatorNameFromPgOp(buf, opname);
 	}
 }
 
