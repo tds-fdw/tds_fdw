@@ -162,6 +162,31 @@ static void printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod,
 static void printRemotePlaceholder(Oid paramtype, int32 paramtypmod,
 					   deparse_expr_cxt *context);
 
+const char * tds_quote_identifier(const char *ident);
+
+const char *
+tds_quote_identifier(const char *ident)
+{
+	const char *ptr;
+	char       *result;
+	char       *optr;
+	
+	result = (char *) palloc(strlen(ident) + 2 + 1);
+
+	optr = result;
+	*optr++ = '[';
+	for (ptr = ident; *ptr; ptr++)
+	{
+		char        ch = *ptr;
+
+		*optr++ = ch;
+	}
+	*optr++ = ']';
+	*optr = '\0';
+
+	return result;
+}
+					   
 /*
  * Examine each qual clause in input_conds, and classify them into two groups,
  * which are returned as two lists:
@@ -1034,7 +1059,7 @@ deparseAnalyzeSql(StringInfo buf, Relation rel, List **retrieved_attrs)
 			}
 		}
 
-		appendStringInfoString(buf, quote_identifier(colname));
+		appendStringInfoString(buf, tds_quote_identifier(colname));
 
 		*retrieved_attrs = lappend_int(*retrieved_attrs, i + 1);
 	}
@@ -1091,7 +1116,7 @@ deparseColumnRef(StringInfo buf, int varno, int varattno, PlannerInfo *root)
 	if (colname == NULL)
 		colname = get_relid_attribute_name(rte->relid, varattno);
 
-	appendStringInfoString(buf, quote_identifier(colname));
+	appendStringInfoString(buf, tds_quote_identifier(colname));
 }
 
 /*
@@ -1139,7 +1164,7 @@ deparseRelation(StringInfo buf, Relation rel)
 					 relname);
 	else
 		appendStringInfo(buf, "%s.%s",
-					 quote_identifier(nspname), quote_identifier(relname));
+					 tds_quote_identifier(nspname), tds_quote_identifier(relname));
 }
 
 /*
@@ -1527,12 +1552,12 @@ deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 		const char *schemaname;
 
 		schemaname = get_namespace_name(procform->pronamespace);
-		appendStringInfo(buf, "%s.", quote_identifier(schemaname));
+		appendStringInfo(buf, "%s.", tds_quote_identifier(schemaname));
 	}
 
 	/* Deparse the function name ... */
 	proname = NameStr(procform->proname);
-	appendStringInfo(buf, "%s(", quote_identifier(proname));
+	appendStringInfo(buf, "%s(", tds_quote_identifier(proname));
 	/* ... and all the arguments */
 	first = true;
 	foreach(arg, node->args)
