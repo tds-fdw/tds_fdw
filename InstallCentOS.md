@@ -57,8 +57,8 @@ If you would rather use the current development version, you can clone and build
 ```bash
 git clone https://github.com/GeoffMontee/tds_fdw.git
 cd tds_fdw
-PATH=/usr/pgsql-9.4/bin:$PATH make USE_PGXS=1
-sudo PATH=/usr/pgsql-9.4/bin:$PATH make USE_PGXS=1 install
+PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1
+sudo PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1 install
 ```
 
 #### Start server 
@@ -66,13 +66,13 @@ sudo PATH=/usr/pgsql-9.4/bin:$PATH make USE_PGXS=1 install
 If this is a fresh installation, then initialize the data directory and start the server:
 
 ```bash
-sudo /etc/init.d/postgresql-9.4 initdb
-sudo /etc/init.d/postgresql-9.4 start
+sudo /etc/init.d/postgresql-9.5 initdb
+sudo /etc/init.d/postgresql-9.5 start
 ```
 
 #### Install extension
 
 ```bash
-/usr/pgsql-9.4/bin/psql -U postgres
+/usr/pgsql-9.5/bin/psql -U postgres
 postgres=# CREATE EXTENSION tds_fdw;
 ```
