@@ -2917,9 +2917,39 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
 
 #if (PG_VERSION_NUM >= 90300)
 	
+/* Currently ,this function will use the first column to identify a row. Maybe in the future,
+   this could be configurable with a column attribute? */
+   
 void tdsAddForeignUpdateTargets(Query *parsetree, RangeTblEntry *target_rte, Relation target_relation)
 {
-	
+	Var         *var = NULL;
+	const char  *attrname = NULL;
+	TargetEntry *tle = NULL;
+
+	/*
+	 * What we need is the rowid which is the first column
+	 */
+	Form_pg_attribute attr =
+	RelationGetDescr(target_relation)->attrs[0];
+
+	/* Make a Var representing the desired value */
+	var = makeVar(parsetree->resultRelation,
+				  1,
+				  attr->atttypid,
+				  attr->atttypmod,
+				  InvalidOid,
+				  0);
+
+	/* Wrap it in a TLE with the right name ... */
+	attrname = NameStr(attr->attname);
+
+	tle = makeTargetEntry((Expr *) var,
+						  list_length(parsetree->targetList) + 1,
+						  pstrdup(attrname),
+						  true);
+
+	/* ... and add it to the query's targetlist */
+	parsetree->targetList = lappend(parsetree->targetList, tle);
 }
 
 List *tdsPlanForeignModify(PlannerInfo *root, ModifyTable *plan, Index resultRelation, int subplan_index)
