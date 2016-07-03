@@ -121,13 +121,32 @@ Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 			));
 	#endif
 	
-	#if (PG_VERSION_NUM >= 90200)
 	fdwroutine->GetForeignRelSize = tdsGetForeignRelSize;
 	fdwroutine->GetForeignPaths = tdsGetForeignPaths;
 	fdwroutine->AnalyzeForeignTable = tdsAnalyzeForeignTable;
 	fdwroutine->GetForeignPlan = tdsGetForeignPlan;
-	#else
-	fdwroutine->PlanForeignScan = tdsPlanForeignScan;
+	
+	#if (PG_VERSION_NUM >= 90300)
+	/* Functions for updating foreign tables */
+	routine->AddForeignUpdateTargets = tdsAddForeignUpdateTargets;
+	routine->PlanForeignModify = tdsPlanForeignModify;
+	routine->BeginForeignModify = tdsBeginForeignModify;
+	routine->ExecForeignInsert = tdsExecForeignInsert;
+	routine->ExecForeignUpdate = tdsExecForeignUpdate;
+	routine->ExecForeignDelete = tdsExecForeignDelete;
+	routine->EndForeignModify = tdsEndForeignModify;
+	routine->IsForeignRelUpdatable = tdsIsForeignRelUpdatable;
+	routine->PlanDirectModify = tdsPlanDirectModify;
+	routine->BeginDirectModify = tdsBeginDirectModify;
+	routine->IterateDirectModify = tdsIterateDirectModify;
+	routine->EndDirectModify = tdsEndDirectModify;
+
+	/* Function for EvalPlanQual rechecks */
+	routine->RecheckForeignScan = tdsRecheckForeignScan;
+	/* Support functions for EXPLAIN */
+	routine->ExplainForeignScan = tdsExplainForeignScan;
+	routine->ExplainForeignModify = tdsExplainForeignModify;
+	routine->ExplainDirectModify = tdsExplainDirectModify;
 	#endif
 	
 	fdwroutine->ExplainForeignScan = tdsExplainForeignScan;
@@ -2895,6 +2914,85 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
 
 	return INT_CANCEL;
 }
+
+#if (PG_VERSION_NUM >= 90300)
+	
+void tdsAddForeignUpdateTargets(Query *parsetree, RangeTblEntry *target_rte, Relation target_relation)
+{
+	
+}
+
+List *tdsPlanForeignModify(PlannerInfo *root, ModifyTable *plan, Index resultRelation, int subplan_index)
+{
+	
+}
+
+void tdsBeginForeignModify(ModifyTableState *mtstate, ResultRelInfo *resultRelInfo, List *fdw_private, int subplan_index, int eflags)
+{
+	
+}
+
+TupleTableSlot *tdsExecForeignInsert(EState *estate, ResultRelInfo *resultRelInfo, TupleTableSlot *slot, TupleTableSlot *planSlot)
+{
+	
+}
+
+TupleTableSlot *tdsExecForeignUpdate(EState *estate, ResultRelInfo *resultRelInfo, TupleTableSlot *slot, TupleTableSlot *planSlot)
+{
+	
+}
+
+TupleTableSlot *tdsExecForeignDelete(EState *estate, ResultRelInfo *resultRelInfo, TupleTableSlot *slot, TupleTableSlot *planSlot)
+{
+	
+}
+
+void tdsEndForeignModify(EState *estate, ResultRelInfo *resultRelInfo)
+{
+	
+}
+
+int	tdsIsForeignRelUpdatable(Relation rel)
+{
+	
+}
+
+bool tdsPlanDirectModify(PlannerInfo *root, ModifyTable *plan, Index resultRelation, int subplan_index)
+{
+	
+}
+
+void tdsBeginDirectModify(ForeignScanState *node, int eflags)
+{
+	
+}
+
+TupleTableSlot *tdsIterateDirectModify(ForeignScanState *node)
+{
+	
+}
+
+void tdsEndDirectModify(ForeignScanState *node)
+{
+	
+}
+
+void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
+{
+	
+}
+
+void tdsExplainForeignModify(ModifyTableState *mtstate,  ResultRelInfo *rinfo,  List *fdw_private,  int subplan_index,  ExplainState *es)
+{
+	
+}
+
+void tdsExplainDirectModify(ForeignScanState *node, ExplainState *es)
+{
+	
+}
+	
+#endif
 
 int tds_notice_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line)
 {
