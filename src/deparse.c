@@ -122,6 +122,7 @@ static bool foreign_expr_walker(Node *node,
 					foreign_glob_cxt *glob_cxt,
 					foreign_loc_cxt *outer_cxt);
 static char *deparse_type_name(Oid type_oid, int32 typemod);
+static char* postgresql_type_to_tds_type(const char* postgresql_type);
 
 /*
  * Functions to construct string representation of a node tree.
@@ -641,6 +642,33 @@ deparse_type_name(Oid type_oid, int32 typemod)
 	#else
 	return format_type_with_typemod(type_oid, typemod);
 	#endif
+}
+
+static char* postgresql_type_to_tds_type(const char* postgresql_type)
+{
+	char* tds_type;
+	
+	if (strcmp(postgresql_type, "timestamp") == 0
+		|| strcmp(postgresql_type, "timestamp with time zone") == 0
+		|| strcmp(postgresql_type, "timestamp without time zone") == 0)
+	{
+		const char* tds_type_local = "datetime2";
+		size_t len = strlen(tds_type_local);
+		
+		tds_type = palloc(len);
+		strncpy(tds_type, tds_type_local, len);
+	}
+	
+	/* if no mapping defined, just copy postgresql type */
+	else
+	{
+		size_t len = strlen(postgresql_type);
+		
+		tds_type = palloc(len);
+		strncpy(tds_type, postgresql_type, len);
+	}
+	
+	return tds_type;
 }
 
 
@@ -1324,8 +1352,8 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 	if (node->constisnull)
 	{
 		appendStringInfo(buf, "CAST(NULL AS %s)",
-						 deparse_type_name(node->consttype,
-										   node->consttypmod));
+						 postgresql_type_to_tds_type(deparse_type_name(node->consttype,
+										   node->consttypmod)));
 		return;
 	}
 
@@ -1403,8 +1431,8 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 
 	if (needlabel)
 		appendStringInfo(buf, " AS %s)",
-						 deparse_type_name(node->consttype,
-										   node->consttypmod));
+						 postgresql_type_to_tds_type(deparse_type_name(node->consttype,
+										   node->consttypmod)));
 }
 
 /*
