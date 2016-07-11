@@ -1379,7 +1379,7 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 			needlabel = !isfloat || (node->consttypmod >= 0);
 			break;
 		default:
-			needlabel = true;
+			needlabel = false;
 			break;
 	}
 	
