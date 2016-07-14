@@ -2875,11 +2875,24 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 
 int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
 {
+	char* empty_errmsg = "";
+
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tds_err_handler")
 			));
 	#endif
+
+        if (dberrstr == NULL)
+        {
+                dberrstr = empty_errmsg;
+        }
+
+
+	if (oserrstr == NULL)
+	{
+		oserrstr = empty_errmsg;
+	}
 	
 	ereport(ERROR,
 		(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
