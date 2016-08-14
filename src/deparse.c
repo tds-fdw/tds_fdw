@@ -398,10 +398,28 @@ foreign_expr_walker(Node *node,
 		case T_Const:
 			{
 				Const	   *c = (Const *) node;
+				Oid			typoutput;
+				bool		typIsVarlena;
 				
 				ereport(DEBUG3,
 					(errmsg("tds_fdw: it is a constant expression")
 					)); 
+					
+				getTypeOutputInfo(c->consttype,
+					  &typoutput, &typIsVarlena);
+					  
+				switch (c->consttype)
+				{
+					case BOOLOID:
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: the constant is a boolean value, which is unsupported")
+							));
+						return false;
+					default:
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: the constant seems to be a supported type")
+							));
+				}
 
 				/*
 				 * If the constant has nondefault collation, either it's of a
