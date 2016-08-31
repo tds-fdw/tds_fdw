@@ -2082,7 +2082,11 @@ cleanup_before_init:
 
 		/* Use rows/width estimates made by set_baserel_size_estimates. */
 		rows = baserel->rows;
+#if (PG_VERSION_NUM < 90600)
 		width = baserel->width;
+#else
+		width = baserel->reltarget->width;
+#endif /* PG_VERSION_NUM < 90600 */
 
 		/*
 		 * Back into an estimate of the number of retrieved rows.  Just in
@@ -2185,8 +2189,13 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 	 * columns used in them.  Doesn't seem worth detecting that case though.)
 	 */
 	fpinfo->attrs_used = NULL;
+#if (PG_VERSION_NUM < 90600)
 	pull_varattnos((Node *) baserel->reltargetlist, baserel->relid,
 				   &fpinfo->attrs_used);
+#else
+	pull_varattnos((Node *) baserel->reltarget->exprs, baserel->relid,
+				   &fpinfo->attrs_used);
+#endif /* PG_VERSION_NUM < 90600 */
 	foreach(lc, fpinfo->local_conds)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -2232,7 +2241,11 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 
 		/* Report estimated baserel size to planner. */
 		baserel->rows = fpinfo->rows;
+#if (PG_VERSION_NUM < 90600)
 		baserel->width = fpinfo->width;
+#else
+		baserel->reltarget->width = fpinfo->width;
+#endif /* PG_VERSION_NUM < 90600 */
 	}
 	else
 	{
@@ -2264,10 +2277,17 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 	}	
 	
 	
+#if (PG_VERSION_NUM < 90600)
 	ereport(DEBUG3,
 			(errmsg("tds_fdw: Estimated rows = %f, estimated width = %d", baserel->rows, baserel->width)
 			));
-			
+#else
+	ereport(DEBUG3,
+			(errmsg("tds_fdw: Estimated rows = %f, estimated width = %d", baserel->rows,
+					baserel->reltarget->width)
+			));
+#endif /* PG_VERSION_NUM < 90600 */
+
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsGetForeignRelSize")
@@ -2324,7 +2344,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 	 * actually be an indexscan happening there).  We already did all the work
 	 * to estimate cost and size of this path.
 	 */
-	#if (PG_VERSION_NUM >= 90500)
+#if PG_VERSION_NUM < 90500
+	path = create_foreignscan_path(root, baserel,
+								   fpinfo->rows,
+								   fpinfo->startup_cost,
+								   fpinfo->total_cost,
+								   NIL, /* no pathkeys */
+								   NULL,		/* no outer rel either */
+								   NIL);		/* no fdw_private list */	
+#elif PG_VERSION_NUM < 90600
 	path = create_foreignscan_path(root, baserel,
 								   fpinfo->rows,
 								   fpinfo->startup_cost,
@@ -2333,15 +2361,16 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								   NULL,		/* no outer rel either */
 								   NULL,		/* no extra plan */
 								   NIL);		/* no fdw_private list */
-	#else
-	path = create_foreignscan_path(root, baserel,
+#else
+	path = create_foreignscan_path(root, baserel, NULL,
 								   fpinfo->rows,
 								   fpinfo->startup_cost,
 								   fpinfo->total_cost,
 								   NIL, /* no pathkeys */
 								   NULL,		/* no outer rel either */
-								   NIL);		/* no fdw_private list */	
-	#endif
+								   NULL,		/* no extra plan */
+								   NIL);		/* no fdw_private list */
+#endif /* PG_VERSION_NUM < 90500 */
 	
 	add_path(baserel, (Path *) path);
 
@@ -2390,7 +2419,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								&rows, &width, &startup_cost, &total_cost, &option_set);
 
 		add_path(baserel, (Path *)
-		#if (PG_VERSION_NUM >= 90500)
+#if PG_VERSION_NUM < 90500
+				 create_foreignscan_path(root, baserel,
+										 rows,
+										 startup_cost,
+										 total_cost,
+										 usable_pathkeys,
+										 NULL,
+										 NIL));
+#elif PG_VERSION_NUM < 90600
 				 create_foreignscan_path(root, baserel,
 										 rows,
 										 startup_cost,
@@ -2399,15 +2436,17 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 										 NULL,
 										 NULL,
 										 NIL));
-		#else
+#else
 				 create_foreignscan_path(root, baserel,
+										 NULL,
 										 rows,
 										 startup_cost,
 										 total_cost,
 										 usable_pathkeys,
 										 NULL,
+										 NULL,
 										 NIL));
-		#endif
+#endif /* PG_VERSION_NUM < 90500 */
 	}
 	
 	/* Don't worry about join pushdowns unless this is PostgreSQL 9.5+ */
@@ -2571,6 +2610,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 		param_info->ppi_rows = rows;
 
 		/* Make the path */
+#if PG_VERSION_NUM < 90500
+		path = create_foreignscan_path(root, baserel,
+									   rows,
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NIL);	/* no fdw_private list */
+#elif PG_VERSION_NUM < 90600
 		path = create_foreignscan_path(root, baserel,
 									   rows,
 									   startup_cost,
@@ -2579,6 +2627,17 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 									   param_info->ppi_req_outer,
 									   NULL,
 									   NIL);	/* no fdw_private list */
+#else
+		path = create_foreignscan_path(root, baserel,
+									   NULL,
+									   rows,
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NULL,
+									   NIL);	/* no fdw_private list */
+#endif /* PG_VERSION_NUM < 90500 */
 		add_path(baserel, (Path *) path);
 	}
 	
