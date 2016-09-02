@@ -1,0 +1,9 @@
+{
+    "test_desc" : "automated column matching disabled",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

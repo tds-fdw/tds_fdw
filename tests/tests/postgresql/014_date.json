@@ -1,0 +1,9 @@
+{
+    "test_desc" : "date data type",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

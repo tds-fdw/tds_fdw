@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation for column name manual matching",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

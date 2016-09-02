@@ -1,0 +1,9 @@
+{
+    "test_desc" : "binary data type, 4 bytes size (bytea)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

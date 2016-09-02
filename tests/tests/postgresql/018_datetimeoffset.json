@@ -1,0 +1,9 @@
+{
+    "test_desc" : "datatimeoffset data type (time zone)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

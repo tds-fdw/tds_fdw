@@ -1,0 +1,9 @@
+{
+    "test_desc" : "tinyint data type, minimum value (smallint)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "test_desc" : "varchar data type",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

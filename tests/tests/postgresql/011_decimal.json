@@ -1,0 +1,9 @@
+{
+    "test_desc" : "decimal data type (numeric)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}
