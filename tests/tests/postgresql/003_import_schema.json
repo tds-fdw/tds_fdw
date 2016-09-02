@@ -1,0 +1,9 @@
+{
+    "test_desc" : "foreign schema import",
+    "server" : {
+        "version" : {
+            "min" : "9.5.0",
+            "max" : ""
+        }
+    }
+}

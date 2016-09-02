@@ -38,6 +38,7 @@ typedef struct TdsFdwOptionSet
 } TdsFdwOptionSet;
 
 void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option_set);
+void tdsGetForeignServerOptionsFromCatalog(Oid foreignserverid, TdsFdwOptionSet* option_set);
 void tdsGetForeignTableOptionsFromCatalog(Oid foreigntableid, TdsFdwOptionSet* option_set);
 void tdsValidateOptionSet(TdsFdwOptionSet* option_set);
 
