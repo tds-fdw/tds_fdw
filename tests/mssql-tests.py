@@ -60,7 +60,7 @@ def main():
                        password=args.password, database=args.database,
                        port=args.port)
         replaces = {'@SCHEMANAME': args.schema}
-        tests = run_tests('tests/mssql/*.sql', conn, replaces)
+        tests = run_tests('tests/mssql/*.sql', conn, replaces, 'mssql')
         print_report(tests['total'], tests['ok'], tests['errors'])
         if tests['errors'] != 0:
             exit(5)

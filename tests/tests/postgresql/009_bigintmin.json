@@ -1,0 +1,9 @@
+{
+    "test_desc" : "bigint data type, minimum value",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

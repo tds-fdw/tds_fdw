@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation with varchar data type, maximum length",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

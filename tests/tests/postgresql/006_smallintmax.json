@@ -1,0 +1,9 @@
+{
+    "test_desc" : "smallint data type, maximum value (smallint)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

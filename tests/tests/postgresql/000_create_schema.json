@@ -1,0 +1,9 @@
+{
+    "test_desc" : "schema creation",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

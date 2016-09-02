@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation with bigint, minimum value",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

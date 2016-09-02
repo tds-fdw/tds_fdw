@@ -1,0 +1,9 @@
+{
+    "test_desc" : "column name manual matching",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

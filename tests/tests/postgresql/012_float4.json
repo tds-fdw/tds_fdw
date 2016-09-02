@@ -1,0 +1,9 @@
+{
+    "test_desc" : "float data type, 4 bytes size (real)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

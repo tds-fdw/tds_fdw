@@ -86,7 +86,7 @@ def main():
                     '@MPASSWORD': args.mssql_password,
                     '@MDATABASE': args.mssql_database,
                     '@MSCHEMANAME': args.mssql_schema}
-        tests = run_tests('tests/postgresql/*.sql', conn, replaces)
+        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql')
         print_report(tests['total'], tests['ok'], tests['errors'])
         if tests['errors'] != 0:
             exit(5)

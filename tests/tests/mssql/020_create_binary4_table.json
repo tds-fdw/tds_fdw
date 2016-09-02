@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation with binary data type, 4 bytes length",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}
