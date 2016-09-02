@@ -64,7 +64,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-/* #define DEBUG */ 
+/* #define DEBUG */
 
 PG_MODULE_MAGIC;
 
@@ -135,7 +135,11 @@ Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 	fdwroutine->IterateForeignScan = tdsIterateForeignScan;
 	fdwroutine->ReScanForeignScan = tdsReScanForeignScan;
 	fdwroutine->EndForeignScan = tdsEndForeignScan;
-	
+
+#ifdef IMPORT_API
+	fdwroutine->ImportForeignSchema = tdsImportForeignSchema;
+#endif  /* IMPORT_API */
+
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tds_fdw_handler")
@@ -2783,6 +2787,580 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 		return make_foreignscan(tlist, local_exprs, scan_relid, params_list, fdw_private);
 	#endif
 }
+
+static bool
+tdsExecuteQuery(char *query, DBPROCESS *dbproc)
+{
+	RETCODE		erc;
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsExecuteQuery")
+			));
+	#endif
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Setting database command to %s", query)
+		));
+
+	if ((erc = dbcmd(dbproc, query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set current query to %s", query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+
+	if ((erc = dbsqlexec(dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Query executed correctly")
+		));
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting results")
+		));
+
+	erc = dbresults(dbproc);
+
+	if (erc == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to get results from query %s", query)
+			));
+	}
+
+	else if (erc == NO_MORE_RESULTS)
+	{
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: There appears to be no results from query %s", query)
+			));
+
+		goto cleanup;
+	}
+
+	else if (erc == SUCCEED)
+	{
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Successfully got results")
+			));
+
+		goto cleanup;
+	}
+
+	else
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Unknown return code getting results from query %s", query)
+			));
+	}
+
+cleanup:
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsExecuteQuery")
+			));
+	#endif
+
+	return (erc == SUCCEED);
+}
+
+#ifdef IMPORT_API
+List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
+{
+	TdsFdwOptionSet option_set;
+	List	   *commands = NIL;
+	bool		import_default = false;
+	bool		import_not_null = true;
+	StringInfoData buf;
+	ListCell   *lc;
+
+	LOGINREC   *login;
+	DBPROCESS  *dbproc;
+	RETCODE		erc;
+	int			ret_code;
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsImportForeignSchema")
+			));
+	#endif
+
+	/* Parse statement options */
+	foreach(lc, stmt->options)
+	{
+		DefElem    *def = (DefElem *) lfirst(lc);
+
+		if (strcmp(def->defname, "import_default") == 0)
+			import_default = defGetBoolean(def);
+		else if (strcmp(def->defname, "import_not_null") == 0)
+			import_not_null = defGetBoolean(def);
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+					 errmsg("invalid option \"%s\"", def->defname)));
+	}
+
+	tdsGetForeignServerOptionsFromCatalog(serverOid, &option_set);
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Initiating DB-Library")
+		));
+
+	if (dbinit() == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library environment")
+			));
+		goto cleanup_before_init;
+	}
+
+	dberrhandle(tds_err_handler);
+
+	if (option_set.msg_handler)
+	{
+		if (strcmp(option_set.msg_handler, "notice") == 0)
+		{
+			dbmsghandle(tds_notice_msg_handler);
+		}
+
+		else if (strcmp(option_set.msg_handler, "blackhole") == 0)
+		{
+			dbmsghandle(tds_blackhole_msg_handler);
+		}
+
+		else
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Unknown msg handler: %s.", option_set.msg_handler)
+				));
+		}
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting login structure")
+		));
+
+	if ((login = dblogin()) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library login structure")
+			));
+		goto cleanup_before_login;
+	}
+
+	/* Create workspace for strings */
+	initStringInfo(&buf);
+
+	/* Check that the schema really exists */
+	appendStringInfoString(&buf, "SELECT schema_name FROM information_schema.schemata WHERE schema_name = ");
+	deparseStringLiteral(&buf, stmt->remote_schema);
+
+	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
+	{
+		goto cleanup;
+	}
+
+	if (!tdsExecuteQuery(buf.data, dbproc))
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_SCHEMA_NOT_FOUND),
+		  errmsg("schema \"%s\" is not present on foreign server \"%s\"",
+				 stmt->remote_schema, option_set.servername)));
+	else
+		/* Process results */
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			/* Do nothing */
+		}
+
+	resetStringInfo(&buf);
+
+	/*
+	 * Fetch all table data from this schema, possibly restricted by
+	 * EXCEPT or LIMIT TO.  (We don't actually need to pay any attention
+	 * to EXCEPT/LIMIT TO here, because the core code will filter the
+	 * statements we return according to those lists anyway.  But it
+	 * should save a few cycles to not process excluded tables in the
+	 * first place.)
+	 */
+	appendStringInfoString(&buf,
+						   "SELECT t.table_name,"
+						   "  c.column_name, "
+						   "  c.data_type, "
+						   "  c.column_default, "
+						   "  c.is_nullable, "
+						   "  c.character_maximum_length, "
+						   "  c.numeric_precision, "
+						   "  c.numeric_precision_radix, "
+						   "  c.numeric_scale, "
+						   "  c.datetime_precision "
+						   "FROM information_schema.tables t "
+						   "  LEFT JOIN information_schema.columns c ON "
+						   "    t.table_schema = c.table_schema "
+						   "      AND t.table_name = c.table_name "
+						   "WHERE t.table_type = 'BASE TABLE' "
+						   "  AND t.table_schema = ");
+	deparseStringLiteral(&buf, stmt->remote_schema);
+
+	/* Apply restrictions for LIMIT TO and EXCEPT */
+	if (stmt->list_type == FDW_IMPORT_SCHEMA_LIMIT_TO ||
+		stmt->list_type == FDW_IMPORT_SCHEMA_EXCEPT)
+	{
+		bool		first_item = true;
+
+		appendStringInfoString(&buf, " AND t.table_name ");
+		if (stmt->list_type == FDW_IMPORT_SCHEMA_EXCEPT)
+			appendStringInfoString(&buf, "NOT ");
+		appendStringInfoString(&buf, "IN (");
+
+		/* Append list of table names within IN clause */
+		foreach(lc, stmt->table_list)
+		{
+			RangeVar   *rv = (RangeVar *) lfirst(lc);
+
+			if (first_item)
+				first_item = false;
+			else
+				appendStringInfoString(&buf, ", ");
+			deparseStringLiteral(&buf, rv->relname);
+		}
+		appendStringInfoChar(&buf, ')');
+	}
+
+	/* Append ORDER BY at the end of query to ensure output ordering */
+	appendStringInfoString(&buf, " ORDER BY t.table_name, c.ordinal_position");
+
+	if (tdsExecuteQuery(buf.data, dbproc))
+	{
+		char		table_name[255],
+					prev_table[255],
+					column_name[255],
+					data_type[255],
+					column_default[4000],
+					is_nullable[10];
+		int			char_len,
+					numeric_precision,
+					numeric_precision_radix,
+					numeric_scale,
+					datetime_precision;
+		bool		first_item = true;
+
+		prev_table[0] = '\0';
+
+		erc = dbbind(dbproc, 1, NTBSTRINGBIND, sizeof(table_name), (BYTE *) table_name);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"table_name\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 2, NTBSTRINGBIND, sizeof(column_name), (BYTE *) column_name);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"column_name\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 3, NTBSTRINGBIND, sizeof(data_type), (BYTE *) data_type);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"data_type\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 4, NTBSTRINGBIND, sizeof(column_default), (BYTE *) column_default);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"column_default\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 5, NTBSTRINGBIND, sizeof(is_nullable), (BYTE *) is_nullable);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"is_nullable\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 6, INTBIND, sizeof(int), (BYTE *) &char_len);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"character_maximum_length\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 7, INTBIND, sizeof(int), (BYTE *) &numeric_precision);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"numeric_precision\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 8, INTBIND, sizeof(int), (BYTE *) &numeric_precision_radix);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"numeric_precision_radix\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 9, INTBIND, sizeof(int), (BYTE *) &numeric_scale);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"numeric_scale\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 10, INTBIND, sizeof(int), (BYTE *) &datetime_precision);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"datetime_precision\" to a variable.")
+				));
+		}
+
+		/* Process results */
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			switch (ret_code)
+			{
+				case REG_ROW:
+					ereport(DEBUG3,
+						(errmsg("tds_fdw: column \"%s.%s\"", table_name, column_name)
+						));
+
+					/* Build query for the new table */
+					if (prev_table[0] == '\0' || strcmp(prev_table, table_name) != 0)
+					{
+						if (prev_table[0] != '\0')
+						{
+							/*
+							 * Add server name and table-level options.  We specify remote
+							 * schema and table name as options (the latter to ensure that
+							 * renaming the foreign table doesn't break the association).
+							 */
+							appendStringInfo(&buf, "\n) SERVER %s\nOPTIONS (",
+											 quote_identifier(stmt->server_name));
+
+							appendStringInfoString(&buf, "schema_name ");
+							deparseStringLiteral(&buf, stmt->remote_schema);
+							appendStringInfoString(&buf, ", table_name ");
+							deparseStringLiteral(&buf, prev_table);
+
+							appendStringInfoString(&buf, ");");
+
+							commands = lappend(commands, pstrdup(buf.data));
+						}
+
+						resetStringInfo(&buf);
+						appendStringInfo(&buf, "CREATE FOREIGN TABLE %s (\n",
+										 quote_identifier(table_name));
+						first_item = true;
+					}
+
+					if (first_item)
+						first_item = false;
+					else
+						appendStringInfoString(&buf, ",\n");
+
+					/* Print column name */
+					appendStringInfo(&buf, "  %s",
+									 quote_identifier(column_name));
+
+					/* Print column type */
+
+					/* Numeric types */
+					if (strcmp(data_type, "bit") == 0 ||
+						strcmp(data_type, "smallint") == 0 ||
+						strcmp(data_type, "tinyint") == 0)
+						appendStringInfoString(&buf, " smallint");
+					else if (strcmp(data_type, "int") == 0)
+						appendStringInfoString(&buf, " integer");
+					else if (strcmp(data_type, "bigint") == 0)
+						appendStringInfoString(&buf, " bigint");
+					else if (strcmp(data_type, "decimal") == 0)
+					{
+						if (numeric_scale == 0)
+							appendStringInfo(&buf, " decimal(%d)", numeric_precision);
+						else
+							appendStringInfo(&buf, " decimal(%d, %d)",
+											 numeric_precision, numeric_scale);
+					}
+					else if (strcmp(data_type, "numeric") == 0)
+					{
+						if (numeric_scale == 0)
+							appendStringInfo(&buf, " numeric(%d)", numeric_precision);
+						else
+							appendStringInfo(&buf, " numeric(%d, %d)",
+											 numeric_precision, numeric_scale);
+					}
+					else if (strcmp(data_type, "money") == 0 ||
+							 strcmp(data_type, "smallmoney") == 0)
+						appendStringInfoString(&buf, " money");
+
+					/* Floating-point types */
+					else if (strcmp(data_type, "float") == 0)
+						appendStringInfo(&buf, " float(%d)", numeric_precision);
+					else if (strcmp(data_type, "real") == 0)
+						appendStringInfoString(&buf, " real");
+
+					/* Date/type types */
+					else if (strcmp(data_type, "date") == 0)
+						appendStringInfoString(&buf, " date");
+					else if (strcmp(data_type, "datetime") == 0 ||
+							 strcmp(data_type, "datetime2") == 0 ||
+							 strcmp(data_type, "smalldatetime") == 0 ||
+							 strcmp(data_type, "timestamp") == 0)
+						appendStringInfo(&buf, " timestamp(%d) without time zone", (datetime_precision > 6) ? 6 : datetime_precision);
+					else if (strcmp(data_type, "datetimeoffset") == 0)
+						appendStringInfo(&buf, " timestamp(%d) with time zone", (datetime_precision > 6) ? 6 : datetime_precision);
+					else if (strcmp(data_type, "time") == 0)
+						appendStringInfoString(&buf, " time");
+
+					/* Character types */
+					else if (strcmp(data_type, "char") == 0 ||
+							 strcmp(data_type, "nchar") == 0)
+						appendStringInfo(&buf, " char(%d)", char_len);
+					else if (strcmp(data_type, "varchar") == 0 ||
+							 strcmp(data_type, "nvarchar") == 0)
+					{
+						if (char_len == -1)
+							appendStringInfoString(&buf, " text");
+						else
+							appendStringInfo(&buf, " varchar(%d)", char_len);
+					}
+					else if (strcmp(data_type, "text") == 0 ||
+							 strcmp(data_type, "ntext") == 0)
+						appendStringInfoString(&buf, " text");
+
+					/* Binary types */
+					else if (strcmp(data_type, "binary") == 0 ||
+						strcmp(data_type, "varbinary") == 0 ||
+						strcmp(data_type, "image") == 0)
+						appendStringInfoString(&buf, " bytea");
+
+					/* Other types */
+					else if (strcmp(data_type, "xml") == 0)
+						appendStringInfoString(&buf, " xml");
+					else
+					{
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: column \"%s\" of table \"%s\" has an untranslatable data type", column_name, table_name)
+							));
+						appendStringInfoString(&buf, " text");
+					}
+
+					/*
+					 * Add column_name option so that renaming the foreign table's
+					 * column doesn't break the association to the underlying
+					 * column.
+					 */
+					appendStringInfoString(&buf, " OPTIONS (column_name ");
+					deparseStringLiteral(&buf, column_name);
+					appendStringInfoChar(&buf, ')');
+
+					/* Add DEFAULT if needed */
+					if (import_default && column_default[0] != '\0')
+						appendStringInfo(&buf, " DEFAULT %s", column_default);
+
+					/* Add NOT NULL if needed */
+					if (import_not_null && strcmp(is_nullable, "NO") == 0)
+						appendStringInfoString(&buf, " NOT NULL");
+
+					strcpy(prev_table, table_name);
+
+					break;
+
+				case BUF_FULL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+							errmsg("Buffer filled up while getting plan for query")
+						));
+
+				case FAIL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get row while getting plan for query")
+						));
+
+				default:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get plan for query. Unknown return code.")
+						));
+			}
+		}
+
+		/*
+		 * Add server name and table-level options.  We specify remote
+		 * schema and table name as options (the latter to ensure that
+		 * renaming the foreign table doesn't break the association).
+		 */
+		appendStringInfo(&buf, "\n) SERVER %s\nOPTIONS (",
+						 quote_identifier(stmt->server_name));
+
+		appendStringInfoString(&buf, "schema_name ");
+		deparseStringLiteral(&buf, stmt->remote_schema);
+		appendStringInfoString(&buf, ", table_name ");
+		deparseStringLiteral(&buf, prev_table);
+
+		appendStringInfoString(&buf, ");");
+
+		commands = lappend(commands, pstrdup(buf.data));
+	}
+
+cleanup:
+	dbclose(dbproc);
+	dbloginfree(login);
+
+cleanup_before_login:
+	dbexit();
+
+cleanup_before_init:
+	;
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsImportForeignSchema")
+			));
+	#endif
+
+	return commands;
+}
+#endif  /* IMPORT_API */
 
 int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
 {

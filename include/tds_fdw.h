@@ -40,6 +40,12 @@
 
 #include "options.h"
 
+#if PG_VERSION_NUM >= 90500
+#define IMPORT_API
+#else
+#undef IMPORT_API
+#endif  /* PG_VERSION_NUM */
+
 /* a column */
 
 typedef union COL_VALUE
@@ -147,6 +153,10 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid forei
 #else
 FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *baserel);
 #endif
+
+#ifdef IMPORT_API
+List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid);
+#endif  /* IMPORT_API */
 
 /* Helper functions */
 

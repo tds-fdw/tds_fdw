@@ -142,6 +142,38 @@ void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option
 	#endif
 }
 
+/* get options for FOREIGN SERVER objects using this module */
+
+void tdsGetForeignServerOptionsFromCatalog(Oid foreignserverid, TdsFdwOptionSet* option_set)
+{
+	ForeignServer *f_server;
+	UserMapping *f_mapping;
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsGetForeignServerOptionsFromCatalog")
+			));
+	#endif
+
+	tdsOptionSetInit(option_set);
+
+	f_server = GetForeignServer(foreignserverid);
+	f_mapping = GetUserMapping(GetUserId(), foreignserverid);
+
+	tdsGetForeignServerOptions(f_server->options, option_set);
+	tdsGetForeignServerTableOptions(f_server->options, option_set);
+
+	tdsGetUserMappingOptions(f_mapping->options, option_set);
+
+	tdsSetDefaultOptions(option_set);
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsGetForeignTableOptionsFromCatalog")
+			));
+	#endif
+}
+
 /* get options for FOREIGN TABLE and FOREIGN SERVER objects using this module */
 
 void tdsGetForeignTableOptionsFromCatalog(Oid foreigntableid, TdsFdwOptionSet* option_set)
