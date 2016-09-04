@@ -1,0 +1,9 @@
+{
+    "test_desc" : "datetime2 data type, null value (timestamp without time zone)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

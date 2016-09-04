@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation with varbinary data type, maximum size",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

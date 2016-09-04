@@ -64,7 +64,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-/* #define DEBUG */ 
+/* #define DEBUG */
 
 PG_MODULE_MAGIC;
 
@@ -154,7 +154,11 @@ Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 	fdwroutine->IterateForeignScan = tdsIterateForeignScan;
 	fdwroutine->ReScanForeignScan = tdsReScanForeignScan;
 	fdwroutine->EndForeignScan = tdsEndForeignScan;
-	
+
+#ifdef IMPORT_API
+	fdwroutine->ImportForeignSchema = tdsImportForeignSchema;
+#endif  /* IMPORT_API */
+
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tds_fdw_handler")
@@ -296,19 +300,15 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 			));
 	#endif	
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Getting query")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting query")
+		));
 	
 	if (option_set->query)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Query is explicitly set")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Query is explicitly set")
+			));
 		
 		if (option_set->match_column_names)
 		{
@@ -404,11 +404,9 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 		strcpy(option_set->query, sql.data);
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Value of query is %s", option_set->query)
-			));
-	#endif	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Value of query is %s", option_set->query)
+		));
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -431,29 +429,23 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			));
 	#endif		
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login user to %s", option_set->username)
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Setting login user to %s", option_set->username)
+		));
 	
 	DBSETLUSER(login, option_set->username);
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting login password to %s", option_set->password)
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Setting login password to %s", option_set->password)
+		));
 	
 	DBSETLPWD(login, option_set->password);	
 	
 	if (option_set->character_set)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login character set to %s", option_set->character_set)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Setting login character set to %s", option_set->character_set)
+			));
 	
 		DBSETLCHARSET(login, option_set->character_set);
 	}
@@ -462,11 +454,9 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	{
 		DBSETLNATLANG(login, option_set->language);
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login language to %s", option_set->language)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Setting login language to %s", option_set->language)
+			));
 	}
 	
 	if (option_set->tds_version)
@@ -519,22 +509,18 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 		
 		dbsetlversion(login, tds_version);
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login tds version tp  %s", option_set->tds_version)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Setting login tds version to %s", option_set->tds_version)
+			));
 	}
 	
 	if (option_set->database && !option_set->dbuse)
 	{
 		DBSETLDBNAME(login, option_set->database);
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Setting login database to %s", option_set->database)
-				));
-		#endif	
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Setting login database to %s", option_set->database)
+			));	
 	}
 	
 	conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char));
@@ -549,14 +535,12 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 		sprintf(conn_string, "%s", option_set->servername);
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connection string is %s", conn_string)
-			));
-		ereport(NOTICE,
-			(errmsg("Connecting to server")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Connection string is %s", conn_string)
+		));
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Connecting to server")
+		));
 	
 	if ((*dbproc = dbopen(login, conn_string)) == NULL)
 	{
@@ -566,21 +550,17 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			));
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Connected successfully")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Connected successfully")
+		));
 	
 	pfree(conn_string);
 	
 	if (option_set->database && option_set->dbuse)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Selecting database %s", option_set->database)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Selecting database %s", option_set->database)
+			));
 		
 		if ((erc = dbuse(*dbproc, option_set->database)) == FAIL)
 		{
@@ -590,11 +570,9 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 				));
 		}
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Selected database")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Selected database")
+			));
 	}
 	
 	#ifdef DEBUG
@@ -620,11 +598,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			));
 	#endif	
 
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting database command to %s", show_plan_query)
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Setting database command to %s", show_plan_query)
+		));
 	
 	if ((erc = dbcmd(dbproc, show_plan_query)) == FAIL)
 	{
@@ -634,11 +610,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			));		
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Executing the query")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
 	
 	if ((erc = dbsqlexec(dbproc)) == FAIL)
 	{
@@ -648,14 +622,12 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			));	
 	}
 
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Query executed correctly")
-			));			
-		ereport(NOTICE,
-			(errmsg("Getting results")
-			));				
-	#endif	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Query executed correctly")
+		));			
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting results")
+		));					
 	
 	erc = dbresults(dbproc);
 	
@@ -667,11 +639,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			));
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting database command to %s", option_set->query)
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Setting database command to %s", option_set->query)
+		));
 	
 	if ((erc = dbcmd(dbproc, option_set->query)) == FAIL)
 	{
@@ -681,11 +651,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			));		
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Executing the query")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
 	
 	if ((erc = dbsqlexec(dbproc)) == FAIL)
 	{
@@ -695,14 +663,12 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			));	
 	}
 
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Query executed correctly")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting results")
-			));				
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Query executed correctly")
+		));
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting results")
+		));				
 
 	erc = dbresults(dbproc);
 	
@@ -716,11 +682,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 	
 	else if (erc == NO_MORE_RESULTS)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("There appears to be no results from query %s", option_set->query)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: There appears to be no results from query %s", option_set->query)
+			));
 		
 		goto cleanup_after_show_plan;
 	}
@@ -734,11 +698,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 		
 		ncols = dbnumcols(dbproc);
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("%i columns", ncols)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: %i columns", ncols)
+			));
 		
 		for (ncol = 0; ncol < ncols; ncol++)
 		{
@@ -748,11 +710,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			
 			if (strcmp(col_name, "Parent") == 0)
 			{
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Binding column %s (%i)", col_name, ncol + 1)
-						));
-				#endif
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: Binding column %s (%i)", col_name, ncol + 1)
+					));
 				
 				erc = dbbind(dbproc, ncol + 1, INTBIND, sizeof(int), (BYTE *)&parent);
 				
@@ -767,11 +727,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			
 			if (strcmp(col_name, "EstimateRows") == 0)
 			{
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Binding column %s (%i)", col_name, ncol + 1)
-						));
-				#endif
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: Binding column %s (%i)", col_name, ncol + 1)
+					));
 				
 				erc = dbbind(dbproc, ncol + 1, FLT8BIND, sizeof(double), (BYTE *)&estimate_rows);
 				
@@ -785,11 +743,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			}
 		}
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Successfully got results")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Successfully got results")
+			));
 		
 		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
 		{
@@ -797,12 +753,10 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			{
 				case REG_ROW:
 
-					#ifdef DEBUG
-						ereport(NOTICE,
-							(errmsg("Parent is %i. EstimateRows is %g.", parent, estimate_rows)
-						));
-					#endif
-
+					ereport(DEBUG3,
+						(errmsg("tds_fdw: Parent is %i. EstimateRows is %g.", parent, estimate_rows)
+					));
+					
 					if (parent == 0)
 					{
 						rows += estimate_rows;
@@ -830,11 +784,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 			}
 		}
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("We estimated %g rows.", rows)
-				));
-		#endif		
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: We estimated %g rows.", rows)
+			));	
 	}
 	
 	else
@@ -846,11 +798,9 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 	}
 	
 cleanup_after_show_plan:
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting database command to %s", show_plan_query_off)
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Setting database command to %s", show_plan_query_off)
 			));
-	#endif
 	
 	if ((erc = dbcmd(dbproc, show_plan_query_off)) == FAIL)
 	{
@@ -860,11 +810,9 @@ cleanup_after_show_plan:
 			));		
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Executing the query")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
 	
 	if ((erc = dbsqlexec(dbproc)) == FAIL)
 	{
@@ -874,14 +822,12 @@ cleanup_after_show_plan:
 			));	
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Query executed correctly")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting results")
-			));				
-	#endif	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Query executed correctly")
+		));
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting results")
+		));				
 	
 	erc = dbresults(dbproc);
 	
@@ -919,11 +865,9 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 			));
 	#endif		
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Setting database command to %s", option_set->query)
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Setting database command to %s", option_set->query)
+		));
 	
 	if ((erc = dbcmd(dbproc, option_set->query)) == FAIL)
 	{
@@ -933,11 +877,9 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 			));		
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Executing the query")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
 	
 	if ((erc = dbsqlexec(dbproc)) == FAIL)
 	{
@@ -947,14 +889,12 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 			));	
 	}
 
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Query executed correctly")
-			));
-		ereport(NOTICE,
-			(errmsg("Getting results")
-			));				
-	#endif
+	ereport(NOTICE,
+		(errmsg("tds_fdw: Query executed correctly")
+		));
+	ereport(NOTICE,
+		(errmsg("tds_fdw: Getting results")
+		));				
 
 	erc = dbresults(dbproc);
 	
@@ -968,22 +908,18 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 	
 	else if (erc == NO_MORE_RESULTS)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("There appears to be no results from query %s", option_set->query)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: There appears to be no results from query %s", option_set->query)
+			));
 		
 		goto cleanup;
 	}
 	
 	else if (erc == SUCCEED)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Successfully got results")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Successfully got results")
+			));
 		
 		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
 		{
@@ -1016,14 +952,12 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
 		rows_report = DBCOUNT(dbproc);
 		iscount = dbiscount(dbproc);
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("We counted %lli rows, and dbcount says %i rows.", rows_increment, rows_report)
-				));
-			ereport(NOTICE,
-				(errmsg("dbiscount says %i.", iscount)
-				));
-		#endif		
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: We counted %lli rows, and dbcount says %i rows.", rows_increment, rows_report)
+			));
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: dbiscount says %i.", iscount)
+			));	
 	}
 	
 	else
@@ -1120,17 +1054,15 @@ int tdsDatetimeToDatum(DBPROCESS *dbproc, DBDATETIME *src, Datum *datetime_out)
 		#ifdef MSDBLIB
 			seconds = (float8)datetime_in.second + ((float8)datetime_in.millisecond/1000);
 					
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
-						datetime_in.year, datetime_in.month, datetime_in.day, 
-						datetime_in.hour, datetime_in.minute, datetime_in.second,
-						datetime_in.millisecond, datetime_in.tzone)
-					 ));
-				ereport(NOTICE,
-					(errmsg("Seconds=%f", seconds)
-					 ));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
+					datetime_in.year, datetime_in.month, datetime_in.day, 
+					datetime_in.hour, datetime_in.minute, datetime_in.second,
+					datetime_in.millisecond, datetime_in.tzone)
+				 ));
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Seconds=%f", seconds)
+				 ));
 					
 			*datetime_out = DirectFunctionCall6(make_timestamp, 
 				 Int64GetDatum(datetime_in.year), Int64GetDatum(datetime_in.month), Int64GetDatum(datetime_in.day), 
@@ -1138,17 +1070,15 @@ int tdsDatetimeToDatum(DBPROCESS *dbproc, DBDATETIME *src, Datum *datetime_out)
 		#else
 			seconds = (float8)datetime_in.datesecond + ((float8)datetime_in.datemsecond/1000);
 					
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
-						datetime_in.dateyear, datetime_in.datemonth + 1, datetime_in.datedmonth, 
-						datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond,
-						datetime_in.datemsecond, datetime_in.datetzone)
-					 ));
-				ereport(NOTICE,
-					(errmsg("Seconds=%f", seconds)
-					 ));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Datetime value: year=%i, month=%i, day=%i, hour=%i, minute=%i, second=%i, millisecond=%i, timezone=%i,",
+					datetime_in.dateyear, datetime_in.datemonth + 1, datetime_in.datedmonth, 
+					datetime_in.datehour, datetime_in.dateminute, datetime_in.datesecond,
+					datetime_in.datemsecond, datetime_in.datetzone)
+				 ));
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Seconds=%f", seconds)
+				 ));
 					
 			/* Sybase uses different field names, and it uses 0-11 for the month */
 			*datetime_out = DirectFunctionCall6(make_timestamp, 
@@ -1212,14 +1142,12 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 			break;
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Source type is %i. Destination type is %i", srctype, desttype)
-			));
-		ereport(NOTICE,
-			(errmsg("Source length is %i. Destination length is %i. Real destination length is %i", srclen, destlen, real_destlen)
-			));
-	#endif	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Source type is %i. Destination type is %i", srctype, desttype)
+		));
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Source length is %i. Destination length is %i. Real destination length is %i", srclen, destlen, real_destlen)
+		));
 	
 	if (use_tds_conversion)
 	{
@@ -1230,30 +1158,24 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 			
 			if (ret_value == FAIL)
 			{
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Failed to convert column")
-						));
-				#endif	
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: Failed to convert column")
+					));
 			}
 			
 			else if (ret_value == -1)
 			{
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Failed to convert column. Could have been a NULL pointer or bad data type.")
-						));
-				#endif	
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: Failed to convert column. Could have been a NULL pointer or bad data type.")
+					));	
 			}
 		}
 		
 		else
 		{
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Column cannot be converted to this type.")
-					));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Column cannot be converted to this type.")
+				));
 		}
 	}
 	
@@ -1297,11 +1219,9 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	
 	tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(node->ss.ss_currentRelation), &option_set);
 		
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Initiating DB-Library")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Initiating DB-Library")
+		));
 	
 	if (dbinit() == FAIL)
 	{
@@ -1334,11 +1254,9 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 		}
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Getting login structure")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting login structure")
+		));
 	
 	if ((login = dblogin()) == NULL)
 	{
@@ -1430,29 +1348,23 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 		column = &festate->columns[ncol];
 		column->name = dbcolname(festate->dbproc, ncol + 1);
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Fetching column %i (%s)", ncol, column->name)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Fetching column %i (%s)", ncol, column->name)
+			));
 		
 		column->srctype = dbcoltype(festate->dbproc, ncol + 1);
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Type is %i", column->srctype)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Type is %i", column->srctype)
+			));
 
 		if (option_set->match_column_names)
 		{
 			ListCell   *lc;
 		
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Matching foreign column with local column by name.")
-					));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Matching foreign column with local column by name.")
+				));
 			
 			column->local_index = -1;
 
@@ -1465,11 +1377,9 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				List *options;
 				ListCell *inner_lc;
 				
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Comparing it to the following retrived column: %i", local_ncol)
-						));
-				#endif
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: Comparing it to the following retrived column: %i", local_ncol)
+					));
 				
 				options = GetForeignColumnOptions(relOid, local_ncol + 1);
 				
@@ -1477,20 +1387,16 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				{
 					DefElem    *def = (DefElem *) lfirst(inner_lc);
 					
-					#ifdef DEBUG
-						ereport(NOTICE,
-							(errmsg("Checking if column_name is set as an option:%s => %s", def->defname, defGetString(def))
-							));
-					#endif
+					ereport(DEBUG3,
+						(errmsg("tds_fdw: Checking if column_name is set as an option:%s => %s", def->defname, defGetString(def))
+						));
 
 					if (strcmp(def->defname, "column_name") == 0 
 						&& strncmp(defGetString(def), column->name, NAMEDATALEN) == 0)
 					{
-						#ifdef DEBUG
-							ereport(NOTICE,
-								(errmsg("It matches!")
-								));
-						#endif
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: It matches!")
+							));
 						
 						local_name = defGetString(def);
 						column->local_index = local_ncol;
@@ -1505,19 +1411,15 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				
 					local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
 					
-					#ifdef DEBUG
-						ereport(NOTICE,
-							(errmsg("Comparing retrieved column name to the following local column name: %s", local_name)
-							));
-					#endif
+					ereport(DEBUG3,
+						(errmsg("tds_fdw: Comparing retrieved column name to the following local column name: %s", local_name)
+						));
 
 					if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
 					{
-						#ifdef DEBUG
-							ereport(NOTICE,
-								(errmsg("It matches!")
-								));
-						#endif
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: It matches!")
+							));
 						
 						column->local_index = local_ncol;
 						column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
@@ -1541,21 +1443,17 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 		else
 		{
 		
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Matching foreign column with local column by position.")
-					));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Matching foreign column with local column by position.")
+				));
 			
 			column->local_index = ncol;
 			column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
 		}
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Local index = %i, local type OID = %i", column->local_index, column->attr_oid)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Local index = %i, local type OID = %i", column->local_index, column->attr_oid)
+			));
 	}
 
 	if (option_set->match_column_names)
@@ -1606,14 +1504,12 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 	
 	if (festate->first)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("This is the first iteration")
-				));
-			ereport(NOTICE,
-				(errmsg("Setting database command to %s", festate->query)
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: This is the first iteration")
+			));
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Setting database command to %s", festate->query)
+			));
 		
 		festate->first = 0;
 
@@ -1625,11 +1521,9 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				));
 		}
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Executing the query")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Executing the query")
+			));
 		
 		if ((erc = dbsqlexec(festate->dbproc)) == FAIL)
 		{
@@ -1639,14 +1533,12 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				));
 		}
 
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Query executed correctly")
-				));
-			ereport(NOTICE,
-				(errmsg("Getting results")
-				));				
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Query executed correctly")
+			));
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Getting results")
+			));				
 
 		erc = dbresults(festate->dbproc);
 		
@@ -1670,35 +1562,27 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 		{
 			Oid relOid;
 
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Successfully got results")
-					));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Successfully got results")
+				));
 
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Getting column info")
-					));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Getting column info")
+				));
 
 			festate->ncols = dbnumcols(festate->dbproc);
 
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("%i columns", festate->ncols)
-					));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: %i columns", festate->ncols)
+				));
 
 			MemoryContextReset(festate->mem_cxt);
 			
 			relOid = RelationGetRelid(node->ss.ss_currentRelation);
 			
-			#ifdef DEBUG
-				ereport(NOTICE,
-					(errmsg("Table OID is %i", relOid)
-					));
-			#endif
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Table OID is %i", relOid)
+				));
 			
 			tdsGetForeignTableOptionsFromCatalog(relOid, &option_set);	
 			tdsGetColumnMetadata(node, &option_set);
@@ -1716,11 +1600,9 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				erc = SUCCEED;
 				column->useraw = false;
 				
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("The foreign type is %i. The local type is %i.", srctype, attr_oid)
-						));
-				#endif	
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: The foreign type is %i. The local type is %i.", srctype, attr_oid)
+					));	
 
 				if (srctype == SYBINT2 && attr_oid == INT2OID)
 			        {
@@ -1783,11 +1665,9 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 		}
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Fetching next row")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Fetching next row")
+		));
 	
 	if ((ret_code = dbnextrow(festate->dbproc)) != NO_MORE_ROWS)
 	{
@@ -1798,11 +1678,9 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 			case REG_ROW:
 				festate->row++;
 				
-				#ifdef DEBUG
-					ereport(NOTICE,
-						(errmsg("Row %i fetched", festate->row)
-						));
-				#endif
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: Row %i fetched", festate->row)
+					));
 				
 				if (show_before_row_memory_stats)
 				{
@@ -1825,43 +1703,35 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 
 					if (column->local_index == -1)
 					{
-						#ifdef DEBUG
-							ereport(NOTICE,
-								(errmsg("Skipping column %s because it is not present in local table", column->name)
-							));
-						#endif
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: Skipping column %s because it is not present in local table", column->name)
+						));
 
 						continue;
 					}
 
 					srclen = dbdatlen(festate->dbproc, ncol + 1);
 					
-					#ifdef DEBUG
-						ereport(NOTICE,
-							(errmsg("Data length is %i", srclen)
-							));
-					#endif					
+					ereport(DEBUG3,
+						(errmsg("tds_fdw: Data length is %i", srclen)
+						));				
 					
 					src = dbdata(festate->dbproc, ncol + 1);
 
 					if (srclen == 0 && src == NULL)
 					{
-						#ifdef DEBUG
-							ereport(NOTICE,
-								(errmsg("Column value is NULL")
-								));
-						#endif	
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: Column value is NULL")
+							));
 						
  						festate->isnull[column->local_index] = true;
 						continue;
 					}
 					else if (src == NULL)
 					{
-						#ifdef DEBUG
-							ereport(NOTICE,
-								(errmsg("Column value pointer is NULL, but probably shouldn't be")
-								));
-						#endif	
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: Column value pointer is NULL, but probably shouldn't be")
+							));
 					}
 					else
 					{
@@ -1961,11 +1831,9 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 	
 	else
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("No more rows")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: No more rows")
+			));
 	}
 	
 	#ifdef DEBUG
@@ -2022,27 +1890,21 @@ void tdsEndForeignScan(ForeignScanState *node)
 		pfree(festate->query);
 	}
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Closing database connection")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Closing database connection")
+		));
 	
 	dbclose(festate->dbproc);
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Freeing login structure")
-			));
-	#endif	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Freeing login structure")
+		));
 	
 	dbloginfree(festate->login);
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("Closing DB-Library")
-			));
-	#endif
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Closing DB-Library")
+		));
 	
 	dbexit();
 	
@@ -2145,11 +2007,9 @@ estimate_path_cost_size(PlannerInfo *root,
 
 		/* Get the remote estimate */
 
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Initiating DB-Library")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Initiating DB-Library")
+			));
 		
 		if (dbinit() == FAIL)
 		{
@@ -2183,11 +2043,9 @@ estimate_path_cost_size(PlannerInfo *root,
 			}
 		}
 		
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Getting login structure")
-				));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Getting login structure")
+			));
 		
 		if ((login = dblogin()) == NULL)
 		{
@@ -2247,7 +2105,11 @@ cleanup_before_init:
 
 		/* Use rows/width estimates made by set_baserel_size_estimates. */
 		rows = baserel->rows;
+#if (PG_VERSION_NUM < 90600)
 		width = baserel->width;
+#else
+		width = baserel->reltarget->width;
+#endif /* PG_VERSION_NUM < 90600 */
 
 		/*
 		 * Back into an estimate of the number of retrieved rows.  Just in
@@ -2350,8 +2212,13 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 	 * columns used in them.  Doesn't seem worth detecting that case though.)
 	 */
 	fpinfo->attrs_used = NULL;
+#if (PG_VERSION_NUM < 90600)
 	pull_varattnos((Node *) baserel->reltargetlist, baserel->relid,
 				   &fpinfo->attrs_used);
+#else
+	pull_varattnos((Node *) baserel->reltarget->exprs, baserel->relid,
+				   &fpinfo->attrs_used);
+#endif /* PG_VERSION_NUM < 90600 */
 	foreach(lc, fpinfo->local_conds)
 	{
 		RestrictInfo *rinfo = (RestrictInfo *) lfirst(lc);
@@ -2382,11 +2249,9 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 	 */
 	if (fpinfo->use_remote_estimate)
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Using remote estimate")
-			));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Using remote estimate")
+		));
 		
 		/*
 		 * Get cost/size estimates with help of remote server.  Save the
@@ -2399,15 +2264,17 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 
 		/* Report estimated baserel size to planner. */
 		baserel->rows = fpinfo->rows;
+#if (PG_VERSION_NUM < 90600)
 		baserel->width = fpinfo->width;
+#else
+		baserel->reltarget->width = fpinfo->width;
+#endif /* PG_VERSION_NUM < 90600 */
 	}
 	else
 	{
-		#ifdef DEBUG
-			ereport(NOTICE,
-				(errmsg("Using local estimate")
-			));
-		#endif
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Using local estimate")
+		));
 		
 		/*
 		 * If the foreign table has never been ANALYZEd, it will have relpages
@@ -2432,10 +2299,19 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 								&fpinfo->startup_cost, &fpinfo->total_cost, &option_set);
 	}	
 	
-	#ifdef DEBUG
-	ereport(NOTICE,
-			(errmsg("Estimated rows = %f, estimated width = %d", baserel->rows, baserel->width)
+	
+#if (PG_VERSION_NUM < 90600)
+	ereport(DEBUG3,
+			(errmsg("tds_fdw: Estimated rows = %f, estimated width = %d", baserel->rows, baserel->width)
 			));
+#else
+	ereport(DEBUG3,
+			(errmsg("tds_fdw: Estimated rows = %f, estimated width = %d", baserel->rows,
+					baserel->reltarget->width)
+			));
+#endif /* PG_VERSION_NUM < 90600 */
+
+	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsGetForeignRelSize")
 			));
@@ -2491,7 +2367,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 	 * actually be an indexscan happening there).  We already did all the work
 	 * to estimate cost and size of this path.
 	 */
-	#if (PG_VERSION_NUM >= 90500)
+#if PG_VERSION_NUM < 90500
+	path = create_foreignscan_path(root, baserel,
+								   fpinfo->rows,
+								   fpinfo->startup_cost,
+								   fpinfo->total_cost,
+								   NIL, /* no pathkeys */
+								   NULL,		/* no outer rel either */
+								   NIL);		/* no fdw_private list */	
+#elif PG_VERSION_NUM < 90600
 	path = create_foreignscan_path(root, baserel,
 								   fpinfo->rows,
 								   fpinfo->startup_cost,
@@ -2500,15 +2384,16 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								   NULL,		/* no outer rel either */
 								   NULL,		/* no extra plan */
 								   NIL);		/* no fdw_private list */
-	#else
-	path = create_foreignscan_path(root, baserel,
+#else
+	path = create_foreignscan_path(root, baserel, NULL,
 								   fpinfo->rows,
 								   fpinfo->startup_cost,
 								   fpinfo->total_cost,
 								   NIL, /* no pathkeys */
 								   NULL,		/* no outer rel either */
-								   NIL);		/* no fdw_private list */	
-	#endif
+								   NULL,		/* no extra plan */
+								   NIL);		/* no fdw_private list */
+#endif /* PG_VERSION_NUM < 90500 */
 	
 	add_path(baserel, (Path *) path);
 
@@ -2557,7 +2442,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								&rows, &width, &startup_cost, &total_cost, &option_set);
 
 		add_path(baserel, (Path *)
-		#if (PG_VERSION_NUM >= 90500)
+#if PG_VERSION_NUM < 90500
+				 create_foreignscan_path(root, baserel,
+										 rows,
+										 startup_cost,
+										 total_cost,
+										 usable_pathkeys,
+										 NULL,
+										 NIL));
+#elif PG_VERSION_NUM < 90600
 				 create_foreignscan_path(root, baserel,
 										 rows,
 										 startup_cost,
@@ -2566,15 +2459,17 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 										 NULL,
 										 NULL,
 										 NIL));
-		#else
+#else
 				 create_foreignscan_path(root, baserel,
+										 NULL,
 										 rows,
 										 startup_cost,
 										 total_cost,
 										 usable_pathkeys,
 										 NULL,
+										 NULL,
 										 NIL));
-		#endif
+#endif /* PG_VERSION_NUM < 90500 */
 	}
 	
 	/* Don't worry about join pushdowns unless this is PostgreSQL 9.5+ */
@@ -2738,6 +2633,15 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 		param_info->ppi_rows = rows;
 
 		/* Make the path */
+#if PG_VERSION_NUM < 90500
+		path = create_foreignscan_path(root, baserel,
+									   rows,
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NIL);	/* no fdw_private list */
+#elif PG_VERSION_NUM < 90600
 		path = create_foreignscan_path(root, baserel,
 									   rows,
 									   startup_cost,
@@ -2746,6 +2650,17 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 									   param_info->ppi_req_outer,
 									   NULL,
 									   NIL);	/* no fdw_private list */
+#else
+		path = create_foreignscan_path(root, baserel,
+									   NULL,
+									   rows,
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NULL,
+									   NIL);	/* no fdw_private list */
+#endif /* PG_VERSION_NUM < 90500 */
 		add_path(baserel, (Path *) path);
 	}
 	
@@ -2892,13 +2807,600 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	#endif
 }
 
+static bool
+tdsExecuteQuery(char *query, DBPROCESS *dbproc)
+{
+	RETCODE		erc;
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsExecuteQuery")
+			));
+	#endif
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Setting database command to %s", query)
+		));
+
+	if ((erc = dbcmd(dbproc, query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set current query to %s", query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+
+	if ((erc = dbsqlexec(dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Query executed correctly")
+		));
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting results")
+		));
+
+	erc = dbresults(dbproc);
+
+	if (erc == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to get results from query %s", query)
+			));
+	}
+
+	else if (erc == NO_MORE_RESULTS)
+	{
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: There appears to be no results from query %s", query)
+			));
+
+		goto cleanup;
+	}
+
+	else if (erc == SUCCEED)
+	{
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Successfully got results")
+			));
+
+		goto cleanup;
+	}
+
+	else
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Unknown return code getting results from query %s", query)
+			));
+	}
+
+cleanup:
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsExecuteQuery")
+			));
+	#endif
+
+	return (erc == SUCCEED);
+}
+
+#ifdef IMPORT_API
+List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
+{
+	TdsFdwOptionSet option_set;
+	List	   *commands = NIL;
+	bool		import_default = false;
+	bool		import_not_null = true;
+	StringInfoData buf;
+	ListCell   *lc;
+
+	LOGINREC   *login;
+	DBPROCESS  *dbproc;
+	RETCODE		erc;
+	int			ret_code;
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> starting tdsImportForeignSchema")
+			));
+	#endif
+
+	/* Parse statement options */
+	foreach(lc, stmt->options)
+	{
+		DefElem    *def = (DefElem *) lfirst(lc);
+
+		if (strcmp(def->defname, "import_default") == 0)
+			import_default = defGetBoolean(def);
+		else if (strcmp(def->defname, "import_not_null") == 0)
+			import_not_null = defGetBoolean(def);
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
+					 errmsg("invalid option \"%s\"", def->defname)));
+	}
+
+	tdsGetForeignServerOptionsFromCatalog(serverOid, &option_set);
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Initiating DB-Library")
+		));
+
+	if (dbinit() == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library environment")
+			));
+		goto cleanup_before_init;
+	}
+
+	dberrhandle(tds_err_handler);
+
+	if (option_set.msg_handler)
+	{
+		if (strcmp(option_set.msg_handler, "notice") == 0)
+		{
+			dbmsghandle(tds_notice_msg_handler);
+		}
+
+		else if (strcmp(option_set.msg_handler, "blackhole") == 0)
+		{
+			dbmsghandle(tds_blackhole_msg_handler);
+		}
+
+		else
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Unknown msg handler: %s.", option_set.msg_handler)
+				));
+		}
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting login structure")
+		));
+
+	if ((login = dblogin()) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library login structure")
+			));
+		goto cleanup_before_login;
+	}
+
+	/* Create workspace for strings */
+	initStringInfo(&buf);
+
+	/* Check that the schema really exists */
+	appendStringInfoString(&buf, "SELECT schema_name FROM information_schema.schemata WHERE schema_name = ");
+	deparseStringLiteral(&buf, stmt->remote_schema);
+
+	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
+	{
+		goto cleanup;
+	}
+
+	if (!tdsExecuteQuery(buf.data, dbproc))
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_SCHEMA_NOT_FOUND),
+		  errmsg("schema \"%s\" is not present on foreign server \"%s\"",
+				 stmt->remote_schema, option_set.servername)));
+	else
+		/* Process results */
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			/* Do nothing */
+		}
+
+	resetStringInfo(&buf);
+
+	/*
+	 * Fetch all table data from this schema, possibly restricted by
+	 * EXCEPT or LIMIT TO.  (We don't actually need to pay any attention
+	 * to EXCEPT/LIMIT TO here, because the core code will filter the
+	 * statements we return according to those lists anyway.  But it
+	 * should save a few cycles to not process excluded tables in the
+	 * first place.)
+	 */
+	appendStringInfoString(&buf,
+						   "SELECT t.table_name,"
+						   "  c.column_name, "
+						   "  c.data_type, "
+						   "  c.column_default, "
+						   "  c.is_nullable, "
+						   "  c.character_maximum_length, "
+						   "  c.numeric_precision, "
+						   "  c.numeric_precision_radix, "
+						   "  c.numeric_scale, "
+						   "  c.datetime_precision "
+						   "FROM information_schema.tables t "
+						   "  LEFT JOIN information_schema.columns c ON "
+						   "    t.table_schema = c.table_schema "
+						   "      AND t.table_name = c.table_name "
+						   "WHERE t.table_type = 'BASE TABLE' "
+						   "  AND t.table_schema = ");
+	deparseStringLiteral(&buf, stmt->remote_schema);
+
+	/* Apply restrictions for LIMIT TO and EXCEPT */
+	if (stmt->list_type == FDW_IMPORT_SCHEMA_LIMIT_TO ||
+		stmt->list_type == FDW_IMPORT_SCHEMA_EXCEPT)
+	{
+		bool		first_item = true;
+
+		appendStringInfoString(&buf, " AND t.table_name ");
+		if (stmt->list_type == FDW_IMPORT_SCHEMA_EXCEPT)
+			appendStringInfoString(&buf, "NOT ");
+		appendStringInfoString(&buf, "IN (");
+
+		/* Append list of table names within IN clause */
+		foreach(lc, stmt->table_list)
+		{
+			RangeVar   *rv = (RangeVar *) lfirst(lc);
+
+			if (first_item)
+				first_item = false;
+			else
+				appendStringInfoString(&buf, ", ");
+			deparseStringLiteral(&buf, rv->relname);
+		}
+		appendStringInfoChar(&buf, ')');
+	}
+
+	/* Append ORDER BY at the end of query to ensure output ordering */
+	appendStringInfoString(&buf, " ORDER BY t.table_name, c.ordinal_position");
+
+	if (tdsExecuteQuery(buf.data, dbproc))
+	{
+		char		table_name[255],
+					prev_table[255],
+					column_name[255],
+					data_type[255],
+					column_default[4000],
+					is_nullable[10];
+		int			char_len,
+					numeric_precision,
+					numeric_precision_radix,
+					numeric_scale,
+					datetime_precision;
+		bool		first_item = true;
+
+		prev_table[0] = '\0';
+
+		erc = dbbind(dbproc, 1, NTBSTRINGBIND, sizeof(table_name), (BYTE *) table_name);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"table_name\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 2, NTBSTRINGBIND, sizeof(column_name), (BYTE *) column_name);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"column_name\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 3, NTBSTRINGBIND, sizeof(data_type), (BYTE *) data_type);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"data_type\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 4, NTBSTRINGBIND, sizeof(column_default), (BYTE *) column_default);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"column_default\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 5, NTBSTRINGBIND, sizeof(is_nullable), (BYTE *) is_nullable);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"is_nullable\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 6, INTBIND, sizeof(int), (BYTE *) &char_len);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"character_maximum_length\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 7, INTBIND, sizeof(int), (BYTE *) &numeric_precision);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"numeric_precision\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 8, INTBIND, sizeof(int), (BYTE *) &numeric_precision_radix);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"numeric_precision_radix\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 9, INTBIND, sizeof(int), (BYTE *) &numeric_scale);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"numeric_scale\" to a variable.")
+				));
+		}
+
+		erc = dbbind(dbproc, 10, INTBIND, sizeof(int), (BYTE *) &datetime_precision);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"datetime_precision\" to a variable.")
+				));
+		}
+
+		/* Process results */
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			switch (ret_code)
+			{
+				case REG_ROW:
+					ereport(DEBUG3,
+						(errmsg("tds_fdw: column \"%s.%s\"", table_name, column_name)
+						));
+
+					/* Build query for the new table */
+					if (prev_table[0] == '\0' || strcmp(prev_table, table_name) != 0)
+					{
+						if (prev_table[0] != '\0')
+						{
+							/*
+							 * Add server name and table-level options.  We specify remote
+							 * schema and table name as options (the latter to ensure that
+							 * renaming the foreign table doesn't break the association).
+							 */
+							appendStringInfo(&buf, "\n) SERVER %s\nOPTIONS (",
+											 quote_identifier(stmt->server_name));
+
+							appendStringInfoString(&buf, "schema_name ");
+							deparseStringLiteral(&buf, stmt->remote_schema);
+							appendStringInfoString(&buf, ", table_name ");
+							deparseStringLiteral(&buf, prev_table);
+
+							appendStringInfoString(&buf, ");");
+
+							commands = lappend(commands, pstrdup(buf.data));
+						}
+
+						resetStringInfo(&buf);
+						appendStringInfo(&buf, "CREATE FOREIGN TABLE %s (\n",
+										 quote_identifier(table_name));
+						first_item = true;
+					}
+
+					if (first_item)
+						first_item = false;
+					else
+						appendStringInfoString(&buf, ",\n");
+
+					/* Print column name */
+					appendStringInfo(&buf, "  %s",
+									 quote_identifier(column_name));
+
+					/* Print column type */
+
+					/* Numeric types */
+					if (strcmp(data_type, "bit") == 0 ||
+						strcmp(data_type, "smallint") == 0 ||
+						strcmp(data_type, "tinyint") == 0)
+						appendStringInfoString(&buf, " smallint");
+					else if (strcmp(data_type, "int") == 0)
+						appendStringInfoString(&buf, " integer");
+					else if (strcmp(data_type, "bigint") == 0)
+						appendStringInfoString(&buf, " bigint");
+					else if (strcmp(data_type, "decimal") == 0)
+					{
+						if (numeric_scale == 0)
+							appendStringInfo(&buf, " decimal(%d)", numeric_precision);
+						else
+							appendStringInfo(&buf, " decimal(%d, %d)",
+											 numeric_precision, numeric_scale);
+					}
+					else if (strcmp(data_type, "numeric") == 0)
+					{
+						if (numeric_scale == 0)
+							appendStringInfo(&buf, " numeric(%d)", numeric_precision);
+						else
+							appendStringInfo(&buf, " numeric(%d, %d)",
+											 numeric_precision, numeric_scale);
+					}
+					else if (strcmp(data_type, "money") == 0 ||
+							 strcmp(data_type, "smallmoney") == 0)
+						appendStringInfoString(&buf, " money");
+
+					/* Floating-point types */
+					else if (strcmp(data_type, "float") == 0)
+						appendStringInfo(&buf, " float(%d)", numeric_precision);
+					else if (strcmp(data_type, "real") == 0)
+						appendStringInfoString(&buf, " real");
+
+					/* Date/type types */
+					else if (strcmp(data_type, "date") == 0)
+						appendStringInfoString(&buf, " date");
+					else if (strcmp(data_type, "datetime") == 0 ||
+							 strcmp(data_type, "datetime2") == 0 ||
+							 strcmp(data_type, "smalldatetime") == 0 ||
+							 strcmp(data_type, "timestamp") == 0)
+						appendStringInfo(&buf, " timestamp(%d) without time zone", (datetime_precision > 6) ? 6 : datetime_precision);
+					else if (strcmp(data_type, "datetimeoffset") == 0)
+						appendStringInfo(&buf, " timestamp(%d) with time zone", (datetime_precision > 6) ? 6 : datetime_precision);
+					else if (strcmp(data_type, "time") == 0)
+						appendStringInfoString(&buf, " time");
+
+					/* Character types */
+					else if (strcmp(data_type, "char") == 0 ||
+							 strcmp(data_type, "nchar") == 0)
+						appendStringInfo(&buf, " char(%d)", char_len);
+					else if (strcmp(data_type, "varchar") == 0 ||
+							 strcmp(data_type, "nvarchar") == 0)
+					{
+						if (char_len == -1)
+							appendStringInfoString(&buf, " text");
+						else
+							appendStringInfo(&buf, " varchar(%d)", char_len);
+					}
+					else if (strcmp(data_type, "text") == 0 ||
+							 strcmp(data_type, "ntext") == 0)
+						appendStringInfoString(&buf, " text");
+
+					/* Binary types */
+					else if (strcmp(data_type, "binary") == 0 ||
+						strcmp(data_type, "varbinary") == 0 ||
+						strcmp(data_type, "image") == 0)
+						appendStringInfoString(&buf, " bytea");
+
+					/* Other types */
+					else if (strcmp(data_type, "xml") == 0)
+						appendStringInfoString(&buf, " xml");
+					else
+					{
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: column \"%s\" of table \"%s\" has an untranslatable data type", column_name, table_name)
+							));
+						appendStringInfoString(&buf, " text");
+					}
+
+					/*
+					 * Add column_name option so that renaming the foreign table's
+					 * column doesn't break the association to the underlying
+					 * column.
+					 */
+					appendStringInfoString(&buf, " OPTIONS (column_name ");
+					deparseStringLiteral(&buf, column_name);
+					appendStringInfoChar(&buf, ')');
+
+					/* Add DEFAULT if needed */
+					if (import_default && column_default[0] != '\0')
+						appendStringInfo(&buf, " DEFAULT %s", column_default);
+
+					/* Add NOT NULL if needed */
+					if (import_not_null && strcmp(is_nullable, "NO") == 0)
+						appendStringInfoString(&buf, " NOT NULL");
+
+					strcpy(prev_table, table_name);
+
+					break;
+
+				case BUF_FULL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+							errmsg("Buffer filled up while getting plan for query")
+						));
+
+				case FAIL:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get row while getting plan for query")
+						));
+
+				default:
+					ereport(ERROR,
+						(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+							errmsg("Failed to get plan for query. Unknown return code.")
+						));
+			}
+		}
+
+		/*
+		 * Add server name and table-level options.  We specify remote
+		 * schema and table name as options (the latter to ensure that
+		 * renaming the foreign table doesn't break the association).
+		 */
+		appendStringInfo(&buf, "\n) SERVER %s\nOPTIONS (",
+						 quote_identifier(stmt->server_name));
+
+		appendStringInfoString(&buf, "schema_name ");
+		deparseStringLiteral(&buf, stmt->remote_schema);
+		appendStringInfoString(&buf, ", table_name ");
+		deparseStringLiteral(&buf, prev_table);
+
+		appendStringInfoString(&buf, ");");
+
+		commands = lappend(commands, pstrdup(buf.data));
+	}
+
+cleanup:
+	dbclose(dbproc);
+	dbloginfree(login);
+
+cleanup_before_login:
+	dbexit();
+
+cleanup_before_init:
+	;
+
+	#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("----> finishing tdsImportForeignSchema")
+			));
+	#endif
+
+	return commands;
+}
+#endif  /* IMPORT_API */
+
 int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
 {
+	char* empty_errmsg = "";
+
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tds_err_handler")
 			));
 	#endif
+
+        if (dberrstr == NULL)
+        {
+                dberrstr = empty_errmsg;
+        }
+
+
+	if (oserrstr == NULL)
+	{
+		oserrstr = empty_errmsg;
+	}
 	
 	ereport(ERROR,
 		(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),

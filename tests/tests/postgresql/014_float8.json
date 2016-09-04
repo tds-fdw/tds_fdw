@@ -1,0 +1,9 @@
+{
+    "test_desc" : "float data type, 8 bits value (double precission)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

@@ -46,6 +46,10 @@ See [creating a foreign table](ForeignTableCreation.md).
 	
 See [creating a user mapping](UserMappingCreation.md).
 
+### Foreign schema
+
+See [importing a foreign schema](ForeignSchemaImporting.md).
+
 ### Variables
 
 See [variables](Variables.md).

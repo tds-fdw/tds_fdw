@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation for automated column matching (query option)",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

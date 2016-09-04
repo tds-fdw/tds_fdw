@@ -40,6 +40,12 @@
 
 #include "options.h"
 
+#if PG_VERSION_NUM >= 90500
+#define IMPORT_API
+#else
+#undef IMPORT_API
+#endif  /* PG_VERSION_NUM */
+
 /* a column */
 
 typedef union COL_VALUE
@@ -157,6 +163,10 @@ void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es);
 void tdsExplainForeignModify(ModifyTableState *mtstate,  ResultRelInfo *rinfo,  List *fdw_private,  int subplan_index,  ExplainState *es);
 void tdsExplainDirectModify(ForeignScanState *node, ExplainState *es);
 #endif
+
+#ifdef IMPORT_API
+List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid);
+#endif  /* IMPORT_API */
 
 /* Helper functions */
 

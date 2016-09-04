@@ -1,0 +1,9 @@
+{
+    "test_desc" : "user mapping creation",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

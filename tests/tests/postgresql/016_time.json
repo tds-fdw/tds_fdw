@@ -1,0 +1,9 @@
+{
+    "test_desc" : "time data type (time without time zone)",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

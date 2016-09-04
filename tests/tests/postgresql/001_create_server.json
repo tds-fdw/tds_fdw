@@ -1,0 +1,9 @@
+{
+    "test_desc" : "foreign server creation",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

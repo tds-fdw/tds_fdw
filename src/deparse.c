@@ -314,6 +314,10 @@ foreign_expr_walker(Node *node,
 	foreign_loc_cxt inner_cxt;
 	Oid			collation;
 	FDWCollateState state;
+	
+  	ereport(DEBUG2,
+		(errmsg("tds_fdw: checking if an expression is safe to execute remotely")
+		));                                                                           
 
 	/* Need do nothing for empty subexpressions */
 	if (node == NULL)
@@ -336,6 +340,10 @@ foreign_expr_walker(Node *node,
 		case T_Var:
 			{
 				Var		   *var = (Var *) node;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is a var expression")
+					)); 
 
 				/*
 				 * If the Var is from the foreign table, we consider its
@@ -390,6 +398,28 @@ foreign_expr_walker(Node *node,
 		case T_Const:
 			{
 				Const	   *c = (Const *) node;
+				Oid			typoutput;
+				bool		typIsVarlena;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is a constant expression")
+					)); 
+					
+				getTypeOutputInfo(c->consttype,
+					  &typoutput, &typIsVarlena);
+					  
+				switch (c->consttype)
+				{
+					case BOOLOID:
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: the constant is a boolean value, which is unsupported")
+							));
+						return false;
+					default:
+						ereport(DEBUG3,
+							(errmsg("tds_fdw: the constant seems to be a supported type")
+							));
+				}
 
 				/*
 				 * If the constant has nondefault collation, either it's of a
@@ -408,6 +438,10 @@ foreign_expr_walker(Node *node,
 		case T_Param:
 			{
 				Param	   *p = (Param *) node;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is a param expression")
+					)); 
 
 				/*
 				 * Collation rule is same as for Consts and non-foreign Vars.
@@ -424,6 +458,10 @@ foreign_expr_walker(Node *node,
 		case T_DistinctExpr:	/* struct-equivalent to OpExpr */
 			{
 				OpExpr	   *oe = (OpExpr *) node;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is an op or distinct expression")
+					)); 
 
 				/*
 				 * Similarly, only shippable operators can be sent to remote.
@@ -466,6 +504,10 @@ foreign_expr_walker(Node *node,
 		case T_RelabelType:
 			{
 				RelabelType *r = (RelabelType *) node;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is a relabel type expression")
+					)); 
 
 				/*
 				 * Recurse to input subexpression.
@@ -493,6 +535,10 @@ foreign_expr_walker(Node *node,
 		case T_BoolExpr:
 			{
 				BoolExpr   *b = (BoolExpr *) node;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is a boolean expression")
+					)); 
 
 				/*
 				 * Recurse to input subexpressions.
@@ -509,6 +555,10 @@ foreign_expr_walker(Node *node,
 		case T_NullTest:
 			{
 				NullTest   *nt = (NullTest *) node;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is a null test expression")
+					)); 
 
 				/*
 				 * Recurse to input subexpressions.
@@ -526,6 +576,10 @@ foreign_expr_walker(Node *node,
 			{
 				List	   *l = (List *) node;
 				ListCell   *lc;
+				
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is a list expression")
+					)); 
 
 				/*
 				 * Recurse to component subexpressions.
@@ -549,6 +603,9 @@ foreign_expr_walker(Node *node,
 			}
 			break;
 		default:
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: it is an unsupported expression")
+					)); 
 
 			/*
 			 * If it's anything else, assume it's unsafe.  This list can be
@@ -1236,6 +1293,10 @@ deparseStringLiteral(StringInfo buf, const char *val)
 static void
 deparseExpr(Expr *node, deparse_expr_cxt *context)
 {
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing an expression")
+		));
+		
 	if (node == NULL)
 		return;
 
@@ -1294,8 +1355,12 @@ deparseExpr(Expr *node, deparse_expr_cxt *context)
  */
 static void
 deparseVar(Var *node, deparse_expr_cxt *context)
-{
+{		
 	StringInfo	buf = context->buf;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a var")
+		));
 
 	if (node->varno == context->foreignrel->relid &&
 		node->varlevelsup == 0)
@@ -1348,6 +1413,10 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 	char	   *extval;
 	bool		isfloat = false;
 	bool		needlabel;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a constant")
+		));
 
 	if (node->constisnull)
 	{
@@ -1379,7 +1448,7 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 			needlabel = !isfloat || (node->consttypmod >= 0);
 			break;
 		default:
-			needlabel = true;
+			needlabel = false;
 			break;
 	}
 	
@@ -1446,6 +1515,10 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 static void
 deparseParam(Param *node, deparse_expr_cxt *context)
 {
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a param")
+		));
+		
 	if (context->params_list)
 	{
 		int			pindex = 0;
@@ -1482,6 +1555,10 @@ deparseArrayRef(ArrayRef *node, deparse_expr_cxt *context)
 	StringInfo	buf = context->buf;
 	ListCell   *lowlist_item;
 	ListCell   *uplist_item;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing an array ref")
+		));
 
 	/* Always parenthesize the expression. */
 	appendStringInfoChar(buf, '(');
@@ -1532,6 +1609,10 @@ deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 	bool		use_variadic = false;
 	bool		first;
 	ListCell   *arg;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a function expression")
+		));
 
 	/*
 	 * If the function call came from an implicit coercion, then just show the
@@ -1614,6 +1695,10 @@ deparseOpExpr(OpExpr *node, deparse_expr_cxt *context)
 	Form_pg_operator form;
 	char		oprkind;
 	ListCell   *arg;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing an operator expression")
+		));
 
 	/* Retrieve information about the operator from system catalog. */
 	tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(node->opno));
@@ -1690,6 +1775,10 @@ static void
 deparseDistinctExpr(DistinctExpr *node, deparse_expr_cxt *context)
 {
 	StringInfo	buf = context->buf;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a distinct expression")
+		));
 
 	Assert(list_length(node->args) == 2);
 
@@ -1712,6 +1801,10 @@ deparseScalarArrayOpExpr(ScalarArrayOpExpr *node, deparse_expr_cxt *context)
 	Form_pg_operator form;
 	Expr	   *arg1;
 	Expr	   *arg2;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a scalar operator expression")
+		));
 
 	/* Retrieve information about the operator from system catalog. */
 	tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(node->opno));
@@ -1769,6 +1862,10 @@ deparseBoolExpr(BoolExpr *node, deparse_expr_cxt *context)
 	const char *op = NULL;		/* keep compiler quiet */
 	bool		first;
 	ListCell   *lc;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a boolean expression")
+		));
 
 	switch (node->boolop)
 	{
@@ -1805,6 +1902,10 @@ deparseNullTest(NullTest *node, deparse_expr_cxt *context)
 {
 	StringInfo	buf = context->buf;
 
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing a NULL test expression")
+		));
+	
 	appendStringInfoChar(buf, '(');
 	deparseExpr(node->arg, context);
 	if (node->nulltesttype == IS_NULL)
@@ -1822,6 +1923,10 @@ deparseArrayExpr(ArrayExpr *node, deparse_expr_cxt *context)
 	StringInfo	buf = context->buf;
 	bool		first = true;
 	ListCell   *lc;
+	
+	ereport(DEBUG2,
+		(errmsg("tds_fdw: deparsing an array expression")
+		));
 
 	appendStringInfoString(buf, "ARRAY[");
 	foreach(lc, node->elements)
