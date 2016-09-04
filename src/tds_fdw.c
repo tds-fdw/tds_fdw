@@ -3419,6 +3419,70 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
 
 #if (PG_VERSION_NUM >= 90300)
 	
+/*
+ * convert_prep_stmt_params
+ *		Create array of text strings representing parameter values
+ *
+ * tupleid is ctid to send, or NULL if none
+ * slot is slot to get remaining parameters from, or NULL if none
+ *
+ * Data is constructed in temp_cxt; caller should reset that after use.
+ */
+static const char **
+convert_prep_stmt_params(TdsFdwModifyState *fmstate,
+						 ItemPointer tupleid,
+						 TupleTableSlot *slot)
+{
+	const char **p_values;
+	int			pindex = 0;
+	MemoryContext oldcontext;
+
+	oldcontext = MemoryContextSwitchTo(fmstate->temp_cxt);
+
+	p_values = (const char **) palloc(sizeof(char *) * fmstate->p_nums);
+
+	/* 1st parameter should be ctid, if it's in use */
+	if (tupleid != NULL)
+	{
+		/* don't need set_transmission_modes for TID output */
+		p_values[pindex] = OutputFunctionCall(&fmstate->p_flinfo[pindex],
+											  PointerGetDatum(tupleid));
+		pindex++;
+	}
+
+	/* get following parameters from slot */
+	if (slot != NULL && fmstate->target_attrs != NIL)
+	{
+		int			nestlevel;
+		ListCell   *lc;
+
+		nestlevel = set_transmission_modes();
+
+		foreach(lc, fmstate->target_attrs)
+		{
+			int			attnum = lfirst_int(lc);
+			Datum		value;
+			bool		isnull;
+
+			value = slot_getattr(slot, attnum, &isnull);
+			if (isnull)
+				p_values[pindex] = NULL;
+			else
+				p_values[pindex] = OutputFunctionCall(&fmstate->p_flinfo[pindex],
+													  value);
+			pindex++;
+		}
+
+		reset_transmission_modes(nestlevel);
+	}
+
+	Assert(pindex == fmstate->p_nums);
+
+	MemoryContextSwitchTo(oldcontext);
+
+	return p_values;
+}
+	
 /* Currently ,this function will use the first column to identify a row. Maybe in the future,
    this could be configurable with a column attribute? */
    
@@ -3456,17 +3520,388 @@ void tdsAddForeignUpdateTargets(Query *parsetree, RangeTblEntry *target_rte, Rel
 
 List *tdsPlanForeignModify(PlannerInfo *root, ModifyTable *plan, Index resultRelation, int subplan_index)
 {
-	
+	CmdType		operation = plan->operation;
+	RangeTblEntry *rte = planner_rt_fetch(resultRelation, root);
+	Relation	rel;
+	StringInfoData sql;
+	List	   *targetAttrs = NIL;
+	List	   *returningList = NIL;
+	List	   *retrieved_attrs = NIL;
+	bool		doNothing = false;
+
+	initStringInfo(&sql);
+
+	/*
+	 * Core code already has some lock on each rel being planned, so we can
+	 * use NoLock here.
+	 */
+	rel = heap_open(rte->relid, NoLock);
+
+	/*
+	 * In an INSERT, we transmit all columns that are defined in the foreign
+	 * table.  In an UPDATE, we transmit only columns that were explicitly
+	 * targets of the UPDATE, so as to avoid unnecessary data transmission.
+	 * (We can't do that for INSERT since we would miss sending default values
+	 * for columns not listed in the source statement.)
+	 */
+	if (operation == CMD_INSERT)
+	{
+		TupleDesc	tupdesc = RelationGetDescr(rel);
+		int			attnum;
+
+		for (attnum = 1; attnum <= tupdesc->natts; attnum++)
+		{
+			Form_pg_attribute attr = tupdesc->attrs[attnum - 1];
+
+			if (!attr->attisdropped)
+				targetAttrs = lappend_int(targetAttrs, attnum);
+		}
+	}
+	else if (operation == CMD_UPDATE)
+	{
+		int			col;
+
+		col = -1;
+		while ((col = bms_next_member(rte->updatedCols, col)) >= 0)
+		{
+			/* bit numbers are offset by FirstLowInvalidHeapAttributeNumber */
+			AttrNumber	attno = col + FirstLowInvalidHeapAttributeNumber;
+
+			if (attno <= InvalidAttrNumber)		/* shouldn't happen */
+				elog(ERROR, "system-column update is not supported");
+			targetAttrs = lappend_int(targetAttrs, attno);
+		}
+	}
+
+	/*
+	 * Extract the relevant RETURNING list if any.
+	 */
+	if (plan->returningLists)
+		returningList = (List *) list_nth(plan->returningLists, subplan_index);
+
+	/*
+	 * ON CONFLICT DO UPDATE and DO NOTHING case with inference specification
+	 * should have already been rejected in the optimizer, as presently there
+	 * is no way to recognize an arbiter index on a foreign table.  Only DO
+	 * NOTHING is supported without an inference specification.
+	 */
+	if (plan->onConflictAction == ONCONFLICT_NOTHING)
+		doNothing = true;
+	else if (plan->onConflictAction != ONCONFLICT_NONE)
+		elog(ERROR, "unexpected ON CONFLICT specification: %d",
+			 (int) plan->onConflictAction);
+
+	/*
+	 * Construct the SQL command string.
+	 */
+	switch (operation)
+	{
+		case CMD_INSERT:
+			deparseInsertSql(&sql, root, resultRelation, rel,
+							 targetAttrs, doNothing, returningList,
+							 &retrieved_attrs);
+			break;
+		case CMD_UPDATE:
+			deparseUpdateSql(&sql, root, resultRelation, rel,
+							 targetAttrs, returningList,
+							 &retrieved_attrs);
+			break;
+		case CMD_DELETE:
+			deparseDeleteSql(&sql, root, resultRelation, rel,
+							 returningList,
+							 &retrieved_attrs);
+			break;
+		default:
+			elog(ERROR, "unexpected operation: %d", (int) operation);
+			break;
+	}
+
+	heap_close(rel, NoLock);
+
+	/*
+	 * Build the fdw_private list that will be available to the executor.
+	 * Items in the list must match enum FdwModifyPrivateIndex, above.
+	 */
+	return list_make4(makeString(sql.data),
+					  targetAttrs,
+					  makeInteger((retrieved_attrs != NIL)),
+					  retrieved_attrs);
 }
 
 void tdsBeginForeignModify(ModifyTableState *mtstate, ResultRelInfo *resultRelInfo, List *fdw_private, int subplan_index, int eflags)
 {
+	TdsFdwModifyState *fmstate;
+	EState	   *estate = mtstate->ps.state;
+	CmdType		operation = mtstate->operation;
+	Relation	rel = resultRelInfo->ri_RelationDesc;
+	RangeTblEntry *rte;
+	Oid			userid;
+	ForeignTable *table;
+	UserMapping *user;
+	AttrNumber	n_params;
+	Oid			typefnoid;
+	bool		isvarlena;
+	ListCell   *lc;
+
+	/*
+	 * Do nothing in EXPLAIN (no ANALYZE) case.  resultRelInfo->ri_FdwState
+	 * stays NULL.
+	 */
+	if (eflags & EXEC_FLAG_EXPLAIN_ONLY)
+		return;
+
+	/* Begin constructing PgFdwModifyState. */
+	fmstate = (PgFdwModifyState *) palloc0(sizeof(PgFdwModifyState));
+	fmstate->rel = rel;
+
+	/*
+	 * Identify which user to do the remote access as.  This should match what
+	 * ExecCheckRTEPerms() does.
+	 */
+	rte = rt_fetch(resultRelInfo->ri_RangeTableIndex, estate->es_range_table);
+	userid = rte->checkAsUser ? rte->checkAsUser : GetUserId();
+
+	/* Get info about foreign table. */
+	table = GetForeignTable(RelationGetRelid(rel));
+	user = GetUserMapping(userid, table->serverid);
+
+	tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(rel), &option_set);
+		
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Initiating DB-Library")
+		));
+	
+	if (dbinit() == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library environment")
+			));
+	}
+	
+	dberrhandle(tds_err_handler);
+	
+	if (option_set.msg_handler)
+	{
+		if (strcmp(option_set.msg_handler, "notice") == 0)
+		{
+			dbmsghandle(tds_notice_msg_handler);
+		}
+		
+		else if (strcmp(option_set.msg_handler, "blackhole") == 0)
+		{
+			dbmsghandle(tds_blackhole_msg_handler);
+		}
+		
+		else
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Unknown msg handler: %s.", option_set.msg_handler)
+				));
+		}
+	}
+	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting login structure")
+		));
+	
+	if ((login = dblogin()) == NULL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+				errmsg("Failed to initialize DB-Library login structure")
+			));
+	}
+	
+	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
+	{
+		goto cleanup;
+	}
+
+	/* Deconstruct fdw_private data. */
+	fmstate->query = strVal(list_nth(fdw_private,
+									 FdwModifyPrivateUpdateSql));
+	fmstate->target_attrs = (List *) list_nth(fdw_private,
+											  FdwModifyPrivateTargetAttnums);
+	fmstate->has_returning = intVal(list_nth(fdw_private,
+											 FdwModifyPrivateHasReturning));
+	fmstate->retrieved_attrs = (List *) list_nth(fdw_private,
+											 FdwModifyPrivateRetrievedAttrs);
+
+	/* Create context for per-tuple temp workspace. */
+	fmstate->temp_cxt = AllocSetContextCreate(estate->es_query_cxt,
+											  "tds_fdw temporary data",
+											  ALLOCSET_SMALL_MINSIZE,
+											  ALLOCSET_SMALL_INITSIZE,
+											  ALLOCSET_SMALL_MAXSIZE);
+
+	/* Prepare for input conversion of RETURNING results. */
+	if (fmstate->has_returning)
+		fmstate->attinmeta = TupleDescGetAttInMetadata(RelationGetDescr(rel));
+
+	/* Prepare for output conversion of parameters used in prepared stmt. */
+	n_params = list_length(fmstate->target_attrs) + 1;
+	fmstate->p_flinfo = (FmgrInfo *) palloc0(sizeof(FmgrInfo) * n_params);
+	fmstate->p_nums = 0;
+
+	if (operation == CMD_UPDATE || operation == CMD_DELETE)
+	{
+		/* Find the ctid resjunk column in the subplan's result */
+		Plan	   *subplan = mtstate->mt_plans[subplan_index]->plan;
+
+		
+		/* In the current version, always use the first column in the table to id a row */
+		fmstate->idAttno = 1;
+		
+		if (!AttributeNumberIsValid(fmstate->idAttno))
+			elog(ERROR, "could not find id column");
+
+		/* First transmittable parameter will be ctid */
+		getTypeOutputInfo(TIDOID, &typefnoid, &isvarlena);
+		fmgr_info(typefnoid, &fmstate->p_flinfo[fmstate->p_nums]);
+		fmstate->p_nums++;
+	}
+
+	if (operation == CMD_INSERT || operation == CMD_UPDATE)
+	{
+		/* Set up for remaining transmittable parameters */
+		foreach(lc, fmstate->target_attrs)
+		{
+			int			attnum = lfirst_int(lc);
+			Form_pg_attribute attr = RelationGetDescr(rel)->attrs[attnum - 1];
+
+			Assert(!attr->attisdropped);
+
+			getTypeOutputInfo(attr->atttypid, &typefnoid, &isvarlena);
+			fmgr_info(typefnoid, &fmstate->p_flinfo[fmstate->p_nums]);
+			fmstate->p_nums++;
+		}
+	}
+
+	Assert(fmstate->p_nums <= n_params);
+
+	resultRelInfo->ri_FdwState = fmstate;
+}
+
+char* buildQueryStringFromParams(char *query_fmt, int p_nums, char **p_values)
+{
+	
 	
 }
 
 TupleTableSlot *tdsExecForeignInsert(EState *estate, ResultRelInfo *resultRelInfo, TupleTableSlot *slot, TupleTableSlot *planSlot)
 {
+	PgFdwModifyState *fmstate = (PgFdwModifyState *) resultRelInfo->ri_FdwState;
+	const char **p_values;
+	PGresult   *res;
+	int			n_rows;
+	char* query;
+
+	/* Convert parameters needed by prepared statement to text form */
+	p_values = convert_prep_stmt_params(fmstate, NULL, slot);
 	
+	/* build the query string */
+	query = buildQueryStringFromParams(fmstate->query, fmstate->p_nums, p_values);
+
+	/*
+	 * Execute the statement.
+	 */
+	 
+	if ((erc = dbcmd(fmstate->dbproc, query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set current query to %s", festate->query)
+			));
+	}
+	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+	
+	if ((erc = dbsqlexec(festate->dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", festate->query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Query executed correctly")
+		));
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Getting results")
+		));				
+
+	erc = dbresults(festate->dbproc);
+	
+	if (erc == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to get results from query %s", festate->query)
+			));
+	}
+	
+	else if (erc == NO_MORE_RESULTS)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("There appears to be no results from query %s", festate->query)
+			));
+	}
+	
+	else if (erc == SUCCEED)
+	{
+		n_rows = 0;
+		
+		while ((ret_code = dbnextrow(f,state->dbproc)) != NO_MORE_ROWS)
+		{
+			int ncol;
+			
+			switch (ret_code)
+			{
+				case REG_ROW:
+					n_rows++;
+					
+					if (has_returning)
+					{
+						/* implement this later */
+					}
+			}
+		}
+	}
+
+	/* And clean up */
+	if (fmstate->query)
+	{
+		pfree(festate->query);
+	}
+	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Closing database connection")
+		));
+	
+	dbclose(fmstate->dbproc);
+	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Freeing login structure")
+		));
+	
+	dbloginfree(fmstate->login);
+	
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Closing DB-Library")
+		));
+	
+	dbexit();
+
+	MemoryContextReset(fmstate->temp_cxt);
+
+	/* Return NULL if nothing was inserted on the remote end */
+	return (n_rows > 0) ? slot : NULL;
 }
 
 TupleTableSlot *tdsExecForeignUpdate(EState *estate, ResultRelInfo *resultRelInfo, TupleTableSlot *slot, TupleTableSlot *planSlot)

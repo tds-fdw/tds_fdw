@@ -946,7 +946,6 @@ deparseInsertSql(StringInfo buf, PlannerInfo *root,
 
 		appendStringInfoString(buf, ") VALUES (");
 
-		pindex = 1;
 		first = true;
 		foreach(lc, targetAttrs)
 		{
@@ -954,8 +953,9 @@ deparseInsertSql(StringInfo buf, PlannerInfo *root,
 				appendStringInfoString(buf, ", ");
 			first = false;
 
-			appendStringInfo(buf, "$%d", pindex);
-			pindex++;
+			/* we are going to use dbfcmd, which uses similar formatting as sprintf.
+				just write %s instead of column value for now*/
+			appendStringInfo(buf, "%s", "%s");
 		}
 
 		appendStringInfoChar(buf, ')');
@@ -993,7 +993,6 @@ deparseUpdateSql(StringInfo buf, PlannerInfo *root,
 	deparseRelation(buf, rel);
 	appendStringInfoString(buf, " SET ");
 
-	pindex = 2;					/* ctid is always the first param */
 	first = true;
 	foreach(lc, targetAttrs)
 	{
@@ -1004,10 +1003,14 @@ deparseUpdateSql(StringInfo buf, PlannerInfo *root,
 		first = false;
 
 		deparseColumnRef(buf, rtindex, attnum, root);
-		appendStringInfo(buf, " = $%d", pindex);
-		pindex++;
+		/* we are going to use dbfcmd, which uses similar formatting as sprintf.
+			just write %s instead of column value for now*/
+		appendStringInfo(buf, " = %s", "%s");
 	}
-	appendStringInfoString(buf, " WHERE ctid = $1");
+	appendStringInfoString(buf, " WHERE ");
+	/* the current version always uses the first column as the id column */
+	deparseColumnRef(buf, rtindex, 1, root);
+	appendStringInfoString(buf, " = %s");
 
 	deparseReturningList(buf, root, rtindex, rel,
 					   rel->trigdesc && rel->trigdesc->trig_update_after_row,
@@ -1030,7 +1033,12 @@ deparseDeleteSql(StringInfo buf, PlannerInfo *root,
 {
 	appendStringInfoString(buf, "DELETE FROM ");
 	deparseRelation(buf, rel);
-	appendStringInfoString(buf, " WHERE ctid = $1");
+	appendStringInfoString(buf, " WHERE ");
+	/* the current version always uses the first column as the id column */
+	deparseColumnRef(buf, rtindex, 1, root);
+	/* we are going to use dbfcmd, which uses similar formatting as sprintf.
+		just write %s instead of column value for now*/
+	appendStringInfoString(buf, " = %s");
 
 	deparseReturningList(buf, root, rtindex, rel,
 					   rel->trigdesc && rel->trigdesc->trig_delete_after_row,

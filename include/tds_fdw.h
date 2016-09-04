@@ -118,6 +118,30 @@ typedef struct TdsFdwExecutionState
 	MemoryContext mem_cxt;
 } TdsFdwExecutionState;
 
+typedef struct TdsFdwModifyState
+{
+	Relation	rel;			/* relcache entry for the foreign table */
+	AttInMetadata *attinmeta;	/* attribute datatype conversion metadata */
+
+	/* for remote query execution */
+	LOGINREC *login;
+	DBPROCESS *dbproc;
+
+	/* extracted fdw_private data */
+	char	   *query;			/* text of INSERT/UPDATE/DELETE command */
+	List	   *target_attrs;	/* list of target attribute numbers */
+	bool		has_returning;	/* is there a RETURNING clause? */
+	List	   *retrieved_attrs;	/* attr numbers retrieved by RETURNING */
+
+	/* info about parameters for prepared statement */
+	AttrNumber	idAttno;		/* attnum of input resjunk column used to id a row in updates and deletes */
+	int			p_nums;			/* number of parameters to transmit */
+	FmgrInfo   *p_flinfo;		/* output conversion functions for them */
+
+	/* working memory context */
+	MemoryContext temp_cxt;		/* context for per-tuple temporary data */
+} TdsFdwModifyState;
+
 /* Callback argument for ec_member_matches_foreign */
 typedef struct
 {
