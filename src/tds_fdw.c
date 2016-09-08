@@ -3058,7 +3058,8 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 					numeric_precision_radix,
 					numeric_scale,
 					datetime_precision;
-		bool		first_item = true;
+		bool		first_column = true;
+		bool		first_table = true;
 
 		prev_table[0] = '\0';
 
@@ -3163,9 +3164,9 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 						));
 
 					/* Build query for the new table */
-					if (prev_table[0] == '\0' || strcmp(prev_table, table_name) != 0)
+					if (first_table || strcmp(prev_table, table_name) != 0)
 					{
-						if (prev_table[0] != '\0')
+						if (!first_table)
 						{
 							/*
 							 * Add server name and table-level options.  We specify remote
@@ -3188,11 +3189,12 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 						resetStringInfo(&buf);
 						appendStringInfo(&buf, "CREATE FOREIGN TABLE %s (\n",
 										 quote_identifier(table_name));
-						first_item = true;
+						first_column = true;
+						first_table = false;
 					}
 
-					if (first_item)
-						first_item = false;
+					if (first_column)
+						first_column = false;
 					else
 						appendStringInfoString(&buf, ",\n");
 
