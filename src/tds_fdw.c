@@ -479,6 +479,13 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			tds_version = DBVERSION_73;
 		}
 		#endif
+
+                #ifdef DBVERSION_74
+                else if (strcmp(option_set->tds_version, "7.4") == 0)
+                {
+                        tds_version = DBVERSION_74;
+                }
+                #endif
 		
 		if (tds_version == DBVERSION_UNKNOWN)
 		{

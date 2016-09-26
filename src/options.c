@@ -363,6 +363,13 @@ void tdsGetForeignServerOptions(List *options_list, TdsFdwOptionSet *option_set)
 				tds_version_test = 1;
 			}
 			#endif
+
+                        #ifdef DBVERSION_74
+                        else if (strcmp(option_set->tds_version, "7.4") == 0)
+                        {
+                                tds_version_test = 1;
+                        }
+                        #endif
 			
 			if (!tds_version_test)
 			{
