@@ -1839,7 +1839,6 @@ cleanup:
 	dbclose(dbproc);
 	dbloginfree(login);
 		
-cleanup_before_login:
 	dbexit();
 	
 cleanup_before_init:
@@ -1892,7 +1891,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
         add_path(baserel,
                 (Path *) create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost,
                         NIL, NULL, NIL));
-#if (PG_VERSION_NUM < 90600)	
+#elif (PG_VERSION_NUM < 90600)	
 	add_path(baserel, 
 		(Path *) create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost,
 			NIL, NULL, NULL, NIL));
