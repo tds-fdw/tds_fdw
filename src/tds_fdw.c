@@ -1880,14 +1880,18 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 	
 	tdsEstimateCosts(root, baserel, &startup_cost, &total_cost, foreigntableid);
 
-#if (PG_VERSION_NUM >= 90500)	
+#if (PG_VERSION_NUM < 90500)
+        add_path(baserel,
+                (Path *) create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost,
+                        NIL, NULL, NIL));
+#if (PG_VERSION_NUM < 90600)	
 	add_path(baserel, 
 		(Path *) create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost,
 			NIL, NULL, NULL, NIL));
 #else
 	add_path(baserel, 
-		(Path *) create_foreignscan_path(root, baserel, baserel->rows, startup_cost, total_cost,
-			NIL, NULL, NIL));
+		(Path *) create_foreignscan_path(root, baserel, NULL, baserel->rows, startup_cost, total_cost,
+			NIL, NULL, NULL, NIL));
 #endif
 	
 	#ifdef DEBUG
