@@ -3251,8 +3251,7 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 						appendStringInfoString(&buf, " date");
 					else if (strcmp(data_type, "datetime") == 0 ||
 							 strcmp(data_type, "datetime2") == 0 ||
-							 strcmp(data_type, "smalldatetime") == 0 ||
-							 strcmp(data_type, "timestamp") == 0)
+							 strcmp(data_type, "smalldatetime") == 0)
 						appendStringInfo(&buf, " timestamp(%d) without time zone", (datetime_precision > 6) ? 6 : datetime_precision);
 					else if (strcmp(data_type, "datetimeoffset") == 0)
 						appendStringInfo(&buf, " timestamp(%d) with time zone", (datetime_precision > 6) ? 6 : datetime_precision);
@@ -3278,7 +3277,9 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 					/* Binary types */
 					else if (strcmp(data_type, "binary") == 0 ||
 						strcmp(data_type, "varbinary") == 0 ||
-						strcmp(data_type, "image") == 0)
+						strcmp(data_type, "image") == 0 ||
+						strcmp(data_type, "rowversion") == 0 ||
+						strcmp(data_type, "timestamp") == 0 )
 						appendStringInfoString(&buf, " bytea");
 
 					/* Other types */
