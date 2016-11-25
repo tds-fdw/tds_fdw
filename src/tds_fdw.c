@@ -2795,15 +2795,8 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
 	#endif
 }
 
-typedef enum
-{
-	EXEC_FAILED,
-	EXEC_FALSE,
-	EXEC_TRUE
-} EXEC_RESULT;
-
-static EXEC_RESULT
-tdsExecuteQuery(char *query, DBPROCESS *dbproc, bool fail_on_exec)
+static bool
+tdsExecuteQuery(char *query, DBPROCESS *dbproc)
 {
 	RETCODE		erc;
 
@@ -2831,16 +2824,10 @@ tdsExecuteQuery(char *query, DBPROCESS *dbproc, bool fail_on_exec)
 
 	if ((erc = dbsqlexec(dbproc)) == FAIL)
 	{
-		/*
-		 * We use fail_on_exec to check existance of system tables.
-		 */
-		if (fail_on_exec)
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-					errmsg("Failed to execute query %s", query)
-				));
-		else
-			return EXEC_FAILED;
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", query)
+			));
 	}
 
 	ereport(DEBUG3,
@@ -2894,13 +2881,14 @@ cleanup:
 			));
 	#endif
 
-	return (erc == SUCCEED) ? EXEC_TRUE : EXEC_FALSE;
+	return (erc == SUCCEED);
 }
 
 #ifdef IMPORT_API
 
 static List *
 tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
+						 TdsFdwOptionSet option_set,
 						 bool import_default, bool import_not_null)
 {
 	List	   *commands = NIL;
@@ -2911,6 +2899,23 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	int			ret_code;
 
 	initStringInfo(&buf);
+
+	/* Check that the schema really exists */
+	appendStringInfoString(&buf, "SELECT schema_name FROM information_schema.schemata WHERE schema_name = ");
+	deparseStringLiteral(&buf, stmt->remote_schema);
+
+	if (!tdsExecuteQuery(buf.data, dbproc))
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_SCHEMA_NOT_FOUND),
+		  errmsg("schema \"%s\" is not present on foreign server \"%s\"",
+				 stmt->remote_schema, option_set.servername)));
+	else
+		/* Process results */
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			/* Do nothing */
+		}
+	resetStringInfo(&buf);
 
 	/*
 	 * Fetch all table data from this schema, possibly restricted by
@@ -2967,7 +2972,7 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	/* Append ORDER BY at the end of query to ensure output ordering */
 	appendStringInfoString(&buf, " ORDER BY t.table_name, c.ordinal_position");
 
-	if (tdsExecuteQuery(buf.data, dbproc, true))
+	if (tdsExecuteQuery(buf.data, dbproc))
 	{
 		char		table_name[255],
 					prev_table[255],
@@ -3272,6 +3277,7 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 
 static List *
 tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
+					  TdsFdwOptionSet option_set,
 					  bool import_default, bool import_not_null)
 {
 	List	   *commands = NIL;
@@ -3282,6 +3288,23 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	int			ret_code;
 
 	initStringInfo(&buf);
+
+	/* Check that the schema really exists */
+	appendStringInfoString(&buf, "SELECT name FROM sysusers WHERE name = ");
+	deparseStringLiteral(&buf, stmt->remote_schema);
+
+	if (!tdsExecuteQuery(buf.data, dbproc))
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_SCHEMA_NOT_FOUND),
+		  errmsg("schema \"%s\" is not present on foreign server \"%s\"",
+				 stmt->remote_schema, option_set.servername)));
+	else
+		/* Process results */
+		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+		{
+			/* Do nothing */
+		}
+	resetStringInfo(&buf);
 
 	/*
 	 * Fetch all table data from this schema, possibly restricted by
@@ -3301,7 +3324,7 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 						   "  END AS is_nullable, "
 						   "  sc.length, "
 						   "  sc.prec, "
-						   "  sc.scale, "
+						   "  sc.scale "
 						   "FROM sysobjects so "
 						   "  INNER JOIN sysusers su ON su.uid = so.uid"
 						   "  LEFT JOIN syscolumns sc ON sc.id = so.id "
@@ -3339,7 +3362,7 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	/* Append ORDER BY at the end of query to ensure output ordering */
 	appendStringInfoString(&buf, " ORDER BY so.name, sc.colid");
 
-	if (tdsExecuteQuery(buf.data, dbproc, true))
+	if (tdsExecuteQuery(buf.data, dbproc))
 	{
 		char		table_name[255],
 					prev_table[255],
@@ -3634,8 +3657,6 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 
 	LOGINREC   *login;
 	DBPROCESS  *dbproc;
-	int			ret_code;
-	EXEC_RESULT exec_res;
 
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -3709,58 +3730,83 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 		goto cleanup_before_login;
 	}
 
-	/* Create workspace for strings */
-	initStringInfo(&buf);
-
-	/* Check that the schema really exists */
-
-	/* First check for MS SQL Server */
-	appendStringInfoString(&buf, "SELECT schema_name FROM information_schema.schemata WHERE schema_name = ");
-	deparseStringLiteral(&buf, stmt->remote_schema);
-
 	if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
 	{
 		goto cleanup;
 	}
 
-	exec_res = tdsExecuteQuery(buf.data, dbproc, false);
+	/* Create workspace for strings */
+	initStringInfo(&buf);
 
-	/* It's seems we connected to Sybase. So check schema for Sybase */
-	if (exec_res == EXEC_FAILED)
-	{
-		resetStringInfo(&buf);
-		appendStringInfoString(&buf, "SELECT name FROM sysusers WHERE name = ");
-		deparseStringLiteral(&buf, stmt->remote_schema);
+	/* Determine server: is MS Sql Server or Sybase */
+	appendStringInfoString(&buf, "SELECT CHARINDEX('Microsoft', @@version) AS is_sql_server");
 
-		if (tdsExecuteQuery(buf.data, dbproc, true) == EXEC_FALSE)
-			ereport(ERROR,
-					(errcode(ERRCODE_FDW_SCHEMA_NOT_FOUND),
-			  errmsg("schema \"%s\" is not present on foreign server \"%s\"",
-					 stmt->remote_schema, option_set.servername)));
-		/* We connected to Sybase server */
-		is_sql_server = false;
-	}
-
-	if (exec_res == EXEC_FALSE)
+	if (!tdsExecuteQuery(buf.data, dbproc))
 		ereport(ERROR,
-				(errcode(ERRCODE_FDW_SCHEMA_NOT_FOUND),
-		  errmsg("schema \"%s\" is not present on foreign server \"%s\"",
-				 stmt->remote_schema, option_set.servername)));
+			(errcode(ERRCODE_FDW_ERROR),
+				errmsg("Failed to check server version")
+			));
 	else
-		/* Process results */
-		while ((ret_code = dbnextrow(dbproc)) != NO_MORE_ROWS)
+	{
+		RETCODE		erc;
+		int			ret_code,
+					is_sql_server_pos;
+
+		erc = dbbind(dbproc, 1, INTBIND, sizeof(int), (BYTE *) &is_sql_server_pos);
+		if (erc == FAIL)
 		{
-			/* Do nothing */
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"is_sql_server\" to a variable.")
+				));
 		}
 
-	resetStringInfo(&buf);
+		/* Process result */
+		ret_code = dbnextrow(dbproc);
+		if (ret_code == NO_MORE_ROWS)
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_ERROR),
+					errmsg("Failed to check server version")
+				));
+
+		switch (ret_code)
+		{
+			case REG_ROW:
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: is_sql_server %d", is_sql_server_pos)
+					));
+
+				if (is_sql_server_pos == 0)
+					is_sql_server = false;
+
+				break;
+
+			case BUF_FULL:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+						errmsg("Buffer filled up while getting plan for query")
+					));
+
+			case FAIL:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+						errmsg("Failed to get row while getting plan for query")
+					));
+
+			default:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+						errmsg("Failed to get plan for query. Unknown return code.")
+					));
+		}
+	}
 
 	if (is_sql_server)
-		commands = tdsImportSqlServerSchema(stmt, dbproc, import_default,
-											import_not_null);
+		commands = tdsImportSqlServerSchema(stmt, dbproc, option_set,
+											import_default, import_not_null);
 	else
-		commands = tdsImportSybaseSchema(stmt, dbproc, import_default,
-										 import_not_null);
+		commands = tdsImportSybaseSchema(stmt, dbproc, option_set,
+										 import_default, import_not_null);
 
 cleanup:
 	dbclose(dbproc);
