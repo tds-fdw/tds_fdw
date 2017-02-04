@@ -1431,7 +1431,7 @@ deparseConst(Const *node, deparse_expr_cxt *context)
 	extval = OidOutputFunctionCall(typoutput, node->constvalue);
 	
 	/*
-	 * Append ::typename unless the constant will be implicitly typed as the
+	 * Append "CAST(" typename unless the constant will be implicitly typed as the
 	 * right type when it is read in.
 	 *
 	 * XXX this code has to be kept in sync with the behavior of the parser,
@@ -1637,7 +1637,7 @@ deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 		(void) exprIsLengthCoercion((Node *) node, &coercedTypmod);
 
 		deparseExpr((Expr *) linitial(node->args), context);
-		appendStringInfo(buf, "::%s",
+		appendStringInfo(buf, " as %s",
 						 deparse_type_name(rettype, coercedTypmod));
 		return;
 	}
@@ -1847,7 +1847,7 @@ deparseRelabelType(RelabelType *node, deparse_expr_cxt *context)
 {
 	deparseExpr(node->arg, context);
 	if (node->relabelformat != COERCE_IMPLICIT_CAST)
-		appendStringInfo(context->buf, "::%s",
+		appendStringInfo(context->buf, " as %s",
 						 deparse_type_name(node->resulttype,
 										   node->resulttypmod));
 }
@@ -1940,7 +1940,7 @@ deparseArrayExpr(ArrayExpr *node, deparse_expr_cxt *context)
 
 	/* If the array is empty, we need an explicit cast to the array type. */
 	if (node->elements == NIL)
-		appendStringInfo(buf, "::%s",
+		appendStringInfo(buf, " as %s",
 						 deparse_type_name(node->array_typeid, -1));
 }
 
@@ -1959,7 +1959,7 @@ printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod,
 	StringInfo	buf = context->buf;
 	char	   *ptypename = deparse_type_name(paramtype, paramtypmod);
 
-	appendStringInfo(buf, "$%d::%s", paramindex, ptypename);
+	appendStringInfo(buf, "CAST($%d as %s)", paramindex, ptypename);
 }
 
 /*
@@ -1969,8 +1969,8 @@ printRemoteParam(int paramindex, Oid paramtype, int32 paramtypmod,
  * This is used when we're just trying to EXPLAIN the remote query.
  * We don't have the actual value of the runtime parameter yet, and we don't
  * want the remote planner to generate a plan that depends on such a value
- * anyway.  Thus, we can't do something simple like "$1::paramtype".
- * Instead, we emit "((SELECT null::paramtype)::paramtype)".
+ * anyway.  Thus, we can't do something simple like "CAST($1 as paramtype)".
+ * Instead, we emit "(CAST((SELECT CAST(null as paramtype)) as paramtype))".
  * In all extant versions of Postgres, the planner will see that as an unknown
  * constant value, which is what we want.  This might need adjustment if we
  * ever make the planner flatten scalar subqueries.  Note: the reason for the
@@ -1985,7 +1985,7 @@ printRemotePlaceholder(Oid paramtype, int32 paramtypmod,
 	StringInfo	buf = context->buf;
 	char	   *ptypename = deparse_type_name(paramtype, paramtypmod);
 
-	appendStringInfo(buf, "((SELECT null::%s)::%s)", ptypename, ptypename);
+	appendStringInfo(buf, "(CAST((SELECT CAST(null as %s)) as %s))", ptypename, ptypename);
 }
 
 /*
