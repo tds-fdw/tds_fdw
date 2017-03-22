@@ -32,6 +32,10 @@ See [installing tds_fdw on CentOS](InstallCentOS.md).
 
 See [installing tds_fdw on Ubuntu](InstallUbuntu.md).
 
+## Installing on OSX
+
+See [installing tds_fdw on OSX](InstallOSX.md).
+
 ## Usage
 
 ### Foreign server
