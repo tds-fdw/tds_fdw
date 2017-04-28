@@ -23,6 +23,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* Override PGDLLEXPORT for visibility */
+
+#include "visibility.h"
+
 /* postgres headers */
 
 #include "postgres.h"
@@ -111,7 +115,7 @@ enum FdwScanPrivateIndex
 PG_FUNCTION_INFO_V1(tds_fdw_handler);
 PG_FUNCTION_INFO_V1(tds_fdw_validator);
 
-Datum tds_fdw_handler(PG_FUNCTION_ARGS)
+PGDLLEXPORT Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 {
 	FdwRoutine *fdwroutine = makeNode(FdwRoutine);
 	
@@ -149,7 +153,7 @@ Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(fdwroutine);
 }
 
-Datum tds_fdw_validator(PG_FUNCTION_ARGS)
+PGDLLEXPORT Datum tds_fdw_validator(PG_FUNCTION_ARGS)
 {
 	List *options_list = untransformRelOptions(PG_GETARG_DATUM(0));
 	Oid catalog = PG_GETARG_OID(1);
