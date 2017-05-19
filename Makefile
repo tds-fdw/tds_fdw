@@ -15,7 +15,7 @@
 # the proprietary implementations of DB-Library.
 #----------------------------------------------------------------------------
 
-EXTENSION = tds_fdw
+EXTENSION = tds_fdwa
 
 MODULE_big = $(EXTENSION)
 
