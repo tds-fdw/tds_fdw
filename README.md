@@ -32,7 +32,7 @@ See [installing tds_fdw on CentOS](InstallCentOS.md).
 
 See [installing tds_fdw on Ubuntu](InstallUbuntu.md).
 
-## Installing on CentOS
+## Installing on OpenSUSE
 
 See [installing tds_fdw on OpenSUSE](InstallOpenSUSE.md).
 
