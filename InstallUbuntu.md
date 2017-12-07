@@ -37,7 +37,7 @@ If you'd like to use one of the release packages, you can download and install t
 
 ```bash
 wget https://github.com/tds-fdw/tds_fdw/archive/v1.0.7.tar.gz
-tar -xvzf tds_fdw-1.0.7.tar.gz
+tar -xvzf v1.0.7.tar.gz
 cd tds_fdw-1.0.7
 make USE_PGXS=1
 sudo make USE_PGXS=1 install
