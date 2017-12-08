@@ -22,7 +22,14 @@ It does support WHERE and column pushdowns when *match_column_names* is enabled.
 
 ## Build Status
 
-[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/)
+|                |    centos6    |  ubuntu14.04 |
+| --------------:|:-------------:|:------------:|
+| **PostgreSQL 9.2** |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.2,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.2,label=docker)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.2,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.2,label=docker)|
+| **PostgreSQL 9.3** |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.3,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.3,label=docker)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.3,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.3,label=docker)|
+| **PostgreSQL 9.4** |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.4,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.4,label=docker)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.4,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.4,label=docker)|
+| **PostgreSQL 9.5** |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.5,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.5,label=docker)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.5,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.5,label=docker)|
+| **PostgreSQL 9.6** |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.6,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=9.6,label=docker)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.6,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=9.6,label=docker)|
+| **PostgreSQL 10**  |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=10,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=centos6,PG_VER=10,label=docker)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=10,label=docker/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu14.04,PG_VER=10,label=docker)|
 
 ## Installing on CentOS
 
