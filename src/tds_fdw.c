@@ -2905,7 +2905,7 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	initStringInfo(&buf);
 
 	/* Check that the schema really exists */
-	appendStringInfoString(&buf, "SELECT schema_name FROM information_schema.schemata WHERE schema_name = ");
+	appendStringInfoString(&buf, "SELECT schema_name FROM INFORMATION_SCHEMA.SCHEMATA WHERE schema_name = ");
 	deparseStringLiteral(&buf, stmt->remote_schema);
 
 	if (!tdsExecuteQuery(buf.data, dbproc))
@@ -2940,8 +2940,8 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 						   "  c.numeric_precision_radix, "
 						   "  c.numeric_scale, "
 						   "  c.datetime_precision "
-						   "FROM information_schema.tables t "
-						   "  LEFT JOIN information_schema.columns c ON "
+						   "FROM INFORMATION_SCHEMA.TABLES t "
+						   "  LEFT JOIN INFORMATION_SCHEMA.COLUMNS c ON "
 						   "    t.table_schema = c.table_schema "
 						   "      AND t.table_name = c.table_name "
 						   "WHERE t.table_type = 'BASE TABLE' "
