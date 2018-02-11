@@ -2,6 +2,7 @@ from glob import glob
 from json import load
 from messages import print_error, print_info
 from os.path import basename
+from re import match
 
 
 def version_to_array(version, dbtype):
@@ -13,14 +14,18 @@ def version_to_array(version, dbtype):
     dbtype  -- A string with the database type (postgresql|mssql)
     """
     if version != '':
+        # Cleanup version, since Ubuntu decided to add their own
+        # versioning starting with PostgreSQL 10.2:
+        # '10.2 (Ubuntu 10.2-1.pgdg14.04+1' instead of '10.2'
+        version = match('(\d[\.\d]+).*', version).group(1)
         version = version.split('.')
         for i in range(0, len(version)):
             version[i] = int(version[i])
-    # To be able to work with MSSQL 2000 and 7.0,
-    # see https://sqlserverbuilds.blogspot.ru/
-    if dbtype == 'mssql':
-        if len(version) == 3:
-            version.append(0)
+        # To be able to work with MSSQL 2000 and 7.0,
+        # see https://sqlserverbuilds.blogspot.ru/
+        if dbtype == 'mssql':
+            if len(version) == 3:
+                version.append(0)
     return(version)
 
 
