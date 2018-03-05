@@ -1741,11 +1741,14 @@ deparseOpExpr(OpExpr *node, deparse_expr_cxt *context)
 
 static void deparseTdsOperatorNameFromPgOp(StringInfo buf, char* opname)
 {
-	if (strncmp(opname, "!~~", NAMEDATALEN) == 0)
+	if (strncmp(opname, "!~~", NAMEDATALEN) == 0 || strncmp(opname, "!~~*", NAMEDATALEN) == 0)
 	{
 		appendStringInfoString(buf, "NOT LIKE");
 	}
-	
+	else if (strncmp(opname, "~~", NAMEDATALEN) == 0 || strncmp(opname, "~~*", NAMEDATALEN) == 0)
+    {
+        appendStringInfoString(buf, "LIKE");
+    }
 	else
 	{
 		appendStringInfoString(buf, opname);
