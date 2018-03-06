@@ -3209,6 +3209,8 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					/* Other types */
 					else if (strcmp(data_type, "xml") == 0)
 						appendStringInfoString(&buf, " xml");
+					else if (strcmp(data_type, "uniqueidentifier") == 0)
+						appendStringInfoString(&buf, " uuid");
 					else
 					{
 						ereport(DEBUG3,
