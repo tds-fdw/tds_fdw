@@ -764,7 +764,7 @@ deparseSelectSql(StringInfo buf,
 	/*
 	 * Construct FROM clause
 	 */
-	appendStringInfoString(buf, " FROM ");
+	//appendStringInfoString(buf, " FROM "); //! PPV move to deparseRelation
 	deparseRelation(buf, rel);
 
 	heap_close(rel, NoLock);
@@ -1244,12 +1244,21 @@ deparseRelation(StringInfo buf, Relation rel)
 	if (relname == NULL)
 		relname = RelationGetRelationName(rel);*/
 
-	if (nspname == NULL)
-		appendStringInfo(buf, "%s",
-					 relname);
-	else
-		appendStringInfo(buf, "%s.%s",
-					 tds_quote_identifier(nspname), tds_quote_identifier(relname));
+
+	if (relname != NULL) {
+		appendStringInfoString(buf, " FROM ");
+		if (nspname == NULL)
+			appendStringInfo(buf, "%s",
+				relname);
+		else
+			appendStringInfo(buf, "%s.%s",
+				tds_quote_identifier(nspname), tds_quote_identifier(relname));
+	}
+	else {
+		// from clause miss. query like this:    "select current_date() as curdt"
+	}
+
+	
 }
 
 /*
