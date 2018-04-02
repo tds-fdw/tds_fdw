@@ -3229,8 +3229,10 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					appendStringInfoChar(&buf, ')');
 
 					/* Add DEFAULT if needed */
-					if (import_default && column_default[0] != '\0')
-						appendStringInfo(&buf, " DEFAULT %s", column_default);
+					//PPV disabled due to the use of built-in functions for the default value. (fails on IMPORT FOREIGN SCHEMA...)
+					//in addition, this property is useless. we do not create local tables. just view (foreign table)
+					//if (import_default && column_default[0] != '\0')
+					//	appendStringInfo(&buf, " DEFAULT %s", column_default);
 
 					/* Add NOT NULL if needed */
 					if (import_not_null && strcmp(is_nullable, "NO") == 0)

@@ -127,8 +127,8 @@ typedef struct
 
 /* functions called via SQL */
 
-extern Datum tds_fdw_handler(PG_FUNCTION_ARGS);
-extern Datum tds_fdw_validator(PG_FUNCTION_ARGS);
+extern PGDLLEXPORT Datum tds_fdw_handler(PG_FUNCTION_ARGS);
+extern PGDLLEXPORT Datum tds_fdw_validator(PG_FUNCTION_ARGS);
 
 /* FDW callback routines */
 
