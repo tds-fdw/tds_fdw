@@ -51,6 +51,7 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set);
 static struct TdsFdwOption valid_options[] =
 {
 	{ "servername",				ForeignServerRelationId },
+	{ "instance_name",			ForeignServerRelationId },
 	{ "language",				ForeignServerRelationId },
 	{ "character_set",			ForeignServerRelationId },
 	{ "port",					ForeignServerRelationId },
@@ -261,6 +262,17 @@ void tdsGetForeignServerOptions(List *options_list, TdsFdwOptionSet *option_set)
 					
 			option_set->servername = defGetString(def);	
 		}
+		else if (strcmp(def->defname, "instance_name") == 0)
+		{
+			if (option_set->instance_name)
+				ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+					errmsg("Redundant option: instance_name (%s)", defGetString(def))
+					));
+
+			option_set->instance_name = defGetString(def);
+		}
+
 		
 		else if (strcmp(def->defname, "language") == 0)
 		{
@@ -738,6 +750,26 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
 				));
 		#endif
 	}
+
+	if (!option_set->instance_name)
+	{
+		char * inst_name = "";
+		if ((option_set->instance_name = palloc((strlen(inst_name) + 1) * sizeof(char))) == NULL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+					errmsg("Failed to allocate memory for instance_name")
+					));
+		}
+
+		sprintf(option_set->instance_name, "%s", inst_name);
+
+#ifdef DEBUG
+		ereport(NOTICE,
+			(errmsg("Set instance_name to default: %s", option_set->instance_name)
+				));
+#endif
+	}
 	
 	if (!option_set->row_estimate_method)
 	{
@@ -918,6 +950,7 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	#endif
 
 	option_set->servername = NULL;
+	option_set->instance_name = NULL;
 	option_set->language = NULL;
 	option_set->character_set = NULL;
 	option_set->port = 0;

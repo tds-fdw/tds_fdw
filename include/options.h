@@ -17,6 +17,7 @@ typedef struct TdsFdwOption
 typedef struct TdsFdwOptionSet
 {
 	char *servername;
+	char *instance_name;
 	char *language;
 	char *character_set;
 	int port;

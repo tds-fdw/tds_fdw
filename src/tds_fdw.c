@@ -68,6 +68,10 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
+//#include <freetds/tds.h>
+//#include <freetds/configs.h>
+
+
 /* #define DEBUG */
 
 PG_MODULE_MAGIC;
@@ -75,6 +79,8 @@ PG_MODULE_MAGIC;
 #include "tds_fdw.h"
 #include "options.h"
 #include "deparse.h"
+
+
 
 /* run on module load */
 
@@ -517,11 +523,15 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	
 	conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char));
 	
-	if (option_set->port)
-	{
-		sprintf(conn_string, "%s:%i", option_set->servername, option_set->port);
-	}
-	
+	 if (option_set->instance_name) 
+	 {
+		sprintf(conn_string, "%s\\%s", option_set->servername, option_set->instance_name);
+	 }
+	 else if (option_set->port)
+	 {
+		 sprintf(conn_string, "%s:%i", option_set->servername, option_set->port);
+	 }
+	 
 	else
 	{
 		sprintf(conn_string, "%s", option_set->servername);
@@ -1441,7 +1451,9 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				));
 			
 			column->local_index = ncol;
-			column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
+			//!\PPV fix crash on index miss!
+			if(ncol < festate->attinmeta->tupdesc->natts)
+				column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
 		}
 		
 		ereport(DEBUG3,
