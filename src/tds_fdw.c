@@ -1407,7 +1407,8 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 						(errmsg("tds_fdw: Comparing retrieved column name to the following local column name: %s", local_name)
 						));
 
-					if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
+					//! \PPV local_name always in lowcase. But column->name's register defined in sql server. so you should ignore case
+					if (strnicmp(local_name, column->name, NAMEDATALEN) == 0)
 					{
 						ereport(DEBUG3,
 							(errmsg("tds_fdw: It matches!")
