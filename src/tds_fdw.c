@@ -523,7 +523,7 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	
 	conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char));
 	
-	 if (option_set->instance_name) 
+	 if (strlen(option_set->instance_name))
 	 {
 		sprintf(conn_string, "%s\\%s", option_set->servername, option_set->instance_name);
 	 }
