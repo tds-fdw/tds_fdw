@@ -3239,7 +3239,7 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					appendStringInfoChar(&buf, ')');
 
 
-#ifdef IGNORE_DEFAULT_COLUMN_VALUES
+#ifndef IGNORE_DEFAULT_COLUMN_VALUES
 					/* Add DEFAULT if needed */					
 					if (import_default && column_default[0] != '\0')
 						appendStringInfo(&buf, " DEFAULT %s", column_default);
