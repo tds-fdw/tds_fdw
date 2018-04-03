@@ -764,7 +764,6 @@ deparseSelectSql(StringInfo buf,
 	/*
 	 * Construct FROM clause
 	 */
-	//appendStringInfoString(buf, " FROM "); //! PPV move to deparseRelation
 	deparseRelation(buf, rel);
 
 	heap_close(rel, NoLock);

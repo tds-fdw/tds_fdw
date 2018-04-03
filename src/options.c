@@ -95,8 +95,7 @@ static const int DEFAULT_MATCH_COLUMN_NAMES = 1;
 
 /* by default we use remote estimates */
 
-//static const int DEFAULT_USE_REMOTE_ESTIMATE = 1;
-static const int DEFAULT_USE_REMOTE_ESTIMATE = 0;  //! \PPV https://www.postgresql.org/docs/9.3/static/postgres-fdw.html The default is false. otherwise, it triggers a triple same query 
+static const int DEFAULT_USE_REMOTE_ESTIMATE = 0;  //! https://www.postgresql.org/docs/9.3/static/postgres-fdw.html The default is false. otherwise, it triggers a triple same query execution
 
 /* by default we use remote estimates */
 

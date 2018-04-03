@@ -68,9 +68,6 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
-//#include <freetds/tds.h>
-//#include <freetds/configs.h>
-
 
 /* #define DEBUG */
 
@@ -3241,11 +3238,16 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					deparseStringLiteral(&buf, column_name);
 					appendStringInfoChar(&buf, ')');
 
-					/* Add DEFAULT if needed */
-					//PPV disabled due to the use of built-in functions for the default value. (fails on IMPORT FOREIGN SCHEMA...)
-					//in addition, this property is useless. we do not create local tables. just view (foreign table)
-					//if (import_default && column_default[0] != '\0')
-					//	appendStringInfo(&buf, " DEFAULT %s", column_default);
+
+#ifdef IGNORE_DEFAULT_COLUMN_VALUES
+					/* Add DEFAULT if needed */					
+					if (import_default && column_default[0] != '\0')
+						appendStringInfo(&buf, " DEFAULT %s", column_default);
+#endif  /* PG_VERSION_NUM */
+
+
+
+				
 
 					/* Add NOT NULL if needed */
 					if (import_not_null && strcmp(is_nullable, "NO") == 0)

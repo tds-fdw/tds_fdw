@@ -40,8 +40,10 @@
 
 #include "options.h"
 
+
 #if PG_VERSION_NUM >= 90500
 #define IMPORT_API
+#define IGNORE_DEFAULT_COLUMN_VALUES //this flag disable default col values for CREATE FOREIGN TABLE syntax due to the use of built-in functions for the default value. (fails on IMPORT FOREIGN SCHEMA...)
 #else
 #undef IMPORT_API
 #endif  /* PG_VERSION_NUM */
