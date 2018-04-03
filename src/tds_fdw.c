@@ -68,6 +68,7 @@
 #include <sybfront.h>
 #include <sybdb.h>
 
+
 /* #define DEBUG */
 
 PG_MODULE_MAGIC;
@@ -75,6 +76,8 @@ PG_MODULE_MAGIC;
 #include "tds_fdw.h"
 #include "options.h"
 #include "deparse.h"
+
+
 
 /* run on module load */
 
@@ -517,11 +520,15 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	
 	conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char));
 	
-	if (option_set->port)
-	{
-		sprintf(conn_string, "%s:%i", option_set->servername, option_set->port);
-	}
-	
+	 if (strlen(option_set->instance_name))
+	 {
+		sprintf(conn_string, "%s\\%s", option_set->servername, option_set->instance_name);
+	 }
+	 else if (option_set->port)
+	 {
+		 sprintf(conn_string, "%s:%i", option_set->servername, option_set->port);
+	 }
+	 
 	else
 	{
 		sprintf(conn_string, "%s", option_set->servername);
@@ -1407,7 +1414,8 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 						(errmsg("tds_fdw: Comparing retrieved column name to the following local column name: %s", local_name)
 						));
 
-					if (strncmp(local_name, column->name, NAMEDATALEN) == 0)
+					//! \PPV local_name always in lowcase. But column->name's register defined in sql server. so you should ignore case
+					if (strnicmp(local_name, column->name, NAMEDATALEN) == 0)
 					{
 						ereport(DEBUG3,
 							(errmsg("tds_fdw: It matches!")
@@ -1440,7 +1448,9 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				));
 			
 			column->local_index = ncol;
-			column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
+			//!\PPV fix crash on index miss!
+			if(ncol < festate->attinmeta->tupdesc->natts)
+				column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
 		}
 		
 		ereport(DEBUG3,
@@ -3228,9 +3238,16 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					deparseStringLiteral(&buf, column_name);
 					appendStringInfoChar(&buf, ')');
 
-					/* Add DEFAULT if needed */
+
+#ifndef IGNORE_DEFAULT_COLUMN_VALUES
+					/* Add DEFAULT if needed */					
 					if (import_default && column_default[0] != '\0')
 						appendStringInfo(&buf, " DEFAULT %s", column_default);
+#endif  /* PG_VERSION_NUM */
+
+
+
+				
 
 					/* Add NOT NULL if needed */
 					if (import_not_null && strcmp(is_nullable, "NO") == 0)

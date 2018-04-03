@@ -1,0 +1,10 @@
+# This file is used to ignore files which are generated
+# ----------------------------------------------------------------------------
+/freetds
+/.vs
+/*.vcx*
+/*.sln
+/x64
+/*.user
+/*.opendb
+/*.db
