@@ -695,7 +695,11 @@ deparse_type_name(Oid type_oid, int32 typemod)
 	if (is_builtin(type_oid))
 		return format_type_with_typemod(type_oid, typemod);
 	else
+		#if (PG_VERSION_NUM >= 110000)
+		return format_type_extended(type_oid, typemod, FORMAT_TYPE_FORCE_QUALIFY);
+		#else
 		return format_type_with_typemod_qualified(type_oid, typemod);
+		#endif
 	#else
 	return format_type_with_typemod(type_oid, typemod);
 	#endif
@@ -808,7 +812,7 @@ deparseTargetList(StringInfo buf,
 	first = true;
 	for (i = 1; i <= tupdesc->natts; i++)
 	{
-		Form_pg_attribute attr = tupdesc->attrs[i - 1];
+		Form_pg_attribute attr = TupleDescAttr(tupdesc, i - 1);
 
 		/* Ignore dropped attributes. */
 		if (attr->attisdropped)
@@ -1122,7 +1126,7 @@ deparseAnalyzeSql(StringInfo buf, Relation rel, List **retrieved_attrs)
 	for (i = 0; i < tupdesc->natts; i++)
 	{
 		/* Ignore dropped columns. */
-		if (tupdesc->attrs[i]->attisdropped)
+		if (TupleDescAttr(tupdesc, i)->attisdropped)
 			continue;
 
 		if (!first)
@@ -1130,7 +1134,7 @@ deparseAnalyzeSql(StringInfo buf, Relation rel, List **retrieved_attrs)
 		first = false;
 
 		/* Use attribute name or column_name option. */
-		colname = NameStr(tupdesc->attrs[i]->attname);
+		colname = NameStr(TupleDescAttr(tupdesc, i)->attname);
 		options = GetForeignColumnOptions(relid, i + 1);
 
 		foreach(lc, options)

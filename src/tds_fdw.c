@@ -1275,9 +1275,7 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 	festate->row = 0;
 	festate->mem_cxt = AllocSetContextCreate(estate->es_query_cxt,
 											   "tds_fdw data",
-											   ALLOCSET_DEFAULT_MINSIZE,
-											   ALLOCSET_DEFAULT_INITSIZE,
-											   ALLOCSET_DEFAULT_MAXSIZE);
+											   ALLOCSET_DEFAULT_SIZES);
 	
 cleanup:
 	;
@@ -1392,7 +1390,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 						
 						local_name = defGetString(def);
 						column->local_index = local_ncol;
-						column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
+						column->attr_oid = TupleDescAttr(festate->attinmeta->tupdesc, local_ncol)->atttypid;
 						local_columns_found[local_ncol] = 1;
 						break;
 					}
@@ -1401,7 +1399,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				if (!local_name)
 				{
 				
-					local_name = festate->attinmeta->tupdesc->attrs[local_ncol]->attname.data;
+					local_name = TupleDescAttr(festate->attinmeta->tupdesc, local_ncol)->attname.data;
 					
 					ereport(DEBUG3,
 						(errmsg("tds_fdw: Comparing retrieved column name to the following local column name: %s", local_name)
@@ -1414,7 +1412,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 							));
 						
 						column->local_index = local_ncol;
-						column->attr_oid = festate->attinmeta->tupdesc->attrs[local_ncol]->atttypid;
+						column->attr_oid = TupleDescAttr(festate->attinmeta->tupdesc, local_ncol)->atttypid;
 						local_columns_found[local_ncol] = 1;
 						break;
 					}
@@ -1440,7 +1438,7 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 				));
 			
 			column->local_index = ncol;
-			column->attr_oid = festate->attinmeta->tupdesc->attrs[ncol]->atttypid;
+			column->attr_oid = TupleDescAttr(festate->attinmeta->tupdesc, ncol)->atttypid;
 		}
 		
 		ereport(DEBUG3,
@@ -1455,11 +1453,11 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 			if (local_columns_found[ncol] == 0)
 			{
 				ereport(WARNING,
- 					(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
- 					errmsg("Table definition mismatch: Could not match local column %s"
- 					" with column from foreign table",
- 					festate->attinmeta->tupdesc->attrs[ncol]->attname.data)
- 				));
+					(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
+					errmsg("Table definition mismatch: Could not match local column %s"
+					" with column from foreign table",
+					TupleDescAttr(festate->attinmeta->tupdesc, ncol)->attname.data)
+				));
 
 				/* pretend this is NULL, so Pg won't try to access an invalid Datum */
 				festate->isnull[ncol] = 1;
