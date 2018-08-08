@@ -158,6 +158,21 @@ FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *b
 List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid);
 #endif  /* IMPORT_API */
 
+/* compatibility with PostgreSQL 9.6+ */
+#ifndef ALLOCSET_DEFAULT_SIZES
+#define ALLOCSET_DEFAULT_SIZES \
+ALLOCSET_DEFAULT_MINSIZE, ALLOCSET_DEFAULT_INITSIZE, ALLOCSET_DEFAULT_MAXSIZE
+#endif
+
+/* compatibility with PostgreSQL v11+ */
+#if PG_VERSION_NUM < 110000
+/* new in v11 */
+#define TupleDescAttr(tupdesc, i) ((tupdesc)->attrs[(i)])
+#else
+/* removed in v11 */
+#define get_relid_attribute_name(relid, varattno) get_attname((relid), (varattno), false)
+#endif
+
 /* Helper functions */
 
 bool is_builtin(Oid objectId);
