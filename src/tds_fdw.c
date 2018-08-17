@@ -91,6 +91,13 @@ static bool show_after_row_memory_stats = false;
 
 static const double DEFAULT_FDW_SORT_MULTIPLIER=1.2;
 
+/* error handling */
+
+static char* last_error_message = NULL;
+
+static int tds_err_capture(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr);
+static char *tds_err_msg(int severity, int dberr, int oserr, char *dberrstr, char *oserrstr);
+
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
  *
@@ -405,7 +412,7 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 
 int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc)
 {
-	char* conn_string;
+	char *servers;
 	RETCODE erc;
 	
 	#ifdef DEBUG
@@ -515,39 +522,76 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			));	
 	}
 	
-	conn_string = palloc((strlen(option_set->servername) + 10) * sizeof(char));
-	
-	if (option_set->port)
+	/* set an error handler that does not abort */
+	dberrhandle(tds_err_capture);
+
+	/* try all server names until we find a good one */
+	servers = option_set->servername;
+	while (servers != NULL)
 	{
-		sprintf(conn_string, "%s:%i", option_set->servername, option_set->port);
-	}
-	
-	else
-	{
-		sprintf(conn_string, "%s", option_set->servername);
-	}
-	
-	ereport(DEBUG3,
-		(errmsg("tds_fdw: Connection string is %s", conn_string)
-		));
-	ereport(DEBUG3,
-		(errmsg("tds_fdw: Connecting to server")
-		));
-	
-	if ((*dbproc = dbopen(login, conn_string)) == NULL)
-	{
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
-				errmsg("Failed to connect using connection string %s with user %s", conn_string, option_set->username)
+		/* find the length of the next server name */
+		char *next_server = strchr(servers, ',');
+		int server_len = next_server == NULL ? strlen(servers) : next_server - servers;
+
+		/* construct a connect string */
+		char *conn_string = palloc(server_len + 10);
+		strncpy(conn_string, servers, server_len);
+		if (option_set->port)
+			sprintf(conn_string + server_len, ":%i", option_set->port);
+		else
+			conn_string[server_len] = '\0';
+
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Connection string is %s", conn_string)
 			));
+		ereport(DEBUG3,
+			(errmsg("tds_fdw: Connecting to server")
+			));
+
+		/* try to connect */
+		if ((*dbproc = dbopen(login, conn_string)) == NULL)
+		{
+			/* failure, will continue with the next server */
+			ereport(DEBUG3,
+				(errmsg("Failed to connect using connection string %s with user %s", conn_string, option_set->username)
+				));
+
+			pfree(conn_string);
+		}
+		else
+		{
+			/* success, break the loop */
+			ereport(DEBUG3,
+				(errmsg("tds_fdw: Connected successfully")
+				));
+
+			pfree(conn_string);
+			break;
+		}
+
+		/* skip the comma if appropriate */
+		servers = next_server ? next_server + 1 : NULL;
 	}
-	
-	ereport(DEBUG3,
-		(errmsg("tds_fdw: Connected successfully")
-		));
-	
-	pfree(conn_string);
-	
+
+	/* report an error if all connections fail */
+	if (*dbproc == NULL)
+	{
+		if (last_error_message)
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+					errmsg("%s", last_error_message)
+				));
+		else
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+					errmsg("Failed to connect to server %s with user %s", option_set->servername, option_set->username)
+				));
+	}
+
+	/* set the normal error handler again */
+	dberrhandle(tds_err_handler);
+	last_error_message = NULL;
+
 	if (option_set->database && option_set->dbuse)
 	{
 		ereport(DEBUG3,
@@ -3832,39 +3876,44 @@ cleanup_before_init:
 }
 #endif  /* IMPORT_API */
 
+char *tds_err_msg(int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
+{
+	StringInfoData buf;
+
+	initStringInfo(&buf);
+	appendStringInfo(
+			&buf,
+			"DB-Library error: DB #: %i, DB Msg: %s, OS #: %i, OS Msg: %s, Level: %i",
+			dberr,
+			dberrstr ? dberrstr : "",
+			oserr,
+			oserrstr ? oserrstr : "",
+			severity
+	);
+
+	return buf.data;
+}
+
+int tds_err_capture(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
+{
+	last_error_message = tds_err_msg(severity, dberr, oserr, dberrstr, oserrstr);
+
+	return INT_CANCEL;
+}
+
 int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
 {
-	char* empty_errmsg = "";
-
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tds_err_handler")
 			));
 	#endif
 
-        if (dberrstr == NULL)
-        {
-                dberrstr = empty_errmsg;
-        }
-
-
-	if (oserrstr == NULL)
-	{
-		oserrstr = empty_errmsg;
-	}
-	
 	ereport(ERROR,
 		(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-		errmsg("DB-Library error: DB #: %i, DB Msg: %s, OS #: %i, OS Msg: %s, Level: %i",
-			dberr, dberrstr, oserr, oserrstr, severity)
+		errmsg("%s", tds_err_msg(severity, dberr, oserr, dberrstr, oserrstr))
 		));	
 	
-	#ifdef DEBUG
-		ereport(NOTICE,
-			(errmsg("----> finishing tds_err_handler")
-			));
-	#endif
-
 	return INT_CANCEL;
 }
 
