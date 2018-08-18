@@ -527,6 +527,7 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 
 	/* try all server names until we find a good one */
 	servers = option_set->servername;
+	last_error_message = NULL;
 	while (servers != NULL)
 	{
 		/* find the length of the next server name */
@@ -590,7 +591,6 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 
 	/* set the normal error handler again */
 	dberrhandle(tds_err_handler);
-	last_error_message = NULL;
 
 	if (option_set->database && option_set->dbuse)
 	{
