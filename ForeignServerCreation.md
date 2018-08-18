@@ -19,6 +19,10 @@ Default: 127.0.0.1
 The servername, address or hostname of the foreign server server.  
   
 This can be a DSN, as specified in *freetds.conf*. See [FreeTDS name lookup](http://www.freetds.org/userguide/name.lookup.htm).
+
+You can set this option to a comma separated list of server names, then each
+server is tried until the first connection succeeds.  
+This is useful for automatic fail-over to a secondary server.
 				
 * *port*  
   
