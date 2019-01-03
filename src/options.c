@@ -382,7 +382,7 @@ void tdsGetForeignServerOptions(List *options_list, TdsFdwOptionSet *option_set)
 
 		else if (strcmp(def->defname, "msg_handler") == 0)
 		{
-			int msg_handler_test;
+			int msg_handler_test = 0;
 			
 			if (option_set->msg_handler)
 				ereport(ERROR,
