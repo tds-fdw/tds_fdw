@@ -35,6 +35,19 @@ sudo rpm -ivh pgdg-centos95-9.5-2.noarch.rpm
 sudo yum install postgresql95 postgresql95-server postgresql95-libs postgresql95-devel
 ```
 
+### CentOS7 and PostgreSQL >= 11
+
+When using the official PostgreSQL packages from postgresql.org, JIT with bitcode is enabled by default and will require llvm5 and `clang` from LLVM7 installed at `/opt/rh/llvm-toolset-7/root/usr/bin/clang`
+
+You have LLVM5 at the standard CentOS7 repositories, but not LLVM7, so you will need install the CentOS Software collections.
+
+You can easily do it with the following commands:
+
+```bash
+sudo yum install centos-release-scl
+sudo yum install llvm-toolset-7-clang llvm5.0
+```
+
 ### Install tds_fdw
 
 #### Build from release package
