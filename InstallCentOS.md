@@ -6,7 +6,17 @@
 
 ## Installing on CentOS/RHEL
 
-This document will show how to install tds_fdw on CentOS 6. Other CentOS and RHEL distributions should be similar. 
+This document will show how to install tds_fdw on CentOS 6 and 7. RHEL distributions should be similar. 
+
+### Install PostgreSQL
+
+If you need to install PostgreSQL, do so by following the [yum installation directions](https://wiki.postgresql.org/wiki/YUM_Installation). For example, to install PostgreSQL 9.5 on CentOS 7:
+
+```bash
+wget https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-2.noarch.rpm
+sudo rpm -ivh pgdg-centos95-9.5-2.noarch.rpm
+sudo yum install postgresql95 postgresql95-server postgresql95-libs postgresql95-devel
+```
 
 ### Install EPEL
 
@@ -25,19 +35,36 @@ such as [FreeTDS](http://www.freetds.org).
 sudo yum install freetds freetds-devel
 ```
 
-### Install PostgreSQL
+### Option A: Yum (released versions)
 
-If you need to install PostgreSQL, do so by following the [yum installation directions](https://wiki.postgresql.org/wiki/YUM_Installation). For example, to install PostgreSQL 9.5 on CentOS 7:
+The project maintains a yum repository for CentOS6 and CentOS7 at [https://tds-fdw.github.io/yum/](https://tds-fdw.github.io/yum/)
+
+From this repository you can install the packages for released versions (starting with 2.0.0-apha.3)
+
+Simply add the repository to your system with the following command, as root
 
 ```bash
-wget https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-2.noarch.rpm
-sudo rpm -ivh pgdg-centos95-9.5-2.noarch.rpm
-sudo yum install postgresql95 postgresql95-server postgresql95-libs postgresql95-devel
+curl https://tds-fdw.github.io/yum/tds_fdw.repo -o /etc/yum.repos.d/tds_fdw.repo
 ```
 
-### CentOS7 and PostgreSQL >= 11
+And then install the package, for example for PostgreSQL 9.5:
+```bash
+yum install postgresql-95-tds_fdw
+```
 
-When using the official PostgreSQL packages from postgresql.org, JIT with bitcode is enabled by default and will require llvm5 and `clang` from LLVM7 installed at `/opt/rh/llvm-toolset-7/root/usr/bin/clang`
+As both the metadata for the repository and the packages are signed with GPG, you will need to accept the GPG public key.
+
+The details for the GPG public key, in case you want to doublecheck, are:
+```
+Key        : 0x9E416BBF
+Fingerprint: 9cf6 0f27 53c5 4d64 01f0 66a5 41c3 07f4 9e41 6bbf
+```
+
+### Option B: Compile tds_fdw
+
+#### CentOS7 and PostgreSQL >= 11
+
+When using the official PostgreSQL packages from postgresql.org, JIT with bitcode is enabled by default and will require llvm5 and `clang` from LLVM7 installed at `/opt/rh/llvm-toolset-7/root/usr/bin/clang` to be able to compile.
 
 You have LLVM5 at the standard CentOS7 repositories, but not LLVM7, so you will need install the CentOS Software collections.
 
@@ -47,8 +74,6 @@ You can easily do it with the following commands:
 sudo yum install centos-release-scl
 sudo yum install llvm-toolset-7-clang llvm5.0
 ```
-
-### Install tds_fdw
 
 #### Build from release package
 
@@ -73,6 +98,8 @@ cd tds_fdw
 PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1
 sudo PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1 install
 ```
+
+### Final steps
 
 #### Start server 
 
