@@ -37,7 +37,7 @@ If you'd like to use one of the release packages, you can download and install t
 wget https://github.com/tds-fdw/tds_fdw/archive/v1.0.7.tar.gz
 tar -xvzf tds_fdw-1.0.7.tar.gz
 cd tds_fdw-1.0.7
-make USE_PGXS=1
+make USE_PGXS=1 PG_CPPFLAGS="-I./include/ -I/usr/local/include/ -fvisibility=hidden"
 sudo make USE_PGXS=1 install
 ```
 
@@ -48,7 +48,7 @@ If you would rather use the current development version, you can clone and build
 ```bash
 git clone https://github.com/tds-fdw/tds_fdw.git
 cd tds_fdw
-make USE_PGXS=1
+make USE_PGXS=1 PG_CPPFLAGS="-I./include/ -I/usr/local/include/ -fvisibility=hidden"
 sudo make USE_PGXS=1 install
 ```
 
