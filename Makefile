@@ -36,7 +36,8 @@ PG_CONFIG    = pg_config
 
 # modify these variables to point to FreeTDS, if needed
 SHLIB_LINK := -lsybdb
-PG_CPPFLAGS := -I./include/ -fvisibility=hidden
+TDS_INCLUDE :=
+PG_CPPFLAGS := -I./include/ -fvisibility=hidden ${TDS_INCLUDE}
 # PG_LIBS :=
 
 all: sql/$(EXTENSION)--$(EXTVERSION).sql README.${EXTENSION}.md
