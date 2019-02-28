@@ -3381,7 +3381,7 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	 * first place.)
 	 */
 	appendStringInfoString(&buf,
-						   "SELECT so.name AS table_name,"
+						   "SELECT so.name AS table_name, "
 						   "  sc.name AS column_name, "
 						   "  st.name AS data_type, "
 						   "  SUBSTRING(sm.text, 10, 255) AS column_default, "
@@ -3391,11 +3391,11 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 						   "  sc.length, "
 						   "  sc.prec, "
 						   "  sc.scale "
-						   "FROM sysobjects so "
-						   "  INNER JOIN sysusers su ON su.uid = so.uid"
-						   "  LEFT JOIN syscolumns sc ON sc.id = so.id "
-						   "  LEFT JOIN systypes st ON st.usertype = sc.usertype "
-						   "  LEFT JOIN syscomments sm ON sm.id = sc.cdefault "
+						   "FROM dbo.sysobjects so "
+						   "  INNER JOIN dbo.sysusers su ON su.uid = so.uid "
+						   "  LEFT JOIN dbo.syscolumns sc ON sc.id = so.id "
+						   "  LEFT JOIN dbo.systypes st ON st.usertype = sc.usertype "
+						   "  LEFT JOIN dbo.syscomments sm ON sm.id = sc.cdefault "
 						   "WHERE so.type = 'U' AND su.name = ");
 
 	deparseStringLiteral(&buf, stmt->remote_schema);
