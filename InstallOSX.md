@@ -17,7 +17,7 @@ such as [FreeTDS](http://www.freetds.org).
 brew install freetds
 ```
 
-Note: If you install FreeTDS from another source, e.g. [MacPorts](https://www.macports.org), you might have to adjust the value for `TDS_INCLUDE` in the make calls below.
+Note: If you install FreeTDS from another source, e.g. [MacPorts](https://www.macports.org), you might have to adjust the value for `TDS_INCLUDE` in the make calls below  (e.g. `-I/opt/local/include/freetds` for MacPorts).
 
 ### Install PostgreSQL
 
@@ -39,7 +39,7 @@ If you'd like to use one of the release packages, you can download and install t
 wget https://github.com/tds-fdw/tds_fdw/archive/v1.0.7.tar.gz
 tar -xvzf tds_fdw-1.0.7.tar.gz
 cd tds_fdw-1.0.7
-make USE_PGXS=1 TDS_INCLUDE=-/usr/local/include/
+make USE_PGXS=1 TDS_INCLUDE=-I/usr/local/include/
 sudo make USE_PGXS=1 install
 ```
 
@@ -50,7 +50,7 @@ If you would rather use the current development version, you can clone and build
 ```bash
 git clone https://github.com/tds-fdw/tds_fdw.git
 cd tds_fdw
-make USE_PGXS=1 TDS_INCLUDE=-/usr/local/include/
+make USE_PGXS=1 TDS_INCLUDE=-I/usr/local/include/
 sudo make USE_PGXS=1 install
 ```
 
@@ -61,6 +61,8 @@ If this is a fresh installation, then start the server:
 ```bash
 brew services start postgresql
 ```
+
+Or the equivalent command if you are not using Homebrew.
 
 #### Install extension
 
