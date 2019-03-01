@@ -10,7 +10,7 @@
 # This is a PostgreSQL foreign data wrapper for use to connect to databases that use TDS,
 # such as Sybase databases and Microsoft SQL server.
 #
-# This foreign data wrapper requires requires a library that uses the DB-Library interface,
+# This foreign data wrapper requires a library that uses the DB-Library interface,
 # such as FreeTDS (http://www.freetds.org/). This has been tested with FreeTDS, but not
 # the proprietary implementations of DB-Library.
 #----------------------------------------------------------------------------
@@ -36,14 +36,15 @@ PG_CONFIG    = pg_config
 
 # modify these variables to point to FreeTDS, if needed
 SHLIB_LINK := -lsybdb
-PG_CPPFLAGS := -I./include/ -fvisibility=hidden
+TDS_INCLUDE :=
+PG_CPPFLAGS := -I./include/ -fvisibility=hidden ${TDS_INCLUDE}
 # PG_LIBS :=
 
 all: sql/$(EXTENSION)--$(EXTVERSION).sql README.${EXTENSION}.md
 
 sql/$(EXTENSION)--$(EXTVERSION).sql: sql/$(EXTENSION).sql
 	cp $< $@
-	
+
 README.${EXTENSION}.md: README.md
 	cp $< $@
 
