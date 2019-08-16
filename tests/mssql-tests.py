@@ -56,9 +56,10 @@ def main():
         print_usage_error(path.basename(__file__), e)
         exit(2)
     try:
+        # For our tests, tds_version 7.1 is enough
         conn = connect(server=args.server, user=args.username,
                        password=args.password, database=args.database,
-                       port=args.port)
+                       port=args.port, tds_version='7.1')
         replaces = {'@SCHEMANAME': args.schema}
         tests = run_tests('tests/mssql/*.sql', conn, replaces, 'mssql')
         print_report(tests['total'], tests['ok'], tests['errors'])
