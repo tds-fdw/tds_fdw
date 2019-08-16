@@ -6,7 +6,7 @@
 
 ## Installing on Ubuntu
 
-This document will show how to install tds_fdw on Ubuntu 14.04. Other Ubuntu distributions should be similar. 
+This document will show how to install tds_fdw on Ubuntu 16.04. Other Ubuntu distributions should be similar.
 
 ### Install FreeTDS
 
