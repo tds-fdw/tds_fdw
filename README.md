@@ -38,9 +38,9 @@ See [installing tds_fdw on CentOS](InstallCentOS.md).
 
 See [installing tds_fdw on Ubuntu](InstallUbuntu.md).
 
-## Installing on OpenSUSE
+## Installing on openSUSE
 
-See [installing tds_fdw on OpenSUSE](InstallOpenSUSE.md).
+See [installing tds_fdw on openSUSE](InstallopenSUSE.md).
 
 ## Installing on OSX
 

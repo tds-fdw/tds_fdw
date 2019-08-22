@@ -4,9 +4,9 @@
 * **Name:** tds_fdw
 * **File:** tds_fdw/InstallopenSUSE.md
 
-## Installing on OpenSUSE
+## Installing on openSUSE
 
-This document will show how to install tds_fdw on openSUSE Leap 42.3. Other OpenSUSE and SUSE distributions should be similar. 
+This document will show how to install tds_fdw on openSUSE Leap 15.1. Other openSUSE and SUSE distributions should be similar. 
 
 ### Install FreeTDS
 
@@ -19,10 +19,10 @@ sudo zypper install freetds freetds-dev
 
 ### Install PostgreSQL
 
-If you need to install PostgreSQL, for example, 9.5:
+If you need to install PostgreSQL, for example, 10.X:
 
 ```bash
-sudo zypper install postgresql95 postgresql95-server postgresql95-devel
+sudo zypper install postgresql10 postgresql10-server postgresql10-devel
 ```
 
 ### Install tds_fdw
