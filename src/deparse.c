@@ -64,7 +64,11 @@
 #include "commands/defrem.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/clauses.h"
+#if (PG_VERSION_NUM < 120000)
 #include "optimizer/var.h"
+#else
+#include "optimizer/optimizer.h"
+#endif
 #include "parser/parsetree.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
@@ -147,7 +151,11 @@ static void deparseExpr(Expr *expr, deparse_expr_cxt *context);
 static void deparseVar(Var *node, deparse_expr_cxt *context);
 static void deparseConst(Const *node, deparse_expr_cxt *context);
 static void deparseParam(Param *node, deparse_expr_cxt *context);
+#if (PG_VERSION_NUM < 120000)
 static void deparseArrayRef(ArrayRef *node, deparse_expr_cxt *context);
+#else
+static void deparseSubscriptingRef(SubscriptingRef *node, deparse_expr_cxt *context);
+#endif
 static void deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context);
 static void deparseOpExpr(OpExpr *node, deparse_expr_cxt *context);
 static void deparseOperatorName(StringInfo buf, Form_pg_operator opform);
@@ -333,7 +341,7 @@ foreign_expr_walker(Node *node,
 	switch (nodeTag(node))
 	{
 /*		
-	deleted cases from postgres_fdw for T_ArrayRef, T_FuncExpr, T_ScalarArrayOpExpr, T_ArrayExpr, 
+	deleted cases from postgres_fdw for T_ArrayRef/T_SubscriptingRef, T_FuncExpr, T_ScalarArrayOpExpr, T_ArrayExpr, 
 	which should never be pushed down to Sybase / MS SQL Server from PostgreSQL
 
 */
@@ -1315,9 +1323,15 @@ deparseExpr(Expr *node, deparse_expr_cxt *context)
 		case T_Param:
 			deparseParam((Param *) node, context);
 			break;
+		#if (PG_VERSION_NUM < 120000)
 		case T_ArrayRef:
 			deparseArrayRef((ArrayRef *) node, context);
 			break;
+		#else
+		case T_SubscriptingRef:
+			deparseSubscriptingRef((SubscriptingRef *) node, context);
+			break;
+		#endif
 		case T_FuncExpr:
 			deparseFuncExpr((FuncExpr *) node, context);
 			break;
@@ -1554,7 +1568,11 @@ deparseParam(Param *node, deparse_expr_cxt *context)
  * Deparse an array subscript expression.
  */
 static void
+#if (PG_VERSION_NUM < 120000)
 deparseArrayRef(ArrayRef *node, deparse_expr_cxt *context)
+#else
+deparseSubscriptingRef(SubscriptingRef *node, deparse_expr_cxt *context)
+#endif
 {
 	StringInfo	buf = context->buf;
 	ListCell   *lowlist_item;

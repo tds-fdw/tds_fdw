@@ -45,7 +45,11 @@
 #include "optimizer/cost.h"
 #include "optimizer/paths.h"
 #include "optimizer/prep.h"
+#if (PG_VERSION_NUM < 120000)
 #include "optimizer/var.h"
+#else
+#include "optimizer/optimizer.h"
+#endif
 #include "storage/fd.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
@@ -1837,8 +1841,11 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 				}
 
 				tuple = heap_form_tuple(node->ss.ss_currentRelation->rd_att, festate->datums, festate->isnull);
+#if PG_VERSION_NUM < 120000
 				ExecStoreTuple(tuple, slot, InvalidBuffer, false);
-				
+#else
+				ExecStoreHeapTuple(tuple, slot, false);
+#endif				
 				break;
 				
 			case BUF_FULL:
