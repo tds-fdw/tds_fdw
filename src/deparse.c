@@ -1252,12 +1252,15 @@ deparseRelation(StringInfo buf, Relation rel)
 	 * that doesn't seem worth the trouble.
 	 */
 	 #if PG_VERSION_NUM >= 120000
+	 /* nspname is PostgreSQL schema, and should not be appended */
+	 /*
 	if (nspname == NULL)
 		nspname = get_namespace_name(RelationGetNamespace(rel));
+	*/
 	if (relname == NULL)
 		relname = RelationGetRelationName(rel);
 	#endif
-	
+
 	if (nspname == NULL)
 		appendStringInfo(buf, "%s",
 					 relname);
