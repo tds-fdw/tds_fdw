@@ -44,6 +44,12 @@ def parse_options():
     parser.add_option('--azure', action="store_true", default=False,
                       help='If present, will connect as Azure, otherwise as '
                            'standard MSSQL')
+    parser.add_option('--debugging', action="store_true", default=False,
+                      help='If present, will display debug information and pause '
+                           'after backend PID and before launching tests, will'
+                           ' also display contextual SQL query + detailled '
+                           ' errors')
+
     (options, args) = parser.parse_args()
     # Check for test parameters
     if (options.postgres_server is None or
@@ -78,6 +84,11 @@ def main():
                        password=args.postgres_password,
                        database=args.postgres_database,
                        port=args.postgres_port)
+	if args.debugging:
+	    curs = conn.cursor()
+	    curs.execute("SELECT pg_backend_pid()")
+	    print("Backend PID = %d"%curs.fetchone()[0])
+	    raw_input()
         replaces = {'@PSCHEMANAME': args.postgres_schema,
                     '@PUSER': args.postgres_username,
                     '@MSERVER': args.mssql_server,
@@ -86,7 +97,7 @@ def main():
                     '@MPASSWORD': args.mssql_password,
                     '@MDATABASE': args.mssql_database,
                     '@MSCHEMANAME': args.mssql_schema}
-        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql')
+        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql', args)
         print_report(tests['total'], tests['ok'], tests['errors'])
         if tests['errors'] != 0:
             exit(5)

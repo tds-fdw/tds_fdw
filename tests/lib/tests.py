@@ -55,7 +55,7 @@ def check_ver(conn, min_ver, max_ver, dbtype):
         return(False)
 
 
-def run_tests(path, conn, replaces, dbtype):
+def run_tests(path, conn, replaces, dbtype, args):
     """Run SQL tests over a connection, returns a dict with results.
 
     Keyword arguments:
@@ -90,6 +90,14 @@ def run_tests(path, conn, replaces, dbtype):
                 try:
                     print_error(e.pgcode)
                     print_error(e.pgerror)
+		    if args.debugging:
+			print_error("Sent query : %s"%sentence)
+                        for att in ['column_name','constraint_name','context','datatype_name',
+                                    'internal_position','internal_query','message_detail','message_hint',
+                                    'message_primary','schema_name','severity','severity_nonlocalized',
+                                    'source_file','source_function','source_line','sqlstate',
+                                    'statement_position','table_name']:
+                            print_error("%s : %s"%(att, getattr(e.diag,att)))
                 except:
                     print_error(e)
                 conn.rollback()
