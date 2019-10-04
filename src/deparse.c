@@ -1251,11 +1251,13 @@ deparseRelation(StringInfo buf, Relation rel)
 	 * Note: we could skip printing the schema name if it's pg_catalog, but
 	 * that doesn't seem worth the trouble.
 	 */
+	 #if PG_VERSION_NUM >= 120000
 	if (nspname == NULL)
 		nspname = get_namespace_name(RelationGetNamespace(rel));
 	if (relname == NULL)
 		relname = RelationGetRelationName(rel);
-
+	#endif
+	
 	if (nspname == NULL)
 		appendStringInfo(buf, "%s",
 					 relname);
