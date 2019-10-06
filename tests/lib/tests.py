@@ -56,7 +56,7 @@ def check_ver(conn, min_ver, max_ver, dbtype):
         return(False)
 
 
-def run_tests(path, conn, replaces, dbtype, debugging):
+def run_tests(path, conn, replaces, dbtype, debugging = False):
     """Run SQL tests over a connection, returns a dict with results.
 
     Keyword arguments:
