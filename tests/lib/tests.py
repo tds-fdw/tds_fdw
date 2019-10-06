@@ -91,10 +91,10 @@ def run_tests(path, conn, replaces, dbtype, debugging):
                 try:
                     print_error(e.pgcode)
                     print_error(e.pgerror)
-            if debugging:
-                print_error("Sent query : %s"%sentence)
-                for att in [member for member in dir(Diagnostics) if not member.startswith("__")]:
-                    print_error("%s : %s"%(att, getattr(e.diag,att)))
+                    if debugging:
+                        print_error("Sent query : %s"%sentence)
+                        for att in [member for member in dir(Diagnostics) if not member.startswith("__")]:
+                            print_error("%s : %s"%(att, getattr(e.diag,att)))
                 except:
                     print_error(e)
                 conn.rollback()
