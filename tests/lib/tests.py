@@ -3,6 +3,7 @@ from json import load
 from messages import print_error, print_info
 from os.path import basename
 from re import match
+from psycopg2.extensions import Diagnostics
 
 
 def version_to_array(version, dbtype):
@@ -92,11 +93,7 @@ def run_tests(path, conn, replaces, dbtype, args):
                     print_error(e.pgerror)
 		    if args.debugging:
 			print_error("Sent query : %s"%sentence)
-                        for att in ['column_name','constraint_name','context','datatype_name',
-                                    'internal_position','internal_query','message_detail','message_hint',
-                                    'message_primary','schema_name','severity','severity_nonlocalized',
-                                    'source_file','source_function','source_line','sqlstate',
-                                    'statement_position','table_name']:
+			for att in [member for member in dir(Diagnostics) if not member.startswith("__")]:
                             print_error("%s : %s"%(att, getattr(e.diag,att)))
                 except:
                     print_error(e)
