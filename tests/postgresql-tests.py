@@ -100,7 +100,7 @@ def main():
                     '@MDATABASE': args.mssql_database,
                     '@MSCHEMANAME': args.mssql_schema,
                     '@TDSVERSION' : args.tds_version}
-        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql', args)
+        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql', args.debugging)
         print_report(tests['total'], tests['ok'], tests['errors'])
         if tests['errors'] != 0:
             exit(5)
