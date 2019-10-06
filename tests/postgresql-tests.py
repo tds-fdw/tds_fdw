@@ -49,6 +49,8 @@ def parse_options():
                            'after backend PID and before launching tests, will'
                            ' also display contextual SQL query + detailled '
                            ' errors')
+    parser.add_option('--tds_version', action="store", default="7.1",
+                      help='Specifies th TDS protocol version')
 
     (options, args) = parser.parse_args()
     # Check for test parameters
@@ -96,7 +98,8 @@ def main():
                     '@MUSER': args.mssql_username,
                     '@MPASSWORD': args.mssql_password,
                     '@MDATABASE': args.mssql_database,
-                    '@MSCHEMANAME': args.mssql_schema}
+                    '@MSCHEMANAME': args.mssql_schema,
+                    '@TDSVERSION' : args.tds_version}
         tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql', args)
         print_report(tests['total'], tests['ok'], tests['errors'])
         if tests['errors'] != 0:

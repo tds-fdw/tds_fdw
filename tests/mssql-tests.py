@@ -32,6 +32,8 @@ def parse_options():
     parser.add_option('--azure', action='store_true', default=False,
                       help='If present, will connect as Azure, otherwise as '
                            'standard MSSQL')
+    parser.add_option('--tds_version', action="store", default="7.1",
+                      help='Specifies th TDS protocol version')
     (options, args) = parser.parse_args()
     # Check for test parameters
     if (options.server is None or
@@ -56,10 +58,12 @@ def main():
         print_usage_error(path.basename(__file__), e)
         exit(2)
     try:
-        # For our tests, tds_version 7.1 is enough
+        # For our tests, tds_version 7.1 is enough and is the default
+        # tds_version can be enforced using --tds_version switch
+        # to apply test on a different MSSQL version
         conn = connect(server=args.server, user=args.username,
                        password=args.password, database=args.database,
-                       port=args.port, tds_version='7.1')
+                       port=args.port, tds_version=args.tds_version)
         replaces = {'@SCHEMANAME': args.schema}
         tests = run_tests('tests/mssql/*.sql', conn, replaces, 'mssql')
         print_report(tests['total'], tests['ok'], tests['errors'])
