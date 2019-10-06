@@ -86,11 +86,11 @@ def main():
                        password=args.postgres_password,
                        database=args.postgres_database,
                        port=args.postgres_port)
-	if args.debugging:
-	    curs = conn.cursor()
-	    curs.execute("SELECT pg_backend_pid()")
-	    print("Backend PID = %d"%curs.fetchone()[0])
-	    raw_input()
+        if args.debugging:
+            curs = conn.cursor()
+            curs.execute("SELECT pg_backend_pid()")
+            print("Backend PID = %d"%curs.fetchone()[0])
+            raw_input()
         replaces = {'@PSCHEMANAME': args.postgres_schema,
                     '@PUSER': args.postgres_username,
                     '@MSERVER': args.mssql_server,
