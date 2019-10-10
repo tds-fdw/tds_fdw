@@ -11,6 +11,8 @@ except:
         "psycopg2 library not available, please install it before usage!")
     exit(1)
 
+DEFAULT_TDS_VERSION="7.1"
+
 
 def parse_options():
     """Parse and validate options. Returns a dict with all the options."""
@@ -46,11 +48,14 @@ def parse_options():
                            'standard MSSQL')
     parser.add_option('--debugging', action="store_true", default=False,
                       help='If present, will display debug information and pause '
-                           'after backend PID and before launching tests, will'
-                           ' also display contextual SQL query + detailled '
-                           ' errors')
-    parser.add_option('--tds_version', action="store", default="7.1",
-                      help='Specifies th TDS protocol version')
+                           'after backend PID and before launching tests, will '
+                           'also display contextual SQL query + detailled '
+                           'errors')
+    parser.add_option('--details', action="store_true", default=False,
+                      help='If present, will display contextual SQL query and detailled '
+                           'errors when a test fails.')
+    parser.add_option('--tds_version', action="store", default=DEFAULT_TDS_VERSION,
+                      help='Specifies th TDS protocol version, default="%s"'%DEFAULT_TDS_VERSION)
 
     (options, args) = parser.parse_args()
     # Check for test parameters
@@ -90,6 +95,7 @@ def main():
             curs = conn.cursor()
             curs.execute("SELECT pg_backend_pid()")
             print("Backend PID = %d"%curs.fetchone()[0])
+            print("Press any key to launch tests.")
             raw_input()
         replaces = {'@PSCHEMANAME': args.postgres_schema,
                     '@PUSER': args.postgres_username,
@@ -100,7 +106,7 @@ def main():
                     '@MDATABASE': args.mssql_database,
                     '@MSCHEMANAME': args.mssql_schema,
                     '@TDSVERSION' : args.tds_version}
-        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql', args.debugging)
+        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql', args.details)
         print_report(tests['total'], tests['ok'], tests['errors'])
         if tests['errors'] != 0:
             exit(5)

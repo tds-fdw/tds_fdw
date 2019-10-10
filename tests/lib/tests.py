@@ -56,7 +56,7 @@ def check_ver(conn, min_ver, max_ver, dbtype):
         return(False)
 
 
-def run_tests(path, conn, replaces, dbtype, debugging = False):
+def run_tests(path, conn, replaces, dbtype, details = False):
     """Run SQL tests over a connection, returns a dict with results.
 
     Keyword arguments:
@@ -88,10 +88,12 @@ def run_tests(path, conn, replaces, dbtype, debugging = False):
                 tests['ok'] += 1
             except Exception as e:
                 print_error("Error running %s (%s)" % (test_desc, fname))
+                if details:
+                    print_error("Sent query : %s"%sentence)
                 try:
                     print_error(e.pgcode)
                     print_error(e.pgerror)
-                    if debugging:
+                    if details:
                         print_error("Sent query : %s"%sentence)
                         for att in [member for member in dir(Diagnostics) if not member.startswith("__")]:
                             print_error("%s : %s"%(att, getattr(e.diag,att)))
