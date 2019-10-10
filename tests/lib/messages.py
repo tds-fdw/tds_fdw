@@ -9,22 +9,22 @@ class bcolors:
 
 def print_error(msg):
     """Print an error message in red"""
-    print bcolors.BOLDRED + "[ERROR] %s" % msg + bcolors.RESET
+    print (bcolors.BOLDRED + "[ERROR] %s" % msg + bcolors.RESET)
 
 
 def print_warning(msg):
     """Print a warning message in yellow"""
-    print bcolors.BOLDYELLOW + "[WARNING] %s" % msg + bcolors.RESET
+    print(bcolors.BOLDYELLOW + "[WARNING] %s" % msg + bcolors.RESET)
 
 
 def print_ok(msg):
     """Print an ok message in green"""
-    print bcolors.BOLDGREEN + "[OK] %s" % msg + bcolors.RESET
+    print(bcolors.BOLDGREEN + "[OK] %s" % msg + bcolors.RESET)
 
 
 def print_info(msg):
     """Print an info message in cyan"""
-    print bcolors.BOLDCYAN + "[INFO] %s" % msg + bcolors.RESET
+    print(bcolors.BOLDCYAN + "[INFO] %s" % msg + bcolors.RESET)
 
 
 def print_report(total, ok, error):
@@ -48,6 +48,6 @@ def print_usage_error(script, error):
     script -- A string with the script filename (without path)
     error  -- A string with an error
     """
-    print 'Usage: %s <arguments>' % script
-    print ''
-    print '%s: error: %s' % (script, error)
+    print('Usage: %s <arguments>' % script)
+    print('')
+    print('%s: error: %s' % (script, error))

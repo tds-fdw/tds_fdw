@@ -1,6 +1,6 @@
 from glob import glob
 from json import load
-from messages import print_error, print_info
+from lib.messages import print_error, print_info
 from os.path import basename
 from re import match
 from psycopg2.extensions import Diagnostics
