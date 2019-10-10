@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from lib.messages import print_error, print_info, print_ok, print_report
 from lib.messages import print_usage_error, print_warning
-from lib.tests import run_tests
+from lib.tests import get_logs_path, run_tests
 from optparse import OptionParser
 from os import path
 try:
@@ -52,7 +52,7 @@ def parse_options():
                            'display contextual SQL queries')
     parser.add_option('--unattended_debugging', action="store_true", default=False,
                       help='Same as --debugging, but without pausing and printing '
-                           'dmesg and PostgreSQL log at the end (useful for CI)')
+                           'PostgreSQL logs at the end (useful for CI)')
     parser.add_option('--tds_version', action="store", default=DEFAULT_TDS_VERSION,
                       help='Specifies th TDS protocol version, default="%s"'%DEFAULT_TDS_VERSION)
 
@@ -109,6 +109,12 @@ def main():
         tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql',
                           args.debugging, args.unattended_debugging)
         print_report(tests['total'], tests['ok'], tests['errors'])
+        logs = get_logs_path(conn, 'postgresql')
+        if tests['errors'] != 0 or args.unattended_debugging:
+            for fpath in logs:
+                print_info("=========== Content of %s ===========" % fpath)
+                with open(fpath, "r") as f:
+                    print(f.read())
         if tests['errors'] != 0:
             exit(5)
         else:
