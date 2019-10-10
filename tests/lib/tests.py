@@ -56,7 +56,7 @@ def check_ver(conn, min_ver, max_ver, dbtype):
         return(False)
 
 
-def run_tests(path, conn, replaces, dbtype, details = False):
+def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debugging=False):
     """Run SQL tests over a connection, returns a dict with results.
 
     Keyword arguments:
@@ -80,6 +80,8 @@ def run_tests(path, conn, replaces, dbtype, details = False):
             for key, elem in replaces.items():
                 sentence = sentence.replace(key, elem)
             print_info("%s: Testing %s" % (test_number, test_desc))
+            if debugging or unattended_debugging:
+                print_error("Query : %s" % sentence)
             try:
                 cursor = conn.cursor()
                 cursor.execute(sentence)
@@ -88,15 +90,12 @@ def run_tests(path, conn, replaces, dbtype, details = False):
                 tests['ok'] += 1
             except Exception as e:
                 print_error("Error running %s (%s)" % (test_desc, fname))
-                if details:
-                    print_error("Sent query : %s"%sentence)
+                print_error("Query : %s" % sentence)
                 try:
                     print_error(e.pgcode)
                     print_error(e.pgerror)
-                    if details:
-                        print_error("Sent query : %s"%sentence)
-                        for att in [member for member in dir(Diagnostics) if not member.startswith("__")]:
-                            print_error("%s : %s"%(att, getattr(e.diag,att)))
+                    for att in [member for member in dir(Diagnostics) if not member.startswith("__")]:
+                        print_error("%s: %s"%(att, getattr(e.diag,att)))
                 except:
                     print_error(e)
                 conn.rollback()

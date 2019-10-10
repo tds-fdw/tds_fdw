@@ -9,7 +9,7 @@ class bcolors:
 
 def print_error(msg):
     """Print an error message in red"""
-    print (bcolors.BOLDRED + "[ERROR] %s" % msg + bcolors.RESET)
+    print(bcolors.BOLDRED + "[ERROR] %s" % msg + bcolors.RESET)
 
 
 def print_warning(msg):

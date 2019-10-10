@@ -47,13 +47,12 @@ def parse_options():
                       help='If present, will connect as Azure, otherwise as '
                            'standard MSSQL')
     parser.add_option('--debugging', action="store_true", default=False,
-                      help='If present, will display debug information and pause '
-                           'after backend PID and before launching tests, will '
-                           'also display contextual SQL query + detailled '
-                           'errors')
-    parser.add_option('--details', action="store_true", default=False,
-                      help='If present, will display contextual SQL query and detailled '
-                           'errors when a test fails.')
+                      help='If present, will pause after backend PID and before '
+                           'launching tests (so gdb can be attached. It will also '
+                           'display contextual SQL queries')
+    parser.add_option('--unattended_debugging', action="store_true", default=False,
+                      help='Same as --debugging, but without pausing and printing '
+                           'dmesg and PostgreSQL log at the end (useful for CI)')
     parser.add_option('--tds_version', action="store", default=DEFAULT_TDS_VERSION,
                       help='Specifies th TDS protocol version, default="%s"'%DEFAULT_TDS_VERSION)
 
@@ -91,12 +90,13 @@ def main():
                        password=args.postgres_password,
                        database=args.postgres_database,
                        port=args.postgres_port)
-        if args.debugging:
+        if args.debugging or args.unattended_debugging:
             curs = conn.cursor()
             curs.execute("SELECT pg_backend_pid()")
             print("Backend PID = %d"%curs.fetchone()[0])
-            print("Press any key to launch tests.")
-            raw_input()
+            if not args.unattended_debugging:
+                print("Press any key to launch tests.")
+                raw_input()
         replaces = {'@PSCHEMANAME': args.postgres_schema,
                     '@PUSER': args.postgres_username,
                     '@MSERVER': args.mssql_server,
@@ -106,7 +106,8 @@ def main():
                     '@MDATABASE': args.mssql_database,
                     '@MSCHEMANAME': args.mssql_schema,
                     '@TDSVERSION' : args.tds_version}
-        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql', args.details)
+        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql',
+                          args.debugging, args.unattended_debugging)
         print_report(tests['total'], tests['ok'], tests['errors'])
         if tests['errors'] != 0:
             exit(5)
