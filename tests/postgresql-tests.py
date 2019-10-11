@@ -110,7 +110,7 @@ def main():
                           args.debugging, args.unattended_debugging)
         print_report(tests['total'], tests['ok'], tests['errors'])
         logs = get_logs_path(conn, 'postgresql')
-        if tests['errors'] != 0 or args.unattended_debugging:
+        if (tests['errors'] != 0 or args.unattended_debugging) and not args.debugging:
             for fpath in logs:
                 print_info("=========== Content of %s ===========" % fpath)
                 with open(fpath, "r") as f:
