@@ -1,8 +1,10 @@
 from glob import glob
 from json import load
-from messages import print_error, print_info
-from os.path import basename
+from lib.messages import print_error, print_info
+from os import listdir
+from os.path import basename, isfile, realpath
 from re import match
+from psycopg2.extensions import Diagnostics
 
 
 def version_to_array(version, dbtype):
@@ -54,8 +56,56 @@ def check_ver(conn, min_ver, max_ver, dbtype):
     else:
         return(False)
 
+def get_logs_path(conn, dbtype):
+    """ Get PostgreSQL logs
 
-def run_tests(path, conn, replaces, dbtype):
+    Keyword arguments:
+    conn  -- A db connection (according to Python DB API v2.0)
+    dbtye -- A string with the database type (postgresql|mssql). mssql will return an empty a array.
+    """
+    logs = []
+    if dbtype == 'mssql':
+        return(logs)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT setting FROM pg_catalog.pg_settings WHERE name = 'data_directory';")
+        data_dir = cursor.fetchone()[0]
+    except TypeError:
+        print_error("The user does not have SUPERUSER access to PostgreSQL.")
+        print_error("Cannot access pg_catalog.pg_settings required values, so logs cannot be found")
+        return(logs)
+    cursor.execute("SELECT setting FROM pg_catalog.pg_settings WHERE name = 'log_directory';")
+    log_dir = cursor.fetchone()[0]
+    if log_dir[0] != '/':
+        log_dir = "%s/%s" % (data_dir, log_dir)
+    cursor.execute("SELECT setting FROM pg_catalog.pg_settings WHERE name = 'logging_collector';")
+    # No logging collector, add stdout from postmaster (assume stderr is redirected to stdout)
+    if cursor.fetchone()[0] == 'off':
+        with open("%s/postmaster.pid" % data_dir, "r") as f:
+            postmaster_pid = f.readline().rstrip('\n')
+        postmaster_log = "/proc/%s/fd/1" % postmaster_pid
+        if isfile(postmaster_log):
+            logs.append(realpath(postmaster_log))
+    # Logging collector enabled
+    else:
+        # Add stdout from logger (assume stderr is redirected to stdout)
+        pids = [pid for pid in listdir('/proc') if pid.isdigit()]
+        for pid in pids:
+            try:
+                cmdline = open('/proc/' + pid + '/cmdline', 'rb').read()
+                if 'postgres: logger' in cmdline:
+                    logger_log = "/proc/%s/fd/2" % pid
+                    if isfile(logger_log):
+                        logs.append(realpath(logger_log))
+            except IOError: # proc has already terminated
+                continue
+        # Add all files from log_dir
+        for f in listdir(log_dir):
+            logs.append(realpath(log_dir + '/' + f))
+    return(logs)
+
+
+def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debugging=False):
     """Run SQL tests over a connection, returns a dict with results.
 
     Keyword arguments:
@@ -79,6 +129,9 @@ def run_tests(path, conn, replaces, dbtype):
             for key, elem in replaces.items():
                 sentence = sentence.replace(key, elem)
             print_info("%s: Testing %s" % (test_number, test_desc))
+            if debugging or unattended_debugging:
+                print_info("Query:")
+                print(sentence)
             try:
                 cursor = conn.cursor()
                 cursor.execute(sentence)
@@ -87,9 +140,13 @@ def run_tests(path, conn, replaces, dbtype):
                 tests['ok'] += 1
             except Exception as e:
                 print_error("Error running %s (%s)" % (test_desc, fname))
+                print_error("Query:")
+                print(sentence)
                 try:
                     print_error(e.pgcode)
                     print_error(e.pgerror)
+                    for att in [member for member in dir(Diagnostics) if not member.startswith("__")]:
+                        print_error("%s: %s"%(att, getattr(e.diag,att)))
                 except:
                     print_error(e)
                 conn.rollback()

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from lib.messages import print_error, print_info, print_ok, print_report
 from lib.messages import print_usage_error, print_warning
-from lib.tests import run_tests
+from lib.tests import get_logs_path, run_tests
 from optparse import OptionParser
 from os import path
 try:
@@ -10,6 +10,8 @@ except:
     print_error(
         "psycopg2 library not available, please install it before usage!")
     exit(1)
+
+DEFAULT_TDS_VERSION="7.1"
 
 
 def parse_options():
@@ -44,6 +46,16 @@ def parse_options():
     parser.add_option('--azure', action="store_true", default=False,
                       help='If present, will connect as Azure, otherwise as '
                            'standard MSSQL')
+    parser.add_option('--debugging', action="store_true", default=False,
+                      help='If present, will pause after backend PID and before '
+                           'launching tests (so gdb can be attached. It will also '
+                           'display contextual SQL queries')
+    parser.add_option('--unattended_debugging', action="store_true", default=False,
+                      help='Same as --debugging, but without pausing and printing '
+                           'PostgreSQL logs at the end (useful for CI)')
+    parser.add_option('--tds_version', action="store", default=DEFAULT_TDS_VERSION,
+                      help='Specifies th TDS protocol version, default="%s"'%DEFAULT_TDS_VERSION)
+
     (options, args) = parser.parse_args()
     # Check for test parameters
     if (options.postgres_server is None or
@@ -78,6 +90,13 @@ def main():
                        password=args.postgres_password,
                        database=args.postgres_database,
                        port=args.postgres_port)
+        if args.debugging or args.unattended_debugging:
+            curs = conn.cursor()
+            curs.execute("SELECT pg_backend_pid()")
+            print("Backend PID = %d"%curs.fetchone()[0])
+            if not args.unattended_debugging:
+                print("Press any key to launch tests.")
+                raw_input()
         replaces = {'@PSCHEMANAME': args.postgres_schema,
                     '@PUSER': args.postgres_username,
                     '@MSERVER': args.mssql_server,
@@ -85,9 +104,17 @@ def main():
                     '@MUSER': args.mssql_username,
                     '@MPASSWORD': args.mssql_password,
                     '@MDATABASE': args.mssql_database,
-                    '@MSCHEMANAME': args.mssql_schema}
-        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql')
+                    '@MSCHEMANAME': args.mssql_schema,
+                    '@TDSVERSION' : args.tds_version}
+        tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql',
+                          args.debugging, args.unattended_debugging)
         print_report(tests['total'], tests['ok'], tests['errors'])
+        logs = get_logs_path(conn, 'postgresql')
+        if (tests['errors'] != 0 or args.unattended_debugging) and not args.debugging:
+            for fpath in logs:
+                print_info("=========== Content of %s ===========" % fpath)
+                with open(fpath, "r") as f:
+                    print(f.read())
         if tests['errors'] != 0:
             exit(5)
         else:

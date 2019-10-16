@@ -4,6 +4,9 @@ from lib.messages import print_usage_error, print_warning
 from lib.tests import run_tests
 from optparse import OptionParser
 from os import path
+
+DEFAULT_TDS_VERSION="7.1"
+
 try:
     from pymssql import connect
 except:
@@ -32,6 +35,8 @@ def parse_options():
     parser.add_option('--azure', action='store_true', default=False,
                       help='If present, will connect as Azure, otherwise as '
                            'standard MSSQL')
+    parser.add_option('--tds_version', action="store", default=DEFAULT_TDS_VERSION,
+                      help='Specifies th TDS protocol version, default="%s"'%DEFAULT_TDS_VERSION)
     (options, args) = parser.parse_args()
     # Check for test parameters
     if (options.server is None or
@@ -56,10 +61,9 @@ def main():
         print_usage_error(path.basename(__file__), e)
         exit(2)
     try:
-        # For our tests, tds_version 7.1 is enough
         conn = connect(server=args.server, user=args.username,
                        password=args.password, database=args.database,
-                       port=args.port, tds_version='7.1')
+                       port=args.port, tds_version=args.tds_version)
         replaces = {'@SCHEMANAME': args.schema}
         tests = run_tests('tests/mssql/*.sql', conn, replaces, 'mssql')
         print_report(tests['total'], tests['ok'], tests['errors'])

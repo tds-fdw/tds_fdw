@@ -93,3 +93,7 @@ If you find any bugs, or you would like to request enhancements, please submit y
 
 Additionally, I do subscribe to several [PostgreSQL mailing lists](http://www.postgresql.org/list/) including *pgsql-general* and *pgsql-hackers*. If tds_fdw is mentioned in an email sent to one of those lists, I typically see it.
 
+## Debugging
+
+See [Debugging](tests/README.md)
+
