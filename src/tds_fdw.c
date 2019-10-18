@@ -3041,6 +3041,17 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 		bool		first_column = true;
 		bool		first_table = true;
 
+		/* Check if there's rows in resultset and if not do not execute the rest */
+		erc = dbrows(dbproc);
+
+		if (erc == FAIL)
+		{
+			ereport(NOTICE,
+					(errmsg("tds_fdw: No table were found in schema %s", stmt->remote_schema))
+				);
+				return commands;
+		}
+
 		prev_table[0] = '\0';
 
 		erc = dbbind(dbproc, 1, NTBSTRINGBIND, sizeof(table_name), (BYTE *) table_name);
@@ -3430,6 +3441,16 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					numeric_scale;
 		bool		first_column = true;
 		bool		first_table = true;
+		/* Check if there's rows in resultset and if not do not execute the rest */
+		erc = dbrows(dbproc);
+
+		if (erc == FAIL)
+		{
+			ereport(NOTICE,
+					(errmsg("tds_fdw: No table were found in schema %s", stmt->remote_schema))
+				);
+				return commands;
+		}
 
 		prev_table[0] = '\0';
 
