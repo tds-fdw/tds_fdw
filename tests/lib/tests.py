@@ -51,7 +51,7 @@ def check_ver(conn, min_ver, max_ver, dbtype):
     min_ver = version_to_array(min_ver, dbtype)
     max_ver = version_to_array(max_ver, dbtype)
     server_ver = version_to_array(server_ver, dbtype)
-    if server_ver >= min_ver and (server_ver <= max_ver or min_ver == ''):
+    if server_ver >= min_ver and (server_ver <= max_ver or max_ver == ''):
         return(True)
     else:
         return(False)
