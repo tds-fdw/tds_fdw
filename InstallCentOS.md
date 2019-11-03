@@ -84,9 +84,11 @@ export TDS_FDW_VERSION="1.0.7"
 wget https://github.com/tds-fdw/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz -O tds_fdw-${TDS_FDW_VERSION}.tar.gz
 tar -xvzf tds_fdw-${TDS_FDW_VERSION}.tar.gz
 cd tds_fdw-${TDS_FDW_VERSION}
-PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1
-sudo PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1 install
+make USE_PGXS=1 PG_CONFIG=/usr/pgsql-9.5/bin/pg_config
+sudo make USE_PGXS=1 PG_CONFIG=/usr/pgsql-9.5/bin/pg_config install
 ```
+
+**NOTE:** If you have several PostgreSQL versions and you do not want to build for the default one, first locate where the binary for `pg_config` is, take note of the full path, then adjust `PG_CONFIG` accordingly.
 
 #### Build from repository
 
@@ -95,9 +97,11 @@ If you would rather use the current development version, you can clone and build
 ```bash
 git clone https://github.com/tds-fdw/tds_fdw.git
 cd tds_fdw
-PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1
-sudo PATH=/usr/pgsql-9.5/bin:$PATH make USE_PGXS=1 install
+make USE_PGXS=1 PG_CONFIG=/usr/pgsql-9.5/bin/pg_config
+sudo make USE_PGXS=1 PG_CONFIG=/usr/pgsql-9.5/bin/pg_config install
 ```
+
+**NOTE:** If you have several PostgreSQL versions and you do not want to build for the default one, first locate where the binary for `pg_config` is, take note of the full path, then adjust `PG_CONFIG` accordingly.
 
 ### Final steps
 
