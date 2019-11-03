@@ -42,6 +42,8 @@ make USE_PGXS=1
 sudo make USE_PGXS=1 install
 ```
 
+**NOTE:** If you have several PostgreSQL versions and you do not want to build for the default one, first locate where the binary for `pg_config` is, take note of the full path, and then append `PG_CONFIG=<PATH>` after `USE_PGXS=1` at the `make` commands.
+
 #### Build from repository
 
 If you would rather use the current development version, you can clone and build the git repository via something like the following:
@@ -52,6 +54,8 @@ cd tds_fdw
 make USE_PGXS=1
 sudo make USE_PGXS=1 install
 ```
+
+**NOTE:** If you have several PostgreSQL versions and you do not want to build for the default one, first locate where the binary for `pg_config` is, take note of the full path, and then append `PG_CONFIG=<PATH>` after `USE_PGXS=1` at the `make` commands.
 
 #### Start server
 
