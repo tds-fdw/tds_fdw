@@ -6,28 +6,37 @@
 
 ## Installing on Ubuntu
 
-This document will show how to install tds_fdw on Ubuntu 16.04. Other Ubuntu distributions should be similar.
+This document will show how to install tds_fdw on Ubuntu 18.04. Other Ubuntu distributions should be similar.
 
-### Install FreeTDS
+### Install FreeTDS and build dependencies
 
 The TDS foreign data wrapper requires a library that implements the DB-Library interface,
 such as [FreeTDS](http://www.freetds.org).
 
 ```bash
+sudo apt-get update
 sudo apt-get install libsybdb5 freetds-dev freetds-common
+```
+
+Some other dependencies are also needed to install PostgreSQL and then compile tds_fdw:
+
+```bash
+sudo apt-get install gnupg gcc make
 ```
 
 ### Install PostgreSQL
 
-If you need to install PostgreSQL, do so by following the [apt installation directions](https://wiki.postgresql.org/wiki/Apt). For example, to install PostgreSQL 9.5 on Ubuntu:
+If you need to install PostgreSQL, do so by following the [apt installation directions](https://wiki.postgresql.org/wiki/Apt). For example, to install PostgreSQL 11 on Ubuntu:
 
 ```bash
-sudo bash -c "echo \"deb http://apt.postgresql.org/pub/repos/apt/ $(lsb_release -c -s)-pgdg main\" > /etc/apt/sources.list.d/pgdg.list"
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+sudo bash -c 'source /etc/os-release; echo "deb http://apt.postgresql.org/pub/repos/apt/ ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+sudo apt-key adv --keyserver hkp://pool.sks-keyservers.net --recv-keys 0xACCC4CF8
 sudo apt-get update
 sudo apt-get upgrade
-sudo apt-get install postgresql-9.5 postgresql-client-9.5 postgresql-server-dev-9.5
+sudo apt-get install postgresql-11 postgresql-client-11 postgresql-server-dev-11
 ```
+
+**NOTE**: If you already have PostgreSQL installed on your system be sure that the package postgresql-server-dev-XX is installed too (where XX stands for your PostgreSQL version). 
 
 ### Install tds_fdw
 
@@ -36,9 +45,11 @@ sudo apt-get install postgresql-9.5 postgresql-client-9.5 postgresql-server-dev-
 If you'd like to use one of the release packages, you can download and install them via something like the following:
 
 ```bash
-wget https://github.com/tds-fdw/tds_fdw/archive/v1.0.7.tar.gz
-tar -xvzf v1.0.7.tar.gz
-cd tds_fdw-1.0.7
+export TDS_FDW_VERSION="v2.0.0-alpha.3"
+sudo apt-get install wget
+wget https://github.com/tds-fdw/tds_fdw/archive/${TDS_FDW_VERSION}.gz
+tar -xvzf ${TDS_FDW_VERSION}.tar.gz
+cd tds_fdw-${TDS_FDW_VERSION}/
 make USE_PGXS=1
 sudo make USE_PGXS=1 install
 ```
@@ -50,6 +61,7 @@ sudo make USE_PGXS=1 install
 If you would rather use the current development version, you can clone and build the git repository via something like the following:
 
 ```bash
+sudo apt-get install git
 git clone https://github.com/tds-fdw/tds_fdw.git
 cd tds_fdw
 make USE_PGXS=1
@@ -63,7 +75,7 @@ sudo make USE_PGXS=1 install
 If this is a fresh installation, then start the server:
 
 ```bash
-sudo /etc/init.d/postgresql start
+sudo service postgresql start
 ```
 
 #### Install extension
