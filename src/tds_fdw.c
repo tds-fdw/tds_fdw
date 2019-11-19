@@ -2993,7 +2993,7 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 						   "  LEFT JOIN INFORMATION_SCHEMA.COLUMNS c ON "
 						   "    t.table_schema = c.table_schema "
 						   "      AND t.table_name = c.table_name "
-						   "WHERE t.table_type = 'BASE TABLE' "
+						   "WHERE t.table_type IN ('BASE TABLE','VIEW') "
 						   "  AND t.table_schema = ");
 	deparseStringLiteral(&buf, stmt->remote_schema);
 
