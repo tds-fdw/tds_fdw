@@ -47,7 +47,7 @@ If you'd like to use one of the release packages, you can download and install t
 ```bash
 export TDS_FDW_VERSION="v2.0.0-alpha.3"
 sudo apt-get install wget
-wget https://github.com/tds-fdw/tds_fdw/archive/${TDS_FDW_VERSION}.gz
+wget https://github.com/tds-fdw/tds_fdw/archive/${TDS_FDW_VERSION}.tar.gz
 tar -xvzf ${TDS_FDW_VERSION}.tar.gz
 cd tds_fdw-${TDS_FDW_VERSION}/
 make USE_PGXS=1
