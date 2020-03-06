@@ -91,6 +91,10 @@ with the server, FreeTDS converts the UCS-2 to the client character set of your 
 To set the client character set, you can set *client charset* in *freetds.conf*. See 
 [The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm) and [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).
 
+## Encrypted connections to MSSQL
+
+It is handled by FreeTDS, so this needs to be configured at the `freetds.conf`. Seee [The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm) and at `freetds.conf settings` look for `encryption`.
+
 ## Support
 
 If you find any bugs, or you would like to request enhancements, please submit your comments on the [project's GitHub Issues page](https://github.com/tds-fdw/tds_fdw/issues).
