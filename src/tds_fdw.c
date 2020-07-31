@@ -1500,10 +1500,10 @@ void tdsGetColumnMetadata(ForeignScanState *node, TdsFdwOptionSet *option_set)
 		{
 			if (local_columns_found[ncol] == 0)
 			{
-				ereport(WARNING,
+				ereport(DEBUG3,
 					(errcode(ERRCODE_FDW_INCONSISTENT_DESCRIPTOR_INFORMATION),
 					errmsg("Table definition mismatch: Could not match local column %s"
-					" with column from foreign table",
+					" with column from foreign table. It probably was not selected.",
 					TupleDescAttr(festate->attinmeta->tupdesc, ncol)->attname.data)
 				));
 

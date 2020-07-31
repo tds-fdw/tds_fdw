@@ -382,24 +382,7 @@ foreign_expr_walker(Node *node,
 				else
 				{
 					/* Var belongs to some other table */
-					collation = var->varcollid;
-					if (collation == InvalidOid ||
-						collation == DEFAULT_COLLATION_OID)
-					{
-						/*
-						 * It's noncollatable, or it's safe to combine with a
-						 * collatable foreign Var, so set state to NONE.
-						 */
-						state = FDW_COLLATE_NONE;
-					}
-					else
-					{
-						/*
-						 * Do not fail right away, since the Var might appear
-						 * in a collation-insensitive context.
-						 */
-						state = FDW_COLLATE_UNSAFE;
-					}
+					return false;	
 				}
 			}
 			break;
