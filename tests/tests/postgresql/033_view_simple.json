@@ -1,0 +1,9 @@
+{
+    "test_desc" : "view (simple)",
+    "server" : {
+        "version" : {
+            "min" : "9.5.0",
+            "max" : ""
+        }
+    }
+}
