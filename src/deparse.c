@@ -747,7 +747,11 @@ deparseSelectSql(StringInfo buf,
 	 * Core code already has some lock on each rel being planned, so we can
 	 * use NoLock here.
 	 */
+	#if PG_VERSION_NUM < 120000
 	rel = heap_open(rte->relid, NoLock);
+	#else
+	rel = table_open(rte->relid, NoLock);
+	#endif
 
 	/*
 	 * Construct SELECT list
@@ -762,7 +766,11 @@ deparseSelectSql(StringInfo buf,
 	appendStringInfoString(buf, " FROM ");
 	deparseRelation(buf, rel);
 
+	#if PG_VERSION_NUM < 120000
 	heap_close(rel, NoLock);
+	#else
+	table_close(rel, NoLock);
+	#endif
 }
 
 /*
@@ -1597,7 +1605,11 @@ deparseSubscriptingRef(SubscriptingRef *node, deparse_expr_cxt *context)
 		{
 			deparseExpr(lfirst(lowlist_item), context);
 			appendStringInfoChar(buf, ':');
+			#if PG_VERSION_NUM < 130000
 			lowlist_item = lnext(lowlist_item);
+			#else
+			lowlist_item = lnext(node->reflowerindexpr, lowlist_item);
+			#endif
 		}
 		deparseExpr(lfirst(uplist_item), context);
 		appendStringInfoChar(buf, ']');
@@ -1683,8 +1695,13 @@ deparseFuncExpr(FuncExpr *node, deparse_expr_cxt *context)
 	{
 		if (!first)
 			appendStringInfoString(buf, ", ");
+		#if PG_VERSION_NUM < 130000
 		if (use_variadic && lnext(arg) == NULL)
 			appendStringInfoString(buf, "VARIADIC ");
+		#else
+		if (use_variadic && lnext(node->args, arg) == NULL)
+			appendStringInfoString(buf, "VARIADIC ");
+		#endif
 		deparseExpr((Expr *) lfirst(arg), context);
 		first = false;
 	}
