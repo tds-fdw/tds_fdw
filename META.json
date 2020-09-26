@@ -2,7 +2,7 @@
 	"name": "tds_fdw",
 	"abstract": "TDS Foreign data wrapper",
 	"description": "This library contains a single PostgreSQL extension, a foreign data wrapper called \"tds_fdw\". It can be used to communicate with Microsoft SQL Server and Sybase databases.",
-	"version": "2.0.1",
+	"version": "2.0.2",
 	"maintainer": [
 		"Geoff Montee <geoff.montee@gmail.com>"
 	],
@@ -19,7 +19,7 @@
 			"abstract": "TDS Foreign data wrapper",
 			"file": "sql/tds_fdw.sql",
 			"docfile": "README.md",
-			"version": "2.0.1"
+			"version": "2.0.2"
 	}
 	},
 	"resources": {
