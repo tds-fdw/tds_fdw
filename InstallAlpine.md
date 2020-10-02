@@ -38,10 +38,10 @@ apk add postgresql=11.6-r0 postgresql-client=11.6-r0 postgresql-dev=11.6-r0
 If you'd like to use one of the release packages, you can download and install them via something like the following:
 
 ```bash
-export TDS_FDW_VERSION="v2.0.2"
+export TDS_FDW_VERSION="2.0.2"
 apk add wget
-wget https://github.com/tds-fdw/tds_fdw/archive/${TDS_FDW_VERSION}.gz
-tar -xvzf ${TDS_FDW_VERSION}.tar.gz
+wget https://github.com/tds-fdw/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz
+tar -xvzf v${TDS_FDW_VERSION}.tar.gz
 cd tds_fdw-${TDS_FDW_VERSION}/
 make USE_PGXS=1
 sudo make USE_PGXS=1 install
