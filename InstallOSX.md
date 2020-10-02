@@ -36,9 +36,10 @@ Or use Postgres.app: <http://postgresapp.com/>
 If you'd like to use one of the release packages, you can download and install them via something like the following:
 
 ```bash
-wget https://github.com/tds-fdw/tds_fdw/archive/v1.0.7.tar.gz
-tar -xvzf tds_fdw-1.0.7.tar.gz
-cd tds_fdw-1.0.7
+export TDS_FDW_VERSION="2.0.2"
+wget https://github.com/tds-fdw/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz
+tar -xvzf v${TDS_FDW_VERSION}.tar.gz
+cd tds_fdw-${TDS_FDW_VERSION}
 make USE_PGXS=1 TDS_INCLUDE=-I/usr/local/include/
 sudo make USE_PGXS=1 install
 ```

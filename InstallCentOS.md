@@ -83,9 +83,9 @@ sudo yum install llvm-toolset-7-clang llvm5.0
 If you'd like to use one of the release packages, you can download and install them via something like the following:
 
 ```bash
-export TDS_FDW_VERSION="v2.0.2"
-wget https://github.com/tds-fdw/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz -O tds_fdw-${TDS_FDW_VERSION}.tar.gz
-tar -xvzf tds_fdw-${TDS_FDW_VERSION}.tar.gz
+export TDS_FDW_VERSION="2.0.2"
+wget https://github.com/tds-fdw/tds_fdw/archive/v${TDS_FDW_VERSION}.tar.gz
+tar -xvzf v${TDS_FDW_VERSION}.tar.gz
 cd tds_fdw-${TDS_FDW_VERSION}
 make USE_PGXS=1 PG_CONFIG=/usr/pgsql-11/bin/pg_config
 sudo make USE_PGXS=1 PG_CONFIG=/usr/pgsql-11/bin/pg_config install
