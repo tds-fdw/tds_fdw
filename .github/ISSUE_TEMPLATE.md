@@ -13,12 +13,12 @@ Replace this with the content
 
 ## Version of tds\_fdw
 
-_From a `psql` session, paste the outputs of running `\dx+`_
+_From a `psql` session, paste the outputs of running `\dx`_
 
 _If you built the package from Git sources, also paste the output of running `git log --source -n 1` on your git clone from a console_
 
 ```
-Replace this with the outputs
+Replace this with the output
 ```
 
 
@@ -57,6 +57,7 @@ _For MSSQL you will need to use the SQL Server Audit Log_
 Replace this with the commands and outputs
 ```
 
+
 ## Sentences, data structures, data
 
 _This will depend on the exact problem you are having and data privacy restrictions_
@@ -69,5 +70,5 @@ _As a bare minimum, you should provide_
 * _The data structure on the PostgreSQL side and on the MSSQL side_
 
 ```
-Replace this with the SQL sentences, structus, etc
+Replace this with the SQL sentences, data structures, etc
 ```
