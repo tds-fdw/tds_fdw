@@ -5,6 +5,10 @@
 * **Name:** tds_fdw
 * **File:** tds_fdw/README.md
 
+## Logo
+
+![Logo SVG](../logo/SQ2L_(2)_VECTORISED.svg)
+
 ## About
 
 This is a [PostgreSQL foreign data wrapper](http://wiki.postgresql.org/wiki/Foreign_data_wrappers) that can connect to databases that use the [Tabular Data Stream (TDS) protocol](http://en.wikipedia.org/wiki/Tabular_Data_Stream),
