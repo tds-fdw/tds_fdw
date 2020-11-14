@@ -7,7 +7,7 @@
 
 ## Logo
 
-![Logo SVG](./logo/SQ2L_(2)_VECTORISED.svg)
+![Logo SVG](./logo/FINAL.svg)
 
 ## About
 
