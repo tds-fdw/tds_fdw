@@ -7,7 +7,7 @@
 
 ## Logo
 
-![Logo SVG](./logo/FINAL.svg)
+![Logo SVG](./logo/tds_fdw.svg)
 
 ## About
 
