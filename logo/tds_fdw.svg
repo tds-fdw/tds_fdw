@@ -7,13 +7,13 @@
    xmlns="http://www.w3.org/2000/svg"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   inkscape:version="1.0 (4035a4fb49, 2020-05-01)"
-   sodipodi:docname="FINAL.svg"
-   viewBox="0 0 231.21342 246.32045"
-   height="246.32045"
-   width="231.21342"
+   version="1.1"
    id="svg1151"
-   version="1.1">
+   width="231.21342"
+   height="246.32045"
+   viewBox="0 0 231.21342 246.32045"
+   sodipodi:docname="tds_fdw.svg"
+   inkscape:version="1.0 (4035a4fb49, 2020-05-01)">
   <metadata
      id="metadata1157">
     <rdf:RDF>
@@ -29,83 +29,53 @@
   <defs
      id="defs1155">
     <marker
-       inkscape:isstock="true"
-       style="overflow:visible"
-       id="Arrow1Lstart"
-       refX="0"
-       refY="0"
+       inkscape:stockid="Arrow1Lstart"
        orient="auto"
-       inkscape:stockid="Arrow1Lstart">
+       refY="0"
+       refX="0"
+       id="Arrow1Lstart"
+       style="overflow:visible"
+       inkscape:isstock="true">
       <path
-         transform="matrix(0.8,0,0,0.8,10,0)"
-         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt"
+         id="path1848"
          d="M 0,0 5,-5 -12.5,0 5,5 Z"
-         id="path1848" />
+         style="fill-rule:evenodd;stroke:#000000;stroke-width:1pt"
+         transform="matrix(0.8,0,0,0.8,10,0)" />
     </marker>
   </defs>
   <sodipodi:namedview
-     inkscape:current-layer="g1812"
-     inkscape:window-maximized="1"
-     inkscape:window-y="-11"
-     inkscape:window-x="-11"
-     inkscape:cy="139.84959"
-     inkscape:cx="135.57976"
-     inkscape:zoom="2.631153"
-     showgrid="false"
-     id="namedview1153"
-     inkscape:window-height="1000"
-     inkscape:window-width="1920"
-     inkscape:pageshadow="2"
-     inkscape:pageopacity="0"
-     guidetolerance="10"
-     gridtolerance="10"
-     objecttolerance="10"
-     borderopacity="1"
+     inkscape:document-rotation="0"
+     pagecolor="#ffffff"
      bordercolor="#666666"
-     pagecolor="#ffffff" />
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1920"
+     inkscape:window-height="1000"
+     id="namedview1153"
+     showgrid="false"
+     inkscape:zoom="2.5261539"
+     inkscape:cx="135.57976"
+     inkscape:cy="139.84959"
+     inkscape:window-x="-11"
+     inkscape:window-y="-11"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="g1812" />
   <g
-     sodipodi:insensitive="true"
-     transform="translate(-81.299973,-79.679544)"
-     inkscape:groupmode="layer"
+     inkscape:label="Connector DOWN"
      id="g6910"
-     inkscape:label="Connector DOWN">
-    <g
-       transform="matrix(1,0,0,-1,0,406.96929)"
-       id="g6908">
-      <rect
-         y="148.18759"
-         x="245.5"
-         height="20.863766"
-         width="8.9152575"
-         id="rect6902"
-         style="opacity:1;fill:#464f5b;fill-opacity:1;stroke:#464f5b;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
-      <rect
-         ry="0"
-         style="opacity:1;fill:#464f5b;fill-opacity:1;stroke:#464f5b;stroke-width:1.40932;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
-         id="rect6904"
-         width="43.12463"
-         height="9.5580978"
-         x="195.4635"
-         y="178.06755" />
-      <circle
-         r="13.651867"
-         cy="182.8096"
-         cx="250.42007"
-         id="circle6906"
-         style="opacity:1;fill:#5a6474;fill-opacity:1;stroke:#5a6474;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
-    </g>
-  </g>
-  <g
-     sodipodi:insensitive="true"
+     inkscape:groupmode="layer"
      transform="translate(-81.299973,-79.679544)"
-     inkscape:label="Connector UP"
-     id="layer6"
-     inkscape:groupmode="layer">
+     sodipodi:insensitive="true">
     <g
-       id="g6900">
+       id="g6908"
+       transform="matrix(1,0,0,-1,0,406.96929)">
       <rect
          style="opacity:1;fill:#464f5b;fill-opacity:1;stroke:#464f5b;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
-         id="rect6881"
+         id="rect6902"
          width="8.9152575"
          height="20.863766"
          x="245.5"
@@ -115,755 +85,743 @@
          x="195.4635"
          height="9.5580978"
          width="43.12463"
-         id="rect6883"
+         id="rect6904"
          style="opacity:1;fill:#464f5b;fill-opacity:1;stroke:#464f5b;stroke-width:1.40932;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
          ry="0" />
       <circle
          style="opacity:1;fill:#5a6474;fill-opacity:1;stroke:#5a6474;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
-         id="path6879"
+         id="circle6906"
          cx="250.42007"
          cy="182.8096"
          r="13.651867" />
     </g>
   </g>
   <g
-     sodipodi:insensitive="true"
+     inkscape:groupmode="layer"
+     id="layer6"
+     inkscape:label="Connector UP"
      transform="translate(-81.299973,-79.679544)"
-     inkscape:label="Servers LEFT"
+     sodipodi:insensitive="true">
+    <g
+       id="g6900">
+      <rect
+         y="148.18759"
+         x="245.5"
+         height="20.863766"
+         width="8.9152575"
+         id="rect6881"
+         style="opacity:1;fill:#464f5b;fill-opacity:1;stroke:#464f5b;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
+      <rect
+         ry="0"
+         style="opacity:1;fill:#464f5b;fill-opacity:1;stroke:#464f5b;stroke-width:1.40932;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+         id="rect6883"
+         width="43.12463"
+         height="9.5580978"
+         x="195.4635"
+         y="178.06755" />
+      <circle
+         r="13.651867"
+         cy="182.8096"
+         cx="250.42007"
+         id="path6879"
+         style="opacity:1;fill:#5a6474;fill-opacity:1;stroke:#5a6474;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
+    </g>
+  </g>
+  <g
+     inkscape:groupmode="layer"
      id="layer5"
-     inkscape:groupmode="layer">
+     inkscape:label="Servers LEFT"
+     transform="translate(-81.299973,-79.679544)"
+     sodipodi:insensitive="true">
     <g
        id="g6876">
       <g
-         transform="translate(0,139.551)"
-         id="g6864">
+         id="g6864"
+         transform="translate(0,139.551)">
         <ellipse
-           inkscape:label="Dark Gray"
-           ry="20.046049"
-           rx="55.858829"
-           cy="83.15213"
-           cx="138.29997"
+           style="opacity:1;fill:#343c54;fill-opacity:1;stroke:#343c54;stroke-width:2.28234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
            id="ellipse6860"
-           style="opacity:1;fill:#343c54;fill-opacity:1;stroke:#343c54;stroke-width:2.28234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
+           cx="138.29997"
+           cy="83.15213"
+           rx="55.858829"
+           ry="20.046049"
+           inkscape:label="Dark Gray" />
         <rect
-           inkscape:label="Rect Dark Gray"
-           y="53.063423"
-           x="82.519363"
-           height="31.086483"
-           width="111.56126"
+           style="opacity:1;fill:#343c54;fill-opacity:1;stroke:#343c54;stroke-width:2.43873;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
            id="rect6862"
-           style="opacity:1;fill:#343c54;fill-opacity:1;stroke:#343c54;stroke-width:2.43873;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
+           width="111.56126"
+           height="31.086483"
+           x="82.519363"
+           y="53.063423"
+           inkscape:label="Rect Dark Gray" />
       </g>
       <g
-         id="g6858"
-         transform="translate(0,108.46452)">
+         transform="translate(0,108.46452)"
+         id="g6858">
         <ellipse
-           style="opacity:1;fill:#47537d;fill-opacity:1;stroke:#47537d;stroke-width:2.28234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+           inkscape:label="Light Gray"
+           ry="20.046049"
+           rx="55.858829"
+           cy="83.15213"
+           cx="138.29997"
            id="ellipse6854"
-           cx="138.29997"
-           cy="83.15213"
-           rx="55.858829"
-           ry="20.046049"
-           inkscape:label="Light Gray" />
+           style="opacity:1;fill:#47537d;fill-opacity:1;stroke:#47537d;stroke-width:2.28234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
         <rect
-           style="opacity:1;fill:#47537d;fill-opacity:1;stroke:#47537d;stroke-width:2.43873;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
-           id="rect6856"
-           width="111.56126"
-           height="31.086483"
-           x="82.519363"
+           inkscape:label="Rect Light Gray"
            y="53.063423"
-           inkscape:label="Rect Light Gray" />
+           x="82.519363"
+           height="31.086483"
+           width="111.56126"
+           id="rect6856"
+           style="opacity:1;fill:#47537d;fill-opacity:1;stroke:#47537d;stroke-width:2.43873;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
       </g>
       <g
-         id="g6852"
+         transform="translate(0,77.378037)"
          inkscape:label="g6852"
-         transform="translate(0,77.378037)">
+         id="g6852">
         <ellipse
-           inkscape:label="Violet"
-           ry="20.046049"
-           rx="55.858829"
-           cy="83.15213"
-           cx="138.29997"
+           style="opacity:1;fill:#6c83ce;fill-opacity:1;stroke:#6c83ce;stroke-width:2.28234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
            id="path3451"
-           style="opacity:1;fill:#6c83ce;fill-opacity:1;stroke:#6c83ce;stroke-width:2.28234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
+           cx="138.29997"
+           cy="83.15213"
+           rx="55.858829"
+           ry="20.046049"
+           inkscape:label="Violet" />
         <rect
-           inkscape:label="Rect Violet"
-           y="53.063423"
-           x="82.519363"
-           height="31.086483"
-           width="111.56126"
+           style="opacity:1;fill:#6c83ce;fill-opacity:1;stroke:#6c83ce;stroke-width:2.43873;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
            id="rect3457"
-           style="opacity:1;fill:#6c83ce;fill-opacity:1;stroke:#6c83ce;stroke-width:2.43873;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
+           width="111.56126"
+           height="31.086483"
+           x="82.519363"
+           y="53.063423"
+           inkscape:label="Rect Violet" />
       </g>
       <ellipse
-         ry="20.046049"
-         rx="55.858829"
-         cy="131.98294"
-         cx="138.29997"
-         id="ellipse3455"
+         inkscape:label="Light Blue"
          style="opacity:1;fill:#7db8e6;fill-opacity:1;stroke:#7db8e6;stroke-width:2.28234;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
-         inkscape:label="Light Blue" />
+         id="ellipse3455"
+         cx="138.29997"
+         cy="131.98294"
+         rx="55.858829"
+         ry="20.046049" />
     </g>
   </g>
   <g
-     sodipodi:insensitive="true"
-     transform="translate(-81.299973,-91.679544)"
+     inkscape:label="Servers DOWN"
      id="g3364"
-     inkscape:label="Servers DOWN">
+     transform="translate(-81.299973,-91.679544)"
+     sodipodi:insensitive="true">
     <g
-       id="g3362"
-       transform="matrix(1.1986045,0,0,1.1986045,216.608,269.08024)">
-      <path
-         id="path3260"
-         d="M 54.392,19.5 H 3.608 C 1.616,19.5 0,17.884 0,15.892 V 4.108 C 0,2.116 1.616,0.5 3.608,0.5 H 54.391 C 56.384,0.5 58,2.116 58,4.108 v 11.783 c 0,1.993 -1.616,3.609 -3.608,3.609 z"
-         style="fill:#556080" />
-      <path
-         id="path3262"
-         d="M 54.392,38.5 H 3.608 C 1.616,38.5 0,36.884 0,34.892 V 23.108 C 0,21.116 1.616,19.5 3.608,19.5 h 50.783 c 1.993,0 3.608,1.616 3.608,3.608 V 34.891 C 58,36.884 56.384,38.5 54.392,38.5 Z"
-         style="fill:#424a60" />
-      <path
-         id="path3264"
-         d="M 54.392,57.5 H 3.608 C 1.616,57.5 0,55.884 0,53.892 V 42.108 C 0,40.116 1.616,38.5 3.608,38.5 h 50.783 c 1.993,0 3.608,1.616 3.608,3.608 V 53.891 C 58,55.884 56.384,57.5 54.392,57.5 Z"
-         style="fill:#556080" />
-      <circle
-         id="circle3266"
-         r="3.5"
-         cy="10"
-         cx="9.5"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3268"
-         r="1"
-         cy="8.5"
-         cx="49"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3270"
-         r="1"
-         cy="8.5"
-         cx="45"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3272"
-         r="1"
-         cy="11.5"
-         cx="51"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3274"
-         r="1"
-         cy="11.5"
-         cx="47"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3276"
-         r="1"
-         cy="8.5"
-         cx="41"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3278"
-         r="1"
-         cy="11.5"
-         cx="43"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3280"
-         r="1"
-         cy="8.5"
-         cx="37"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3282"
-         r="1"
-         cy="11.5"
-         cx="39"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3284"
-         r="1"
-         cy="8.5"
-         cx="33"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3286"
-         r="1"
-         cy="11.5"
-         cx="35"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3288"
-         r="3.5"
-         cy="29"
-         cx="9.5"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3290"
-         r="1"
-         cy="27.5"
-         cx="49"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3292"
-         r="1"
-         cy="27.5"
-         cx="45"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3294"
-         r="1"
-         cy="30.5"
-         cx="51"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3296"
-         r="1"
-         cy="30.5"
-         cx="47"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3298"
-         r="1"
-         cy="27.5"
-         cx="41"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3300"
-         r="1"
-         cy="30.5"
-         cx="43"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3302"
-         r="1"
-         cy="27.5"
-         cx="37"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3304"
-         r="1"
-         cy="30.5"
-         cx="39"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3306"
-         r="1"
-         cy="27.5"
-         cx="33"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3308"
-         r="1"
-         cy="30.5"
-         cx="35"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3310"
-         r="3.5"
-         cy="48"
-         cx="9.5"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3312"
-         r="1"
-         cy="46.5"
-         cx="49"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3314"
-         r="1"
-         cy="46.5"
-         cx="45"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3316"
-         r="1"
-         cy="49.5"
-         cx="51"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3318"
-         r="1"
-         cy="49.5"
-         cx="47"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3320"
-         r="1"
-         cy="46.5"
-         cx="41"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3322"
-         r="1"
-         cy="49.5"
-         cx="43"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3324"
-         r="1"
-         cy="46.5"
-         cx="37"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3326"
-         r="1"
-         cy="49.5"
-         cx="39"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3328"
-         r="1"
-         cy="46.5"
-         cx="33"
-         style="fill:#7383bf" />
-      <circle
-         id="circle3330"
-         r="1"
-         cy="49.5"
-         cx="35"
-         style="fill:#7383bf" />
-      <g
-         id="g3332">
-</g>
-      <g
-         id="g3334">
-</g>
-      <g
-         id="g3336">
-</g>
-      <g
-         id="g3338">
-</g>
-      <g
-         id="g3340">
-</g>
-      <g
-         id="g3342">
-</g>
-      <g
-         id="g3344">
-</g>
-      <g
-         id="g3346">
-</g>
-      <g
-         id="g3348">
-</g>
-      <g
-         id="g3350">
-</g>
-      <g
-         id="g3352">
-</g>
-      <g
-         id="g3354">
-</g>
-      <g
-         id="g3356">
-</g>
-      <g
-         id="g3358">
-</g>
-      <g
-         id="g3360">
-</g>
-    </g>
-  </g>
-  <g
-     sodipodi:insensitive="true"
-     transform="translate(-81.299973,-79.679544)"
-     inkscape:label="Servers UP"
-     id="layer3"
-     inkscape:groupmode="layer">
-    <g
-       transform="matrix(1.1986045,0,0,1.1986045,216.608,79.080242)"
-       id="g3258">
+       transform="matrix(1.1986045,0,0,1.1986045,216.608,269.08024)"
+       id="g3362">
       <path
          style="fill:#556080"
          d="M 54.392,19.5 H 3.608 C 1.616,19.5 0,17.884 0,15.892 V 4.108 C 0,2.116 1.616,0.5 3.608,0.5 H 54.391 C 56.384,0.5 58,2.116 58,4.108 v 11.783 c 0,1.993 -1.616,3.609 -3.608,3.609 z"
-         id="path3098" />
+         id="path3260" />
       <path
          style="fill:#424a60"
          d="M 54.392,38.5 H 3.608 C 1.616,38.5 0,36.884 0,34.892 V 23.108 C 0,21.116 1.616,19.5 3.608,19.5 h 50.783 c 1.993,0 3.608,1.616 3.608,3.608 V 34.891 C 58,36.884 56.384,38.5 54.392,38.5 Z"
-         id="path3100" />
+         id="path3262" />
       <path
          style="fill:#556080"
          d="M 54.392,57.5 H 3.608 C 1.616,57.5 0,55.884 0,53.892 V 42.108 C 0,40.116 1.616,38.5 3.608,38.5 h 50.783 c 1.993,0 3.608,1.616 3.608,3.608 V 53.891 C 58,55.884 56.384,57.5 54.392,57.5 Z"
-         id="path3102" />
+         id="path3264" />
       <circle
          style="fill:#7383bf"
          cx="9.5"
          cy="10"
          r="3.5"
-         id="circle3104" />
+         id="circle3266" />
       <circle
          style="fill:#7383bf"
          cx="49"
          cy="8.5"
          r="1"
-         id="circle3106" />
+         id="circle3268" />
       <circle
          style="fill:#7383bf"
          cx="45"
          cy="8.5"
          r="1"
-         id="circle3108" />
+         id="circle3270" />
       <circle
          style="fill:#7383bf"
          cx="51"
          cy="11.5"
          r="1"
-         id="circle3110" />
+         id="circle3272" />
       <circle
          style="fill:#7383bf"
          cx="47"
          cy="11.5"
          r="1"
-         id="circle3112" />
+         id="circle3274" />
       <circle
          style="fill:#7383bf"
          cx="41"
          cy="8.5"
          r="1"
-         id="circle3114" />
+         id="circle3276" />
       <circle
          style="fill:#7383bf"
          cx="43"
          cy="11.5"
          r="1"
-         id="circle3116" />
+         id="circle3278" />
       <circle
          style="fill:#7383bf"
          cx="37"
          cy="8.5"
          r="1"
-         id="circle3118" />
+         id="circle3280" />
       <circle
          style="fill:#7383bf"
          cx="39"
          cy="11.5"
          r="1"
-         id="circle3120" />
+         id="circle3282" />
       <circle
          style="fill:#7383bf"
          cx="33"
          cy="8.5"
          r="1"
-         id="circle3122" />
+         id="circle3284" />
       <circle
          style="fill:#7383bf"
          cx="35"
          cy="11.5"
          r="1"
-         id="circle3124" />
+         id="circle3286" />
       <circle
          style="fill:#7383bf"
          cx="9.5"
          cy="29"
          r="3.5"
-         id="circle3126" />
+         id="circle3288" />
       <circle
          style="fill:#7383bf"
          cx="49"
          cy="27.5"
          r="1"
-         id="circle3128" />
+         id="circle3290" />
       <circle
          style="fill:#7383bf"
          cx="45"
          cy="27.5"
          r="1"
-         id="circle3130" />
+         id="circle3292" />
       <circle
          style="fill:#7383bf"
          cx="51"
          cy="30.5"
          r="1"
-         id="circle3132" />
+         id="circle3294" />
       <circle
          style="fill:#7383bf"
          cx="47"
          cy="30.5"
          r="1"
-         id="circle3134" />
+         id="circle3296" />
       <circle
          style="fill:#7383bf"
          cx="41"
          cy="27.5"
          r="1"
-         id="circle3136" />
+         id="circle3298" />
       <circle
          style="fill:#7383bf"
          cx="43"
          cy="30.5"
          r="1"
-         id="circle3138" />
+         id="circle3300" />
       <circle
          style="fill:#7383bf"
          cx="37"
          cy="27.5"
          r="1"
-         id="circle3140" />
+         id="circle3302" />
       <circle
          style="fill:#7383bf"
          cx="39"
          cy="30.5"
          r="1"
-         id="circle3142" />
+         id="circle3304" />
       <circle
          style="fill:#7383bf"
          cx="33"
          cy="27.5"
          r="1"
-         id="circle3144" />
+         id="circle3306" />
       <circle
          style="fill:#7383bf"
          cx="35"
          cy="30.5"
          r="1"
-         id="circle3146" />
+         id="circle3308" />
       <circle
          style="fill:#7383bf"
          cx="9.5"
          cy="48"
          r="3.5"
-         id="circle3148" />
+         id="circle3310" />
       <circle
          style="fill:#7383bf"
          cx="49"
          cy="46.5"
          r="1"
-         id="circle3150" />
+         id="circle3312" />
       <circle
          style="fill:#7383bf"
          cx="45"
          cy="46.5"
          r="1"
-         id="circle3152" />
+         id="circle3314" />
       <circle
          style="fill:#7383bf"
          cx="51"
          cy="49.5"
          r="1"
-         id="circle3154" />
+         id="circle3316" />
       <circle
          style="fill:#7383bf"
          cx="47"
          cy="49.5"
          r="1"
-         id="circle3156" />
+         id="circle3318" />
       <circle
          style="fill:#7383bf"
          cx="41"
          cy="46.5"
          r="1"
-         id="circle3158" />
+         id="circle3320" />
       <circle
          style="fill:#7383bf"
          cx="43"
          cy="49.5"
          r="1"
-         id="circle3160" />
+         id="circle3322" />
       <circle
          style="fill:#7383bf"
          cx="37"
          cy="46.5"
          r="1"
-         id="circle3162" />
+         id="circle3324" />
       <circle
          style="fill:#7383bf"
          cx="39"
          cy="49.5"
          r="1"
-         id="circle3164" />
+         id="circle3326" />
       <circle
          style="fill:#7383bf"
          cx="33"
          cy="46.5"
          r="1"
-         id="circle3166" />
+         id="circle3328" />
       <circle
          style="fill:#7383bf"
          cx="35"
          cy="49.5"
          r="1"
-         id="circle3168" />
+         id="circle3330" />
       <g
-         id="g3170">
-</g>
+         id="g3332" />
       <g
-         id="g3172">
-</g>
+         id="g3334" />
       <g
-         id="g3174">
-</g>
+         id="g3336" />
       <g
-         id="g3176">
-</g>
+         id="g3338" />
       <g
-         id="g3178">
-</g>
+         id="g3340" />
       <g
-         id="g3180">
-</g>
+         id="g3342" />
       <g
-         id="g3182">
-</g>
+         id="g3344" />
       <g
-         id="g3184">
-</g>
+         id="g3346" />
       <g
-         id="g3186">
-</g>
+         id="g3348" />
       <g
-         id="g3188">
-</g>
+         id="g3350" />
       <g
-         id="g3190">
-</g>
+         id="g3352" />
       <g
-         id="g3192">
-</g>
+         id="g3354" />
       <g
-         id="g3194">
-</g>
+         id="g3356" />
       <g
-         id="g3196">
-</g>
+         id="g3358" />
       <g
-         id="g3198">
-</g>
+         id="g3360" />
     </g>
   </g>
   <g
-     sodipodi:insensitive="true"
+     inkscape:groupmode="layer"
+     id="layer3"
+     inkscape:label="Servers UP"
      transform="translate(-81.299973,-79.679544)"
-     style="display:inline"
-     inkscape:label="TDS label DOWN"
+     sodipodi:insensitive="true">
+    <g
+       id="g3258"
+       transform="matrix(1.1986045,0,0,1.1986045,216.608,79.080242)">
+      <path
+         id="path3098"
+         d="M 54.392,19.5 H 3.608 C 1.616,19.5 0,17.884 0,15.892 V 4.108 C 0,2.116 1.616,0.5 3.608,0.5 H 54.391 C 56.384,0.5 58,2.116 58,4.108 v 11.783 c 0,1.993 -1.616,3.609 -3.608,3.609 z"
+         style="fill:#556080" />
+      <path
+         id="path3100"
+         d="M 54.392,38.5 H 3.608 C 1.616,38.5 0,36.884 0,34.892 V 23.108 C 0,21.116 1.616,19.5 3.608,19.5 h 50.783 c 1.993,0 3.608,1.616 3.608,3.608 V 34.891 C 58,36.884 56.384,38.5 54.392,38.5 Z"
+         style="fill:#424a60" />
+      <path
+         id="path3102"
+         d="M 54.392,57.5 H 3.608 C 1.616,57.5 0,55.884 0,53.892 V 42.108 C 0,40.116 1.616,38.5 3.608,38.5 h 50.783 c 1.993,0 3.608,1.616 3.608,3.608 V 53.891 C 58,55.884 56.384,57.5 54.392,57.5 Z"
+         style="fill:#556080" />
+      <circle
+         id="circle3104"
+         r="3.5"
+         cy="10"
+         cx="9.5"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3106"
+         r="1"
+         cy="8.5"
+         cx="49"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3108"
+         r="1"
+         cy="8.5"
+         cx="45"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3110"
+         r="1"
+         cy="11.5"
+         cx="51"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3112"
+         r="1"
+         cy="11.5"
+         cx="47"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3114"
+         r="1"
+         cy="8.5"
+         cx="41"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3116"
+         r="1"
+         cy="11.5"
+         cx="43"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3118"
+         r="1"
+         cy="8.5"
+         cx="37"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3120"
+         r="1"
+         cy="11.5"
+         cx="39"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3122"
+         r="1"
+         cy="8.5"
+         cx="33"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3124"
+         r="1"
+         cy="11.5"
+         cx="35"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3126"
+         r="3.5"
+         cy="29"
+         cx="9.5"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3128"
+         r="1"
+         cy="27.5"
+         cx="49"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3130"
+         r="1"
+         cy="27.5"
+         cx="45"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3132"
+         r="1"
+         cy="30.5"
+         cx="51"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3134"
+         r="1"
+         cy="30.5"
+         cx="47"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3136"
+         r="1"
+         cy="27.5"
+         cx="41"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3138"
+         r="1"
+         cy="30.5"
+         cx="43"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3140"
+         r="1"
+         cy="27.5"
+         cx="37"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3142"
+         r="1"
+         cy="30.5"
+         cx="39"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3144"
+         r="1"
+         cy="27.5"
+         cx="33"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3146"
+         r="1"
+         cy="30.5"
+         cx="35"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3148"
+         r="3.5"
+         cy="48"
+         cx="9.5"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3150"
+         r="1"
+         cy="46.5"
+         cx="49"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3152"
+         r="1"
+         cy="46.5"
+         cx="45"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3154"
+         r="1"
+         cy="49.5"
+         cx="51"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3156"
+         r="1"
+         cy="49.5"
+         cx="47"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3158"
+         r="1"
+         cy="46.5"
+         cx="41"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3160"
+         r="1"
+         cy="49.5"
+         cx="43"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3162"
+         r="1"
+         cy="46.5"
+         cx="37"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3164"
+         r="1"
+         cy="49.5"
+         cx="39"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3166"
+         r="1"
+         cy="46.5"
+         cx="33"
+         style="fill:#7383bf" />
+      <circle
+         id="circle3168"
+         r="1"
+         cy="49.5"
+         cx="35"
+         style="fill:#7383bf" />
+      <g
+         id="g3170" />
+      <g
+         id="g3172" />
+      <g
+         id="g3174" />
+      <g
+         id="g3176" />
+      <g
+         id="g3178" />
+      <g
+         id="g3180" />
+      <g
+         id="g3182" />
+      <g
+         id="g3184" />
+      <g
+         id="g3186" />
+      <g
+         id="g3188" />
+      <g
+         id="g3190" />
+      <g
+         id="g3192" />
+      <g
+         id="g3194" />
+      <g
+         id="g3196" />
+      <g
+         id="g3198" />
+    </g>
+  </g>
+  <g
+     inkscape:groupmode="layer"
      id="g2149"
-     inkscape:groupmode="layer">
+     inkscape:label="TDS label DOWN"
+     style="display:inline"
+     transform="translate(-81.299973,-79.679544)"
+     sodipodi:insensitive="true">
     <rect
-       style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:2.27906;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+       inkscape:label="rect1846"
+       ry="16.103161"
+       y="219.53683"
+       x="268.83963"
+       height="32.206322"
+       width="42.534245"
        id="rect2143"
+       style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:2.27906;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
+    <text
+       id="text2147"
+       y="241.56686"
+       x="272.69196"
+       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;display:inline;fill:#000000;fill-opacity:1;stroke:none"
+       xml:space="preserve"><tspan
+         style="font-weight:bold;font-size:16px"
+         y="241.56686"
+         x="272.69196"
+         id="tspan2145"
+         sodipodi:role="line">TDS</tspan></text>
+  </g>
+  <g
+     style="display:inline"
+     inkscape:label="TDS label UP"
+     id="g1812"
+     inkscape:groupmode="layer"
+     transform="translate(-81.299973,-79.679544)"
+     sodipodi:insensitive="true">
+    <rect
+       style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill"
+       id="rect1846"
        width="42.534245"
        height="32.206322"
        x="268.83963"
-       y="219.53683"
+       y="153.53683"
        ry="16.103161"
        inkscape:label="rect1846" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;display:inline;fill:#000000;fill-opacity:1;stroke:none"
        x="272.69196"
-       y="241.56686"
-       id="text2147"><tspan
+       y="175.56686"
+       id="text2120"><tspan
          sodipodi:role="line"
-         id="tspan2145"
+         id="tspan2118"
          x="272.69196"
-         y="241.56686"
+         y="175.56686"
          style="font-weight:bold;font-size:16px">TDS</tspan></text>
   </g>
   <g
-     sodipodi:insensitive="true"
-     transform="translate(-81.299973,-79.679544)"
      inkscape:groupmode="layer"
-     id="g1812"
-     inkscape:label="TDS label UP"
-     style="display:inline">
-    <rect
-       inkscape:label="rect1846"
-       ry="16.103161"
-       y="153.53683"
-       x="268.83963"
-       height="32.206322"
-       width="42.534245"
-       id="rect1846"
-       style="display:inline;opacity:1;fill:#000000;fill-opacity:0;stroke:#000000;stroke-width:2.279;stroke-linecap:square;stroke-linejoin:miter;stroke-miterlimit:0;stroke-dasharray:none;stroke-opacity:1;paint-order:stroke markers fill" />
-    <text
-       id="text2120"
-       y="175.56686"
-       x="272.69196"
-       style="font-style:normal;font-weight:normal;font-size:40px;line-height:1.25;font-family:sans-serif;display:inline;fill:#000000;fill-opacity:1;stroke:none"
-       xml:space="preserve"><tspan
-         style="font-weight:bold;font-size:16px"
-         y="175.56686"
-         x="272.69196"
-         id="tspan2118"
-         sodipodi:role="line">TDS</tspan></text>
-  </g>
-  <g
-     sodipodi:insensitive="true"
-     transform="translate(-81.299973,-79.679544)"
-     style="display:inline"
-     inkscape:label="Elephant"
      id="layer4"
-     inkscape:groupmode="layer">
+     inkscape:label="Elephant"
+     style="display:inline"
+     transform="translate(-81.299973,-79.679544)"
+     sodipodi:insensitive="true">
     <g
-       transform="matrix(0.16729644,0,0,0.16729644,131.01159,194.27996)"
-       id="g3449">
+       id="g3449"
+       transform="matrix(0.16729644,0,0,0.16729644,131.01159,194.27996)">
       <g
-         id="orginal"
-         style="clip-rule:nonzero;fill-rule:nonzero;stroke:#000000;stroke-miterlimit:4">
-	</g>
+         style="clip-rule:nonzero;fill-rule:nonzero;stroke:#000000;stroke-miterlimit:4"
+         id="orginal" />
       <g
-         id="Layer_x0020_3"
-         style="clip-rule:nonzero;fill:none;fill-rule:nonzero;stroke:#ffffff;stroke-width:12.4651;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4">
-<path
-   style="fill:#000000;stroke:#000000;stroke-width:37.3953;stroke-linecap:butt;stroke-linejoin:miter"
-   d="m 323.205,324.227 c 2.833,-23.601 1.984,-27.062 19.563,-23.239 l 4.463,0.392 c 13.517,0.615 31.199,-2.174 41.587,-7 22.362,-10.376 35.622,-27.7 13.572,-23.148 -50.297,10.376 -53.755,-6.655 -53.755,-6.655 C 401.746,185.774 423.948,85.741 404.784,61.255 352.514,-5.534 262.036,26.049 260.522,26.869 l -0.482,0.089 c -9.938,-2.062 -21.06,-3.294 -33.554,-3.496 -22.761,-0.374 -40.032,5.967 -53.133,15.904 0,0 -161.408,-66.498 -153.899,83.628 1.597,31.936 45.777,241.655 98.47,178.31 19.259,-23.163 37.871,-42.748 37.871,-42.748 9.242,6.14 20.307,9.272 31.912,8.147 l 0.897,-0.765 c -0.281,2.876 -0.157,5.689 0.359,9.019 -13.572,15.167 -9.584,17.83 -36.723,23.416 -27.457,5.659 -11.326,15.734 -0.797,18.367 12.768,3.193 42.305,7.716 62.268,-20.224 l -0.795,3.188 c 5.325,4.26 4.965,30.619 5.72,49.452 0.756,18.834 2.017,36.409 5.856,46.771 3.839,10.36 8.369,37.05 44.036,29.406 29.809,-6.388 52.6,-15.582 54.677,-101.107"
-   id="path3402" />
-
-<path
-   style="fill:#336791;stroke:none"
-   d="m 402.395,271.23 c -50.302,10.376 -53.76,-6.655 -53.76,-6.655 53.111,-78.808 75.313,-178.843 56.153,-203.326 -52.27,-66.785 -142.752,-35.2 -144.262,-34.38 l -0.486,0.087 c -9.938,-2.063 -21.06,-3.292 -33.56,-3.496 -22.761,-0.373 -40.026,5.967 -53.127,15.902 0,0 -161.411,-66.495 -153.904,83.63 1.597,31.938 45.776,241.657 98.471,178.312 19.26,-23.163 37.869,-42.748 37.869,-42.748 9.243,6.14 20.308,9.272 31.908,8.147 l 0.901,-0.765 c -0.28,2.876 -0.152,5.689 0.361,9.019 -13.575,15.167 -9.586,17.83 -36.723,23.416 -27.459,5.659 -11.328,15.734 -0.796,18.367 12.768,3.193 42.307,7.716 62.266,-20.224 l -0.796,3.188 c 5.319,4.26 9.054,27.711 8.428,48.969 -0.626,21.259 -1.044,35.854 3.147,47.254 4.191,11.4 8.368,37.05 44.042,29.406 29.809,-6.388 45.256,-22.942 47.405,-50.555 1.525,-19.631 4.976,-16.729 5.194,-34.28 l 2.768,-8.309 c 3.192,-26.611 0.507,-35.196 18.872,-31.203 l 4.463,0.392 c 13.517,0.615 31.208,-2.174 41.591,-7 22.358,-10.376 35.618,-27.7 13.573,-23.148 z"
-   id="path3404" />
-
-<path
-   d="m 215.866,286.484 c -1.385,49.516 0.348,99.377 5.193,111.495 4.848,12.118 15.223,35.688 50.9,28.045 29.806,-6.39 40.651,-18.756 45.357,-46.051 3.466,-20.082 10.148,-75.854 11.005,-87.281"
-   id="path3406" />
-
-<path
-   d="m 173.104,38.256 c 0,0 -161.521,-66.016 -154.012,84.109 1.597,31.938 45.779,241.664 98.473,178.316 19.256,-23.166 36.671,-41.335 36.671,-41.335"
-   id="path3408" />
-
-<path
-   d="m 260.349,26.207 c -5.591,1.753 89.848,-34.889 144.087,34.417 19.159,24.484 -3.043,124.519 -56.153,203.329"
-   id="path3410" />
-
-<path
-   style="stroke-linejoin:bevel"
-   d="m 348.282,263.953 c 0,0 3.461,17.036 53.764,6.653 22.04,-4.552 8.776,12.774 -13.577,23.155 -18.345,8.514 -59.474,10.696 -60.146,-1.069 -1.729,-30.355 21.647,-21.133 19.96,-28.739 -1.525,-6.85 -11.979,-13.573 -18.894,-30.338 -6.037,-14.633 -82.796,-126.849 21.287,-110.183 3.813,-0.789 -27.146,-99.002 -124.553,-100.599 -97.385,-1.597 -94.19,119.762 -94.19,119.762"
-   id="path3412" />
-
-<path
-   d="m 188.604,274.334 c -13.577,15.166 -9.584,17.829 -36.723,23.417 -27.459,5.66 -11.326,15.733 -0.797,18.365 12.768,3.195 42.307,7.718 62.266,-20.229 6.078,-8.509 -0.036,-22.086 -8.385,-25.547 -4.034,-1.671 -9.428,-3.765 -16.361,3.994 z"
-   id="path3414" />
-
-<path
-   d="m 187.715,274.069 c -1.368,-8.917 2.93,-19.528 7.536,-31.942 6.922,-18.626 22.893,-37.255 10.117,-96.339 -9.523,-44.029 -73.396,-9.163 -73.436,-3.193 -0.039,5.968 2.889,30.26 -1.067,58.548 -5.162,36.913 23.488,68.132 56.479,64.938"
-   id="path3416" />
-
-<path
-   style="fill:#ffffff;stroke-width:4.155;stroke-linecap:butt;stroke-linejoin:miter"
-   d="m 172.517,141.7 c -0.288,2.039 3.733,7.48 8.976,8.207 5.234,0.73 9.714,-3.522 9.998,-5.559 0.284,-2.039 -3.732,-4.285 -8.977,-5.015 -5.237,-0.731 -9.719,0.333 -9.996,2.367 z"
-   id="path3418" />
-
-<path
-   style="fill:#ffffff;stroke-width:2.0775;stroke-linecap:butt;stroke-linejoin:miter"
-   d="m 331.941,137.543 c 0.284,2.039 -3.732,7.48 -8.976,8.207 -5.238,0.73 -9.718,-3.522 -10.005,-5.559 -0.277,-2.039 3.74,-4.285 8.979,-5.015 5.239,-0.73 9.718,0.333 10.002,2.368 z"
-   id="path3420" />
-
-<path
-   d="m 350.676,123.432 c 0.863,15.994 -3.445,26.888 -3.988,43.914 -0.804,24.748 11.799,53.074 -7.191,81.435"
-   id="path3422" />
-
-<path
-   style="stroke-width:3"
-   d="M 0,60.232"
-   id="path3424" />
-
-</g>
+         style="clip-rule:nonzero;fill:none;fill-rule:nonzero;stroke:#ffffff;stroke-width:12.4651;stroke-linecap:round;stroke-linejoin:round;stroke-miterlimit:4"
+         id="Layer_x0020_3">
+        <path
+           id="path3402"
+           d="m 323.205,324.227 c 2.833,-23.601 1.984,-27.062 19.563,-23.239 l 4.463,0.392 c 13.517,0.615 31.199,-2.174 41.587,-7 22.362,-10.376 35.622,-27.7 13.572,-23.148 -50.297,10.376 -53.755,-6.655 -53.755,-6.655 C 401.746,185.774 423.948,85.741 404.784,61.255 352.514,-5.534 262.036,26.049 260.522,26.869 l -0.482,0.089 c -9.938,-2.062 -21.06,-3.294 -33.554,-3.496 -22.761,-0.374 -40.032,5.967 -53.133,15.904 0,0 -161.408,-66.498 -153.899,83.628 1.597,31.936 45.777,241.655 98.47,178.31 19.259,-23.163 37.871,-42.748 37.871,-42.748 9.242,6.14 20.307,9.272 31.912,8.147 l 0.897,-0.765 c -0.281,2.876 -0.157,5.689 0.359,9.019 -13.572,15.167 -9.584,17.83 -36.723,23.416 -27.457,5.659 -11.326,15.734 -0.797,18.367 12.768,3.193 42.305,7.716 62.268,-20.224 l -0.795,3.188 c 5.325,4.26 4.965,30.619 5.72,49.452 0.756,18.834 2.017,36.409 5.856,46.771 3.839,10.36 8.369,37.05 44.036,29.406 29.809,-6.388 52.6,-15.582 54.677,-101.107"
+           style="fill:#000000;stroke:#000000;stroke-width:37.3953;stroke-linecap:butt;stroke-linejoin:miter" />
+        <path
+           id="path3404"
+           d="m 402.395,271.23 c -50.302,10.376 -53.76,-6.655 -53.76,-6.655 53.111,-78.808 75.313,-178.843 56.153,-203.326 -52.27,-66.785 -142.752,-35.2 -144.262,-34.38 l -0.486,0.087 c -9.938,-2.063 -21.06,-3.292 -33.56,-3.496 -22.761,-0.373 -40.026,5.967 -53.127,15.902 0,0 -161.411,-66.495 -153.904,83.63 1.597,31.938 45.776,241.657 98.471,178.312 19.26,-23.163 37.869,-42.748 37.869,-42.748 9.243,6.14 20.308,9.272 31.908,8.147 l 0.901,-0.765 c -0.28,2.876 -0.152,5.689 0.361,9.019 -13.575,15.167 -9.586,17.83 -36.723,23.416 -27.459,5.659 -11.328,15.734 -0.796,18.367 12.768,3.193 42.307,7.716 62.266,-20.224 l -0.796,3.188 c 5.319,4.26 9.054,27.711 8.428,48.969 -0.626,21.259 -1.044,35.854 3.147,47.254 4.191,11.4 8.368,37.05 44.042,29.406 29.809,-6.388 45.256,-22.942 47.405,-50.555 1.525,-19.631 4.976,-16.729 5.194,-34.28 l 2.768,-8.309 c 3.192,-26.611 0.507,-35.196 18.872,-31.203 l 4.463,0.392 c 13.517,0.615 31.208,-2.174 41.591,-7 22.358,-10.376 35.618,-27.7 13.573,-23.148 z"
+           style="fill:#336791;stroke:none" />
+        <path
+           id="path3406"
+           d="m 215.866,286.484 c -1.385,49.516 0.348,99.377 5.193,111.495 4.848,12.118 15.223,35.688 50.9,28.045 29.806,-6.39 40.651,-18.756 45.357,-46.051 3.466,-20.082 10.148,-75.854 11.005,-87.281" />
+        <path
+           id="path3408"
+           d="m 173.104,38.256 c 0,0 -161.521,-66.016 -154.012,84.109 1.597,31.938 45.779,241.664 98.473,178.316 19.256,-23.166 36.671,-41.335 36.671,-41.335" />
+        <path
+           id="path3410"
+           d="m 260.349,26.207 c -5.591,1.753 89.848,-34.889 144.087,34.417 19.159,24.484 -3.043,124.519 -56.153,203.329" />
+        <path
+           id="path3412"
+           d="m 348.282,263.953 c 0,0 3.461,17.036 53.764,6.653 22.04,-4.552 8.776,12.774 -13.577,23.155 -18.345,8.514 -59.474,10.696 -60.146,-1.069 -1.729,-30.355 21.647,-21.133 19.96,-28.739 -1.525,-6.85 -11.979,-13.573 -18.894,-30.338 -6.037,-14.633 -82.796,-126.849 21.287,-110.183 3.813,-0.789 -27.146,-99.002 -124.553,-100.599 -97.385,-1.597 -94.19,119.762 -94.19,119.762"
+           style="stroke-linejoin:bevel" />
+        <path
+           id="path3414"
+           d="m 188.604,274.334 c -13.577,15.166 -9.584,17.829 -36.723,23.417 -27.459,5.66 -11.326,15.733 -0.797,18.365 12.768,3.195 42.307,7.718 62.266,-20.229 6.078,-8.509 -0.036,-22.086 -8.385,-25.547 -4.034,-1.671 -9.428,-3.765 -16.361,3.994 z" />
+        <path
+           id="path3416"
+           d="m 187.715,274.069 c -1.368,-8.917 2.93,-19.528 7.536,-31.942 6.922,-18.626 22.893,-37.255 10.117,-96.339 -9.523,-44.029 -73.396,-9.163 -73.436,-3.193 -0.039,5.968 2.889,30.26 -1.067,58.548 -5.162,36.913 23.488,68.132 56.479,64.938" />
+        <path
+           id="path3418"
+           d="m 172.517,141.7 c -0.288,2.039 3.733,7.48 8.976,8.207 5.234,0.73 9.714,-3.522 9.998,-5.559 0.284,-2.039 -3.732,-4.285 -8.977,-5.015 -5.237,-0.731 -9.719,0.333 -9.996,2.367 z"
+           style="fill:#ffffff;stroke-width:4.155;stroke-linecap:butt;stroke-linejoin:miter" />
+        <path
+           id="path3420"
+           d="m 331.941,137.543 c 0.284,2.039 -3.732,7.48 -8.976,8.207 -5.238,0.73 -9.718,-3.522 -10.005,-5.559 -0.277,-2.039 3.74,-4.285 8.979,-5.015 5.239,-0.73 9.718,0.333 10.002,2.368 z"
+           style="fill:#ffffff;stroke-width:2.0775;stroke-linecap:butt;stroke-linejoin:miter" />
+        <path
+           id="path3422"
+           d="m 350.676,123.432 c 0.863,15.994 -3.445,26.888 -3.988,43.914 -0.804,24.748 11.799,53.074 -7.191,81.435" />
+        <path
+           id="path3424"
+           d="M 0,60.232"
+           style="stroke-width:3" />
+      </g>
     </g>
   </g>
 </svg>
