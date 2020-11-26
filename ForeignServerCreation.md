@@ -18,7 +18,7 @@ Default: 127.0.0.1
   
 The servername, address or hostname of the foreign server server.  
   
-This can be a DSN, as specified in *freetds.conf*. See [FreeTDS name lookup](http://www.freetds.org/userguide/name.lookup.htm).
+This can be a DSN, as specified in *freetds.conf*. See [FreeTDS name lookup](https://www.freetds.org/userguide/name.lookup.html).
 
 You can set this option to a comma separated list of server names, then each
 server is tried until the first connection succeeds.  
@@ -70,13 +70,13 @@ The client character set to use for the connection, if you need to set this
 for some reason.  
   
 For TDS protocol versions 7.0+, the connection always uses UCS-2, so
-this parameter does nothing in those cases. See [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).		
+this parameter does nothing in those cases. See [Localization and TDS 7.0](https://www.freetds.org/userguide/Localization.html).		
 
 * *tds_version*  
   
 Required: No  
   
-The version of the TDS protocol to use for this server. See [Choosing a TDS protocol version](http://www.freetds.org/userguide/choosingtdsprotocol.htm) and [History of TDS Versions](http://www.freetds.org/userguide/tdshistory.htm).
+The version of the TDS protocol to use for this server. See [Choosing a TDS protocol version](https://www.freetds.org/userguide/ChoosingTdsProtocol.html) and [History of TDS Versions](https://www.freetds.org/userguide/tdshistory.html).
 
 * *msg_handler*  
   
