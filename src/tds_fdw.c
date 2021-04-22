@@ -1925,11 +1925,6 @@ void tdsEndForeignScan(ForeignScanState *node)
 			
 		MemoryContextStats(estate->es_query_cxt);
 	}
-
-	if (festate->query)
-	{
-		pfree(festate->query);
-	}
 	
 	ereport(DEBUG3,
 		(errmsg("tds_fdw: Closing database connection")
