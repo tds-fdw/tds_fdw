@@ -1227,11 +1227,16 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 
 void tdsExplainForeignScan(ForeignScanState *node, ExplainState *es)
 {
+	TdsFdwExecutionState *festate = (TdsFdwExecutionState *) node->fdw_state;
+
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tdsExplainForeignScan")
 			));
 	#endif
+
+	if (es->verbose)
+		ExplainPropertyText("Remote query", festate->query, es);
 	
 	#ifdef DEBUG
 		ereport(NOTICE,

@@ -76,6 +76,10 @@ See [importing a foreign schema](ForeignSchemaImporting.md).
 ### Variables
 
 See [variables](Variables.md).
+
+### `EXPLAIN`
+
+`EXPLAIN (VERBOSE)` will show the query issued on the remote system.
 	
 ## Notes about character sets/encoding
 
