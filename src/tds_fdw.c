@@ -1895,11 +1895,32 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 
 void tdsReScanForeignScan(ForeignScanState *node)
 {
+	TdsFdwExecutionState *festate = (TdsFdwExecutionState *) node->fdw_state;
+	int ret_code = NO_MORE_ROWS;
+
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tdsReScanForeignScan")
 			));
 	#endif
+
+	/*
+	 * Consume any remaining result rows.
+	 * This might be necessary if the scan stopped before all
+	 * rows were consumed.
+	 */
+	if (!festate->first)
+		while ((ret_code = dbnextrow(festate->dbproc)) == REG_ROW)
+			;
+
+	if (ret_code != NO_MORE_ROWS)
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+			errmsg("Failed to get row during query")
+			));
+
+	/* reset the state for the next scan */
+	festate->first = 1;
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
