@@ -8,9 +8,20 @@ SET enable_hashjoin = off;
 SET enable_mergejoin = off;
 SET enable_material = off;
 
-SELECT * FROM @PSCHEMANAME.expensive()
-   LEFT JOIN @PSCHEMANAME.view_simple
+CREATE TEMP TABLE results (id integer, data text);
+
+INSERT INTO results
+SELECT id, v.data FROM @PSCHEMANAME.expensive() AS f
+   LEFT JOIN @PSCHEMANAME.view_simple AS v
       USING (id);
+
+/* results.data should not be NULL */
+DO $$BEGIN
+   IF EXISTS (SELECT 1 FROM results WHERE data IS NULL)
+   THEN
+      RAISE EXCEPTION 'bad results from query';
+   END IF;
+END;$$;
 
 RESET enable_hashjoin;
 RESET enable_mergejoin;
