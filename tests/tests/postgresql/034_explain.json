@@ -1,0 +1,9 @@
+{
+    "test_desc" : "EXPLAIN (VERBOSE)",
+    "server" : {
+        "version" : {
+            "min" : "9.6.0",
+            "max" : ""
+        }
+    }
+}
