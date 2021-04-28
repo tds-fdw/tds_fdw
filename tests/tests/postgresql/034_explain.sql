@@ -1,0 +1,1 @@
+EXPLAIN (VERBOSE) SELECT data FROM @PSCHEMANAME.view_simple;
