@@ -16,6 +16,10 @@ def version_to_array(version, dbtype):
     dbtype  -- A string with the database type (postgresql|mssql)
     """
     if version != '':
+        try:
+            version = version.decode('utf-8')
+        except (UnicodeDecodeError, AttributeError):
+            pass
         # Cleanup version, since Ubuntu decided to add their own
         # versioning starting with PostgreSQL 10.2:
         # '10.2 (Ubuntu 10.2-1.pgdg14.04+1' instead of '10.2'
@@ -28,6 +32,8 @@ def version_to_array(version, dbtype):
         if dbtype == 'mssql':
             if len(version) == 3:
                 version.append(0)
+    else:
+        version = []
     return(version)
 
 
@@ -51,7 +57,7 @@ def check_ver(conn, min_ver, max_ver, dbtype):
     min_ver = version_to_array(min_ver, dbtype)
     max_ver = version_to_array(max_ver, dbtype)
     server_ver = version_to_array(server_ver, dbtype)
-    if server_ver >= min_ver and (server_ver <= max_ver or max_ver == ''):
+    if server_ver >= min_ver and (server_ver <= max_ver or len(max_ver) == 0):
         return(True)
     else:
         return(False)
