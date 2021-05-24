@@ -16,7 +16,7 @@
 
 ### Setting Variables
 
-To set a variable, use the [SET command](http://www.postgresql.org/docs/9.4/static/sql-set.html). i.e.:
+To set a variable, use the [SET command](https://www.postgresql.org/docs/12/sql-set.html). i.e.:
 
 ```
 postgres=# SET tds_fdw.show_finished_memory_stats=1;
