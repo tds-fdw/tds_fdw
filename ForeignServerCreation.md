@@ -57,7 +57,7 @@ The language to use for messages and the locale to use for date formats.
 FreeTDS may default to *us_english* on most systems. You can probably also change
 this in *freetds.conf*.  
   
-For information related to this for MS SQL Server, see [SET LANGUAGE in MS SQL Server](http://technet.microsoft.com/en-us/library/ms174398.aspx).  
+For information related to this for MS SQL Server, see [SET LANGUAGE in MS SQL Server](https://technet.microsoft.com/en-us/library/ms174398.aspx).
   
 For information related to Sybase ASE, see [Sybase ASE login options](http://infocenter.sybase.com/help/topic/com.sybase.infocenter.dc32300.1570/html/sqlug/X68290.htm)
 and [SET LANGUAGE in Sybase ASE](http://infocenter.sybase.com/help/topic/com.sybase.infocenter.dc36272.1572/html/commands/X64136.htm).

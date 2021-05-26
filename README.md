@@ -11,11 +11,11 @@
 
 ## About
 
-This is a [PostgreSQL foreign data wrapper](http://wiki.postgresql.org/wiki/Foreign_data_wrappers) that can connect to databases that use the [Tabular Data Stream (TDS) protocol](http://en.wikipedia.org/wiki/Tabular_Data_Stream),
+This is a [PostgreSQL foreign data wrapper](https://wiki.postgresql.org/wiki/Foreign_data_wrappers) that can connect to databases that use the [Tabular Data Stream (TDS) protocol](https://en.wikipedia.org/wiki/Tabular_Data_Stream),
 such as Sybase databases and Microsoft SQL server.
 
 This foreign data wrapper requires a library that implements the DB-Library interface,
-such as [FreeTDS](http://www.freetds.org). This has been tested with FreeTDS, but not
+such as [FreeTDS](https://www.freetds.org). This has been tested with FreeTDS, but not
 the proprietary implementations of DB-Library.
 
 This should support PostgreSQL 9.2+.
@@ -91,23 +91,23 @@ See [variables](Variables.md).
    > ERROR:  DB-Library error: DB #: 4004, DB Msg: General SQL Server error: Check messages from 
    > the SQL Server, OS #: -1, OS Msg: (null), Level: 16
    
-   You may have to manually set *tds version* in *freetds.conf* to 7.0 or higher. See [The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm).
-   and [Choosing a TDS protocol version](http://www.freetds.org/userguide/choosingtdsprotocol.htm).
+   You may have to manually set *tds version* in *freetds.conf* to 7.0 or higher. See [The *freetds.conf* File](https://www.freetds.org/userguide/freetdsconf.html).
+   and [Choosing a TDS protocol version](https://www.freetds.org/userguide/ChoosingTdsProtocol.html).
 
 2. Although many newer versions of the TDS protocol will only use USC-2 to communicate
 with the server, FreeTDS converts the UCS-2 to the client character set of your choice. 
 To set the client character set, you can set *client charset* in *freetds.conf*. See 
-[The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm) and [Localization and TDS 7.0](http://www.freetds.org/userguide/localization.htm).
+[The *freetds.conf* File](https://www.freetds.org/userguide/freetdsconf.html) and [Localization and TDS 7.0](https://www.freetds.org/userguide/Localization.html).
 
 ## Encrypted connections to MSSQL
 
-It is handled by FreeTDS, so this needs to be configured at the `freetds.conf`. Seee [The *freetds.conf* File](http://www.freetds.org/userguide/freetdsconf.htm) and at `freetds.conf settings` look for `encryption`.
+It is handled by FreeTDS, so this needs to be configured at the `freetds.conf`. Seee [The *freetds.conf* File](https://www.freetds.org/userguide/freetdsconf.html) and at `freetds.conf settings` look for `encryption`.
 
 ## Support
 
 If you find any bugs, or you would like to request enhancements, please submit your comments on the [project's GitHub Issues page](https://github.com/tds-fdw/tds_fdw/issues).
 
-Additionally, I do subscribe to several [PostgreSQL mailing lists](http://www.postgresql.org/list/) including *pgsql-general* and *pgsql-hackers*. If tds_fdw is mentioned in an email sent to one of those lists, I typically see it.
+Additionally, I do subscribe to several [PostgreSQL mailing lists](https://www.postgresql.org/list/) including *pgsql-general* and *pgsql-hackers*. If tds_fdw is mentioned in an email sent to one of those lists, I typically see it.
 
 ## Debugging
 
