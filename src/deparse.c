@@ -1876,10 +1876,11 @@ static void
 deparseRelabelType(RelabelType *node, deparse_expr_cxt *context)
 {
 	deparseExpr(node->arg, context);
-	if (node->relabelformat != COERCE_IMPLICIT_CAST)
-		appendStringInfo(context->buf, " as %s",
-						 deparse_type_name(node->resulttype,
-										   node->resulttypmod));
+	// Pretty sure this only causes issues.
+	//if (node->relabelformat != COERCE_IMPLICIT_CAST)
+	//	appendStringInfo(context->buf, " as %s",
+	//					 deparse_type_name(node->resulttype,
+	//									   node->resulttypmod));
 }
 
 /*
