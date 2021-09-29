@@ -24,6 +24,12 @@ Some other dependencies are also needed to install PostgreSQL and then compile t
 apk add gcc libc-dev make
 ```
 
+In case you will get `fatal error: stdio.h: No such file or directory` later on (on `make USE_PGXS=1`) - installing `musl-dev` migth help (https://stackoverflow.com/questions/42366739/gcc-cant-find-stdio-h-in-alpine-linux):
+
+```bash
+apk add musl-dev
+```
+
 ### Install PostgreSQL
 
 If you need to install PostgreSQL, do so by installing from APK. For example, to install PostgreSQL 11.6 on Alpine Linux:
