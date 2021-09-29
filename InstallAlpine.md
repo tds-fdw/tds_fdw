@@ -1,8 +1,9 @@
 # TDS Foreign data wrapper
 
 * **Author:** TheRevenantStar
+* **EditedBy:** Guriy Samarin
 * **Name:** tds_fdw
-* **File:** tds_fdw/InstallUbuntu.md
+* **File:** tds_fdw/InstallAlpine.md
 
 ## Installing on Alpine Linux
 
@@ -29,6 +30,12 @@ If you need to install PostgreSQL, do so by installing from APK. For example, to
 
 ```bash
 apk add postgresql=11.6-r0 postgresql-client=11.6-r0 postgresql-dev=11.6-r0
+```
+
+In postgres-alpine docker image you will need only 
+
+```bash
+apk add postgresql-dev
 ```
 
 ### Install tds_fdw
