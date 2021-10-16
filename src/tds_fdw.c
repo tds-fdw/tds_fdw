@@ -1556,6 +1556,15 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
 		
 		festate->first = 0;
 
+		/* the following option is needed to get a proper size for blobs */
+		if ((erc = dbsetopt(festate->dbproc, DBTEXTSIZE, "2147483647", -1)) == FAIL)
+		{
+			ereport(WARNING,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to set DBTEXTLIMIT server option, blob sizes may be truncated!")
+				));
+		}
+
 		if ((erc = dbcmd(festate->dbproc, festate->query)) == FAIL)
 		{
 			ereport(ERROR,
