@@ -55,6 +55,10 @@ See [installing tds_fdw on openSUSE](InstallopenSUSE.md).
 
 See [installing tds_fdw on OSX](InstallOSX.md).
 
+## Installing on Alpine (and Docker)
+
+See [installing tds_fdw on Alpine](InstallAlpine.md).
+
 ## Usage
 
 ### Foreign server
