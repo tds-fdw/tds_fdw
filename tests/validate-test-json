@@ -1,0 +1,101 @@
+#!/usr/bin/python3
+
+from json import JSONDecodeError, loads
+try:
+    from jsonschema import validate, ValidationError
+except ModuleNotFoundError:
+    print_error(
+        "jsonschema library not available, please install it before usage!")
+    exit(1)
+from lib.messages import print_error, print_info, print_ok
+from lib.messages import print_usage_error, print_warning
+from optparse import OptionParser
+from os import listdir, path
+from sys import exit
+
+
+def parse_options():
+    """Parse and validate options. Returns a dict with all the options."""
+    usage = "%prog <arguments>"
+    description = ('Test JSON files for MSSQL or PostgreSQL tests')
+    parser = OptionParser(usage=usage, description=description)
+    parser.add_option('--path', action='store',
+                      help='Path to a JSON file')
+    (options, args) = parser.parse_args()
+    if options.path is None:
+        print_error("Insufficient parameters, check help (-h)")
+        exit(4)
+    return(options)
+
+
+def validate_json(jsonfile):
+    # This is the definition of the schema, according to README.md
+    schema = {
+        "type": "object",
+        "properties": {
+            "test_desc": {
+                "type": "string"
+            },
+            "server": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "object",
+                        "properties": {
+                            "min": {
+                                "type": "string",
+                                "pattern": "^([0-9]+\\.[0-9]+\\.[0-9]+)$"
+                            },
+                            "max": {
+                                "type": "string",
+                                "pattern": "^([0-9]+\\.[0-9]+\\.[0-9]+)?$"
+                            }
+                        },
+                        "required": [
+                            "min",
+                            "max"
+                        ]
+                    }
+                },
+                "required": [
+                    "version"
+                ]
+            }
+        },
+        "required": [
+            "test_desc",
+            "server"
+        ]
+    }
+    try:
+        with open(jsonfile, 'r') as f:
+            try:
+                json = loads(f.read())
+            except JSONDecodeError as e:
+                print_error("Invalid JSON: %s" % e)
+                return False
+    except FileNotFoundError as e:
+        print_error(e)
+        return False
+    try:
+        validate(instance=json, schema=schema)
+    except ValidationError as e:
+        print_error(e)
+        return False
+    print_ok("%s is valid" % jsonfile)
+    return True
+
+
+def main():
+    try:
+        options = parse_options()
+    except Exception as e:
+        print_usage_error(path.basename(__file__), e)
+        exit(2)
+    print_info("Validating %s" % options.path)
+    if not validate_json(options.path):
+        exit(3)
+
+
+if __name__ == "__main__":
+    main()
