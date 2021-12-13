@@ -98,7 +98,7 @@ def get_logs_path(conn, dbtype):
         pids = [pid for pid in listdir('/proc') if pid.isdigit()]
         for pid in pids:
             try:
-                cmdline = open('/proc/' + pid + '/cmdline', 'rb').read()
+                cmdline = open('/proc/' + pid + '/cmdline', 'r').read()
                 if 'postgres: logger' in cmdline:
                     logger_log = "/proc/%s/fd/2" % pid
                     if isfile(logger_log):

@@ -4,3 +4,4 @@ sql/*--*.sql
 *.o
 *.bc
 *.so
+tests/lib/__pycache__
