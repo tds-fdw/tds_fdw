@@ -64,6 +64,8 @@ Always has the following format:
 
 You can check the list of versions for [MSSQL](https://sqlserverbuilds.blogspot.com/) (format `X.Y.Z` and `X.Y.W.Z`), [PostgreSQL](https://www.postgresql.org/docs/release/) (formats `X.Y.Z` and `X.Y`), to adjust the `min` and `max` values as needed.
 
+To validate the JSON file, you can use the script `validate-test-json`.
+
 ## The SQL file
 
 It is a regular SQL file for one or more queries for either MSSQL or PostgreSQL.
