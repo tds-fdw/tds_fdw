@@ -661,10 +661,15 @@ foreign_expr_walker(Node *node,
 	return true;
 }
 
-#if (PG_VERSION_NUM >= 90600)
+#if (PG_VERSION_NUM >= 150000)
 bool is_builtin(Oid objectId)
 {
-	return (objectId < FirstBootstrapObjectId);
+        return (objectId < FirstUnpinnedObjectId);
+}
+#elif (PG_VERSION_NUM >= 90600)
+bool is_builtin(Oid objectId)
+{
+        return (objectId < FirstBootstrapObjectId);
 }
 #endif
 
