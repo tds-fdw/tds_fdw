@@ -16,6 +16,6 @@
 #----------------------------------------------------------------------------
 
 comment = 'Foreign data wrapper for querying a TDS database (Sybase or Microsoft SQL Server)'
-default_version = '2.0.2'
+default_version = '2.0.3'
 module_pathname = '$libdir/tds_fdw'
 relocatable = true
