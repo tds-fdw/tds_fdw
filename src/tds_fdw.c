@@ -3413,7 +3413,11 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	appendStringInfoString(&buf,
 						   "SELECT so.name AS table_name, "
 						   "  sc.name AS column_name, "
-						   "  st.name AS data_type, "
+						   "  CASE WHEN st.usertype < 100 "
+						   "     THEN st.name "
+						   "     ELSE (SELECT s1.name FROM dbo.systypes s1 WHERE s1.usertype = "
+						   "       (SELECT min(s2.usertype) FROM dbo.systypes s2 WHERE s2.type = st.type)) "
+						   "  END AS data_type, "
 						   "  SUBSTRING(sm.text, 10, 255) AS column_default, "
 						   "  CASE (sc.status & 0x08) "
 						   "    WHEN 8 THEN 'YES' ELSE 'NO' "
