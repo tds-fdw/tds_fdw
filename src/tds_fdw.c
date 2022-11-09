@@ -93,6 +93,9 @@ static bool show_before_row_memory_stats = false;
 static const bool DEFAULT_SHOW_AFTER_ROW_MEMORY_STATS = false;
 static bool show_after_row_memory_stats = false;
 
+static const char *DEFAULT_KEEP_UNTRANSLATABLE_TYPES = false;
+static bool keep_untranslatable_types = false;
+
 static const double DEFAULT_FDW_SORT_MULTIPLIER=1.2;
 
 /* error handling */
@@ -221,6 +224,18 @@ void _PG_init(void)
 		NULL,
 		NULL,
 		NULL);
+
+	DefineCustomBoolVariable("tds_fdw.keep_untranslatable_types",
+		"Keep untranslatable data types as is when importing a foreign schema",
+		"Set to true to use the same named domains on the Postgres side",
+		&keep_untranslatable_types,
+		DEFAULT_KEEP_UNTRANSLATABLE_TYPES,
+		PGC_USERSET,
+		0,
+		NULL,
+		NULL,
+		NULL);
+
 }
 
 /*
@@ -3412,12 +3427,19 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	 */
 	appendStringInfoString(&buf,
 						   "SELECT so.name AS table_name, "
-						   "  sc.name AS column_name, "
+						   "  sc.name AS column_name, ");
+
+    if (keep_untranslatable_types)
+		appendStringInfoString(&buf, " st.name AS data_type, ");
+	else
+		appendStringInfoString(&buf,
 						   "  CASE WHEN st.usertype < 100 "
 						   "     THEN st.name "
 						   "     ELSE (SELECT s1.name FROM dbo.systypes s1 WHERE s1.usertype = "
 						   "       (SELECT min(s2.usertype) FROM dbo.systypes s2 WHERE s2.type = st.type)) "
-						   "  END AS data_type, "
+						   "  END AS data_type, ");
+
+	appendStringInfoString(&buf,
 						   "  SUBSTRING(sm.text, 10, 255) AS column_default, "
 						   "  CASE (sc.status & 0x08) "
 						   "    WHEN 8 THEN 'YES' ELSE 'NO' "
@@ -3685,6 +3707,11 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					/* Other types */
 					else if (strcmp(data_type, "xml") == 0)
 						appendStringInfoString(&buf, " xml");
+					else if (keep_untranslatable_types)
+					{
+						appendStringInfoString(&buf, " ");
+						appendStringInfoString(&buf, data_type);
+					}
 					else
 					{
 						ereport(DEBUG3,
