@@ -712,8 +712,8 @@ static char* postgresql_type_to_tds_type(const char* postgresql_type)
 		const char* tds_type_local = "datetime2";
 		size_t len = strlen(tds_type_local);
 		
-		tds_type = palloc(len);
-		strncpy(tds_type, tds_type_local, len);
+		tds_type = (char *) palloc((len + 1) * sizeof(char));
+		sprintf(tds_type, "%s", tds_type_local);
 	}
 	
 	/* if no mapping defined, just copy postgresql type */
@@ -721,8 +721,8 @@ static char* postgresql_type_to_tds_type(const char* postgresql_type)
 	{
 		size_t len = strlen(postgresql_type);
 		
-		tds_type = palloc(len);
-		strncpy(tds_type, postgresql_type, len);
+		tds_type = (char *) palloc((len + 1) * sizeof(char));
+		sprintf(tds_type, "%s", postgresql_type);
 	}
 	
 	return tds_type;
