@@ -15,6 +15,8 @@ User mapping parameters accepted:
 Required: Yes  
   
 The username of the account on the foreign server.
+
+**IMPORTANT:** If you are using Azure SQL, then your username for the foreign server will be need to be in the format `username@servername`. If you only use the username, the authentication will fail.
 				
 * *password*  
   
