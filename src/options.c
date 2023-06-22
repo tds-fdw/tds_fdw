@@ -127,6 +127,7 @@ void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option
 	else if (context == ForeignTableRelationId)
 	{
 		tdsGetForeignTableOptions(options_list, option_set);
+		tdsSetDefaultOptions(option_set);
 		tdsValidateForeignTableOptionSet(option_set);
 	}
 	
