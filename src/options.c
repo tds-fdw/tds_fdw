@@ -127,6 +127,7 @@ void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option
 	else if (context == ForeignTableRelationId)
 	{
 		tdsGetForeignTableOptions(options_list, option_set);
+		tdsSetDefaultOptions(option_set);
 		tdsValidateForeignTableOptionSet(option_set);
 	}
 	
@@ -502,7 +503,7 @@ void tdsGetForeignServerTableOptions(List *options_list, TdsFdwOptionSet *option
 		
 		else if (strcmp(def->defname, "use_remote_estimate") == 0)
 		{
-			if (option_set->use_remote_estimate)
+			if (option_set->use_remote_estimate != -1)
 				ereport(ERROR,
 					(errcode(ERRCODE_SYNTAX_ERROR),
 						errmsg("Redundant option: use_remote_estimate (%s)", defGetString(def))
@@ -776,7 +777,7 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
 		#endif
 	}
 	
-	if (!option_set->use_remote_estimate)
+	if (option_set->use_remote_estimate == -1)
 	{
 		option_set->use_remote_estimate = DEFAULT_USE_REMOTE_ESTIMATE;
 		
@@ -872,6 +873,14 @@ void tdsValidateForeignTableOptionSet(TdsFdwOptionSet *option_set)
 			));
 	}
 
+    /* Check option ranges */
+    if (option_set->use_remote_estimate < 0 || option_set->use_remote_estimate > 1)
+    {
+		ereport(ERROR,
+			(errcode(ERRCODE_SYNTAX_ERROR),
+				errmsg("Invalid value for use_remote_estimate: %d", option_set->use_remote_estimate)
+			));
+    }
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsValidateForeignTableOptionSet")
@@ -931,7 +940,7 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->table_name = NULL;
 	option_set->row_estimate_method = NULL;
 	option_set->match_column_names = DEFAULT_MATCH_COLUMN_NAMES;
-	option_set->use_remote_estimate = 0;
+	option_set->use_remote_estimate = -1;
 	option_set->fdw_startup_cost = 0;
 	option_set->fdw_tuple_cost = 0;
 	option_set->local_tuple_estimate = 0;
