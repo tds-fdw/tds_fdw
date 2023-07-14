@@ -42,6 +42,7 @@
 #include "foreign/foreign.h"
 #include "miscadmin.h"
 #include "mb/pg_wchar.h"
+#include "libpq/pqsignal.h"
 #include "optimizer/cost.h"
 #include "optimizer/paths.h"
 #include "optimizer/prep.h"
@@ -102,6 +103,13 @@ static char* last_error_message = NULL;
 static int tds_err_capture(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr);
 static char *tds_err_msg(int severity, int dberr, int oserr, char *dberrstr, char *oserrstr);
 
+/* signal handling */
+static volatile bool interrupt_flag = false;
+static void tds_signal_handler(int signum);
+static void tds_clear_signals(void);
+static int tds_chkintr_func(void* vdbproc);
+static int tds_hndlintr_func(void* vdbproc);
+
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
  *
@@ -154,6 +162,8 @@ PGDLLEXPORT Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 #ifdef IMPORT_API
 	fdwroutine->ImportForeignSchema = tdsImportForeignSchema;
 #endif  /* IMPORT_API */
+
+    pqsignal(SIGINT, tds_signal_handler);
 
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -596,6 +606,9 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	/* set the normal error handler again */
 	dberrhandle(tds_err_handler);
 
+	/* set a signal handler that cancels now that dbopen() is complete */
+	dbsetinterrupt(*dbproc, tds_chkintr_func, tds_hndlintr_func);
+	
 	if (option_set->database && option_set->dbuse)
 	{
 		ereport(DEBUG3,
@@ -1261,6 +1274,8 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 			(errmsg("----> starting tdsBeginForeignScan")
 			));
 	#endif
+	
+	tds_clear_signals();
 	
 	tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(node->ss.ss_currentRelation), &option_set);
 		
@@ -1987,6 +2002,8 @@ void tdsEndForeignScan(ForeignScanState *node)
 
 	MemoryContextSwitchTo(old_cxt);
 	MemoryContextReset(festate->mem_cxt);
+	
+	tds_clear_signals();
 }
 
 /*
@@ -2249,6 +2266,8 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 			(errmsg("----> starting tdsGetForeignRelSize")
 			));
 	#endif
+	
+	tds_clear_signals();
 	
 	/*
 	 * We use PgFdwRelationInfo to pass various information to subsequent
@@ -2981,6 +3000,8 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	RETCODE		erc;
 	int			ret_code;
 
+	tds_clear_signals();
+	
 	initStringInfo(&buf);
 
 	/* Check that the schema really exists */
@@ -4012,4 +4033,30 @@ int tds_blackhole_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int 
 	#endif
 
 	return 0;
+}
+
+void tds_signal_handler(int signum)
+{
+	interrupt_flag = true;
+}
+
+void tds_clear_signals()
+{
+	interrupt_flag = false;
+}
+
+int tds_chkintr_func(void *vdbproc)
+{
+	int status = FALSE;
+	if(interrupt_flag)
+	{
+		status = TRUE;
+	}
+	return status;
+}
+
+int tds_hndlintr_func(void *vdbproc)
+{
+	tds_clear_signals();
+	return INT_CANCEL;
 }
