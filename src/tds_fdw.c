@@ -3277,7 +3277,10 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 
 					/* Floating-point types */
 					else if (strcmp(data_type, "float") == 0)
-						appendStringInfo(&buf, " float(%d)", numeric_precision);
+						if (numeric_precision == 0)
+							appendStringInfoString(&buf, " float");
+						else
+							appendStringInfo(&buf, " float(%d)", numeric_precision);
 					else if (strcmp(data_type, "real") == 0)
 						appendStringInfoString(&buf, " real");
 
@@ -3659,7 +3662,10 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 
 					/* Floating-point types */
 					else if (strcmp(data_type, "float") == 0)
-						appendStringInfo(&buf, " float(%d)", numeric_precision);
+						if (numeric_precision == 0)
+							appendStringInfoString(&buf, " float");
+						else
+							appendStringInfo(&buf, " float(%d)", numeric_precision);
 					else if (strcmp(data_type, "real") == 0)
 						appendStringInfoString(&buf, " real");
 
