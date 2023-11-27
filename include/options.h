@@ -30,6 +30,7 @@ typedef struct TdsFdwOptionSet
 	char *schema_name;
 	char *table_name;
 	char* row_estimate_method;
+	bool ansi_mode;
 	int match_column_names;
 	int use_remote_estimate;
 	int fdw_startup_cost;

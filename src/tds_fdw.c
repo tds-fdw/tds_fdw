@@ -421,6 +421,131 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 	#endif	
 }
 
+/* helper function to set ANSI options */
+void tdsSetAnsiMode(DBPROCESS **dbproc)
+{
+	char *set_concat_null_yields_null_query = "SET CONCAT_NULL_YIELDS_NULL ON;";
+	char *set_ansi_nulls_query = "SET ANSI_NULLS ON;";
+	char *set_ansi_warnings_query = "SET ANSI_WARNINGS ON;";
+	char *set_quoted_identifier_query = "SET QUOTED_IDENTIFIER ON;";
+	char *set_ansi_padding_query = "SET ANSI_PADDING ON;";
+	RETCODE erc;
+
+	/* CONCAT_NULLS_YIELDS_NULL setting */
+
+    elog(DEBUG3, "setting CONCAT_NULL_YIELDS_NULL");
+
+	if ((erc = dbcmd(*dbproc, set_concat_null_yields_null_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set CONCAT_NULL_YIELDS_NULL to %s", set_concat_null_yields_null_query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+
+	if ((erc = dbsqlexec(*dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", set_concat_null_yields_null_query)
+			));
+	}
+
+    elog(DEBUG3, "setting ANSI_NULLS");
+
+	/* ANSI_NULLS setting */
+
+	if ((erc = dbcmd(*dbproc, set_ansi_nulls_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set CONCAT_NULL_YIELDS_NULL to %s", set_ansi_nulls_query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+
+	if ((erc = dbsqlexec(*dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", set_ansi_nulls_query)
+			));
+	}
+
+	/* ANSI_WARNINGS setting */
+
+	if ((erc = dbcmd(*dbproc, set_ansi_warnings_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set CONCAT_NULL_YIELDS_NULL to %s", set_ansi_warnings_query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+
+	if ((erc = dbsqlexec(*dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", set_ansi_warnings_query)
+			));
+	}
+
+	/* QUOTED_IDENTIFIER setting */
+
+	if ((erc = dbcmd(*dbproc, set_quoted_identifier_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set CONCAT_NULL_YIELDS_NULL to %s", set_quoted_identifier_query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+
+	if ((erc = dbsqlexec(*dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", set_quoted_identifier_query)
+			));
+	}
+
+	/* ANSI_PADDING setting */
+
+	if ((erc = dbcmd(*dbproc, set_ansi_padding_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set CONCAT_NULL_YIELDS_NULL to %s", set_ansi_padding_query)
+			));
+	}
+
+	ereport(DEBUG3,
+		(errmsg("tds_fdw: Executing the query")
+		));
+
+	if ((erc = dbsqlexec(*dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", set_ansi_padding_query)
+			));
+	}
+
+}
 
 /* set up connection */
 
@@ -627,13 +752,18 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			(errmsg("tds_fdw: Selected database")
 			));
 	}
+
+	/* Enable ANSI mode if requested */
+	if (option_set->ansi_mode) {
+		tdsSetAnsiMode(dbproc);
+	}
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsSetupConnection")
 			));
 	#endif	
-	
+
 	return 0;
 }
 
@@ -645,7 +775,7 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 	char* show_plan_query = "SET SHOWPLAN_ALL ON";
 	char* show_plan_query_off = "SET SHOWPLAN_ALL OFF";
 	
-	#ifdef DEBUG
+    #ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tdsGetRowCountShowPlanAll")
 			));

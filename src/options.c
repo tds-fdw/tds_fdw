@@ -56,6 +56,7 @@ static struct TdsFdwOption valid_options[] =
 	{ "port",					ForeignServerRelationId },
 	{ "database",				ForeignServerRelationId },
 	{ "dbuse",					ForeignServerRelationId },
+    { "ansi_mode",              ForeignServerRelationId },
 	{ "tds_version",			ForeignServerRelationId },
 	{ "msg_handler",			ForeignServerRelationId },
 	{ "row_estimate_method",	ForeignServerRelationId },
@@ -316,6 +317,17 @@ void tdsGetForeignServerOptions(List *options_list, TdsFdwOptionSet *option_set)
 					
 			option_set->dbuse = atoi(defGetString(def));	
 		}	
+
+		else if(strcmp(def->defname, "ansi_mode") == 0)
+		{
+			if (option_set->ansi_mode)
+				ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+						errmsg("Redundant option: ansi_mode (%s)", defGetBoolean(def))
+					));
+
+			option_set->ansi_mode = defGetBoolean(def);
+		}
 
 		else if (strcmp(def->defname, "tds_version") == 0)
 		{
@@ -931,6 +943,7 @@ void tdsOptionSetInit(TdsFdwOptionSet* option_set)
 	option_set->port = 0;
 	option_set->database = NULL;
 	option_set->dbuse = 0;
+	option_set->ansi_mode = false;
 	option_set->tds_version = NULL;
 	option_set->msg_handler = NULL;
 	option_set->username = NULL;
