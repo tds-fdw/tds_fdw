@@ -98,6 +98,25 @@ Required: No
 
 A cost that is used to represent the overhead of fetching rows from this server used in query planning.
 
+* *ansi_mode*
+
+Required: No
+
+Setting this to "true" will enable the following server-side settings after a successful connection
+to the foreign server:
+
+	* CONCAT_NULLS_YIELDS_NULL ON
+	* ANSI_NULLS ON
+	* ANSI_WARNINGS ON
+	* QUOTED_IDENTIFIER ON
+	* ANSI_PADDING ON
+
+Those parameters in summary are comparable to the SQL Server option *ANSI_DEFAULTS*. In contrast, *ansi_mode* currently does not activate the following options:
+
+	* CURSOR_CLOSE_ON_COMMIT
+	* IMPLICIT_TRANSACTIONS
+	* ANSI_NULL_DFLT_ON
+
 #### Foreign table parameters accepted in server definition:
 
 Some foreign table options can also be set at the server level. Those include:
