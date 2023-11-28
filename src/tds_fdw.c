@@ -111,6 +111,12 @@ static int tds_chkintr_func(void* vdbproc);
 static int tds_hndlintr_func(void* vdbproc);
 
 /*
+ * Internal helper to set ANSI compatible server-side settings in
+ * case foreign server was configured with ansi_mode 'true'.
+ */
+static void tdsSetAnsiMode(DBPROCESS **dbproc);
+
+/*
  * Indexes of FDW-private information stored in fdw_private lists.
  *
  * We store various information in ForeignScan.fdw_private to pass it from
