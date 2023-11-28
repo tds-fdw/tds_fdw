@@ -102,8 +102,7 @@ A cost that is used to represent the overhead of fetching rows from this server 
 
 Required: No
 
-Setting this to "true" will enable the following server-side settings after a successful connection
-to the foreign server:
+The default is "false". Setting this to "true" will enable the following server-side settings after a successful connection to the foreign server:
 
 	* CONCAT_NULLS_YIELDS_NULL ON
 	* ANSI_NULLS ON
