@@ -98,7 +98,7 @@ Required: No
 
 A cost that is used to represent the overhead of fetching rows from this server used in query planning.
 
-* *ansi_mode*
+* *sqlserver_ansi_mode*
 
 Required: No
 
@@ -111,7 +111,7 @@ The default is "false". Setting this to "true" will enable the following server-
 	* ANSI_PADDING ON
 	* ANSI_NULL_DFLT_ON ON
 
-Those parameters in summary are comparable to the SQL Server option *ANSI_DEFAULTS*. In contrast, *ansi_mode* currently does not activate the following options:
+Those parameters in summary are comparable to the SQL Server option *ANSI_DEFAULTS*. In contrast, *sqlserver_ansi_mode* currently does not activate the following options:
 
 	* CURSOR_CLOSE_ON_COMMIT
 	* IMPLICIT_TRANSACTIONS

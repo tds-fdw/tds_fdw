@@ -111,10 +111,10 @@ static int tds_chkintr_func(void* vdbproc);
 static int tds_hndlintr_func(void* vdbproc);
 
 /*
- * Internal helper to set ANSI compatible server-side settings in
- * case foreign server was configured with ansi_mode 'true'.
+ * Internal helper to set ANSI compatible server-side settings for SQL Server
+ * in case foreign server was configured with sqlserver_ansi_mode 'true'.
  */
-static void tdsSetAnsiMode(DBPROCESS **dbproc);
+static void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc);
 
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
@@ -428,7 +428,7 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 }
 
 /* helper function to set ANSI options */
-void tdsSetAnsiMode(DBPROCESS **dbproc)
+void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc)
 {
 	char *set_ansi_options_query = "SET CONCAT_NULL_YIELDS_NULL, "
 		"ANSI_NULLS, "
@@ -668,8 +668,8 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	}
 
 	/* Enable ANSI mode if requested */
-	if (option_set->ansi_mode) {
-		tdsSetAnsiMode(dbproc);
+	if (option_set->sqlserver_ansi_mode) {
+		tdsSetSqlServerAnsiMode(dbproc);
 	}
 	
 	#ifdef DEBUG
