@@ -109,12 +109,14 @@ The default is "false". Setting this to "true" will enable the following server-
 	* ANSI_WARNINGS ON
 	* QUOTED_IDENTIFIER ON
 	* ANSI_PADDING ON
+	* ANSI_NULL_DFLT_ON ON
 
 Those parameters in summary are comparable to the SQL Server option *ANSI_DEFAULTS*. In contrast, *ansi_mode* currently does not activate the following options:
 
 	* CURSOR_CLOSE_ON_COMMIT
 	* IMPLICIT_TRANSACTIONS
-	* ANSI_NULL_DFLT_ON
+
+This follows the behavior of the native ODBC and OLEDB driver for SQL Servers, which explicitly turn them `OFF` if not configured otherwise.
 
 #### Foreign table parameters accepted in server definition:
 
