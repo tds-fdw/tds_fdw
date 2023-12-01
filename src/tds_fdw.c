@@ -110,6 +110,28 @@ static void tds_clear_signals(void);
 static int tds_chkintr_func(void* vdbproc);
 static int tds_hndlintr_func(void* vdbproc);
 
+/* Executes server query */
+static bool
+tdsExecuteQuery(char *query, DBPROCESS *dbproc);
+
+/*
+ * Checks database vendor being either Microsoft or Sybase.
+ * Returns 1 in case the connected instance is SQL Server.
+ */
+static bool tdsIsSqlServer(DBPROCESS *dbproc);
+
+/*
+ * Internal helper to set ANSI compatible server-side settings for SQL Server
+ * in case foreign server was configured with sqlserver_ansi_mode 'true'.
+ */
+static void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc);
+
+/*
+ * Internal helper to set ANSI compatible server-side settings for SQL Server
+ * in case foreign server was configured with sqlserver_ansi_mode 'true'.
+ */
+static void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc);
+
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
  *
@@ -421,6 +443,119 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 	#endif	
 }
 
+/* helper function, check database vendor is Microsoft or not */
+bool tdsIsSqlServer(DBPROCESS *dbproc)
+{
+	char *check_vendor_query = "SELECT CHARINDEX('Microsoft', @@version) AS is_sql_server";
+	bool result = true;
+
+	if (!tdsExecuteQuery(check_vendor_query, dbproc))
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_ERROR),
+				errmsg("Failed to check server version")
+			));
+	else
+	{
+		RETCODE		erc;
+		int			ret_code,
+					is_sql_server_pos;
+
+		erc = dbbind(dbproc, 1, INTBIND, sizeof(int), (BYTE *) &is_sql_server_pos);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"is_sql_server\" to a variable.")
+				));
+		}
+
+		/* Process result */
+		ret_code = dbnextrow(dbproc);
+		if (ret_code == NO_MORE_ROWS)
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_ERROR),
+					errmsg("Failed to check server version")
+				));
+
+		switch (ret_code)
+		{
+			case REG_ROW:
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: is_sql_server %d", is_sql_server_pos)
+					));
+
+				if (is_sql_server_pos == 0)
+					result = false;
+
+				break;
+
+			case BUF_FULL:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+						errmsg("Buffer filled up while getting plan for query")
+					));
+
+			case FAIL:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+						errmsg("Failed to get row while getting plan for query")
+					));
+
+			default:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+						errmsg("Failed to get plan for query. Unknown return code.")
+					));
+		}
+	}
+
+	return result;
+}
+
+/* helper function to set ANSI options */
+void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc)
+{
+	char *set_ansi_options_query = "SET CONCAT_NULL_YIELDS_NULL, "
+		"ANSI_NULLS, "
+		"ANSI_WARNINGS, "
+		"QUOTED_IDENTIFIER, "
+		"ANSI_PADDING, "
+		"ANSI_NULL_DFLT_ON ON";
+	RETCODE erc;
+
+	elog(DEBUG3, "tds_fdw: checking for SQL Server");
+
+	if (!tdsIsSqlServer(*dbproc))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				 errmsg("tds_fdw: option sqlserver_ansi_mode only supported for SQL Server"),
+				 errdetail("The foreign server is configured with sqlserver_ansi_mode=true"),
+				 errhint("use ALTER SERVER ... OPTIONS(DROP sqlserver_ansi_mode)")));
+	}
+
+	elog(DEBUG3, "tds_fdw: enabling ansi settings");
+
+	if ((erc = dbcmd(*dbproc, set_ansi_options_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set %s", set_ansi_options_query)
+			));
+	}
+
+	ereport(DEBUG3,
+			(errmsg("tds_fdw: Executing the query \"%s\"", set_ansi_options_query)));
+
+	if ((erc = dbsqlexec(*dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", set_ansi_options_query)
+			));
+	}
+
+}
 
 /* set up connection */
 
@@ -627,13 +762,18 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			(errmsg("tds_fdw: Selected database")
 			));
 	}
+
+	/* Enable ANSI mode if requested */
+	if (option_set->sqlserver_ansi_mode) {
+		tdsSetSqlServerAnsiMode(dbproc);
+	}
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsSetupConnection")
 			));
 	#endif	
-	
+
 	return 0;
 }
 
@@ -645,7 +785,7 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 	char* show_plan_query = "SET SHOWPLAN_ALL ON";
 	char* show_plan_query_off = "SET SHOWPLAN_ALL OFF";
 	
-	#ifdef DEBUG
+    #ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tdsGetRowCountShowPlanAll")
 			));
@@ -3868,73 +4008,7 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 		goto cleanup;
 	}
 
-	/* Create workspace for strings */
-	initStringInfo(&buf);
-
-	/* Determine server: is MS Sql Server or Sybase */
-	appendStringInfoString(&buf, "SELECT CHARINDEX('Microsoft', @@version) AS is_sql_server");
-
-	if (!tdsExecuteQuery(buf.data, dbproc))
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_ERROR),
-				errmsg("Failed to check server version")
-			));
-	else
-	{
-		RETCODE		erc;
-		int			ret_code,
-					is_sql_server_pos;
-
-		erc = dbbind(dbproc, 1, INTBIND, sizeof(int), (BYTE *) &is_sql_server_pos);
-		if (erc == FAIL)
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-					errmsg("Failed to bind results for column \"is_sql_server\" to a variable.")
-				));
-		}
-
-		/* Process result */
-		ret_code = dbnextrow(dbproc);
-		if (ret_code == NO_MORE_ROWS)
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_ERROR),
-					errmsg("Failed to check server version")
-				));
-
-		switch (ret_code)
-		{
-			case REG_ROW:
-				ereport(DEBUG3,
-					(errmsg("tds_fdw: is_sql_server %d", is_sql_server_pos)
-					));
-
-				if (is_sql_server_pos == 0)
-					is_sql_server = false;
-
-				break;
-
-			case BUF_FULL:
-				ereport(ERROR,
-					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-						errmsg("Buffer filled up while getting plan for query")
-					));
-
-			case FAIL:
-				ereport(ERROR,
-					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-						errmsg("Failed to get row while getting plan for query")
-					));
-
-			default:
-				ereport(ERROR,
-					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-						errmsg("Failed to get plan for query. Unknown return code.")
-					));
-		}
-	}
-
-	if (is_sql_server)
+	if (tdsIsSqlServer(dbproc))
 		commands = tdsImportSqlServerSchema(stmt, dbproc, option_set,
 											import_default, import_not_null);
 	else
