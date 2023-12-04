@@ -127,12 +127,6 @@ static bool tdsIsSqlServer(DBPROCESS *dbproc);
 static void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc);
 
 /*
- * Internal helper to set ANSI compatible server-side settings for SQL Server
- * in case foreign server was configured with sqlserver_ansi_mode 'true'.
- */
-static void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc);
-
-/*
  * Indexes of FDW-private information stored in fdw_private lists.
  *
  * We store various information in ForeignScan.fdw_private to pass it from
