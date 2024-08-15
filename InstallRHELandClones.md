@@ -7,7 +7,7 @@
 
 ## Installing on RHEL and Clones such as CentOS, Rocky Linux, AlmaLinux or Oracle
 
-This document will show how to install tds_fdw on Rocky Linux 8.5. RHEL distributions should be similar.
+This document will show how to install tds_fdw on Rocky Linux 8.9. RHEL distributions should be similar.
 
 NOTE: For the sake of simplicity, we will use `yum` as it works as an alias for `dnf` on newer distributions.
 
@@ -16,20 +16,6 @@ NOTE: For the sake of simplicity, we will use `yum` as it works as an alias for 
 #### PostgreSQL
 
 If you need to install PostgreSQL, do so by following the [RHEL installation instructions](https://www.postgresql.org/download/linux/redhat/).
-
-Here is an extract of the instructions:
-
-Only for RHEL 8 and clones such as Rocky Linux 8:
-```bash
-sudo sudo dnf -qy module disable postgresql # Not required for RHEL8 and clones
-```
-
-Install the PostgreSQL repository and packages:
-
-```bash
-sudo rpm -i https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-sudo yum install postgresql11 postgresql11-server postgresql11-libs postgresql11-devel
-```
 
 #### tds_fdw
 
@@ -53,33 +39,29 @@ sudo yum install tds_fdw11.x86_64
 
 If you need to install PostgreSQL, do so by following the [RHEL installation instructions](https://www.postgresql.org/download/linux/redhat/).
 
-Here is an extract of the instructions:
+Make sure that, besides `postgresqlXX-server`, `postgresqlXX-devel` is installed as well
 
-Only for RHEL 8 and clones such as Rocky Linux 8:
-```bash
-sudo sudo dnf -qy module disable postgresql # Not required for RHEL8 and clones
-```
-
-Install the PostgreSQL repository and packages:
-
-```bash
-sudo rpm -i https://download.postgresql.org/pub/repos/yum/reporpms/EL-8-x86_64/pgdg-redhat-repo-latest.noarch.rpm
-sudo yum install postgresql11 postgresql11-server postgresql11-libs postgresql11-devel
-```
+You need to enable the PowerTools repository for RHEL8 and clones, or the CBR repository for RHEL9 and clones.
 
 #### Install FreeTDS devel and build dependencies
 
 The TDS foreign data wrapper requires a library that implements the DB-Library interface,
 such as [FreeTDS](http://www.freetds.org).
 
-**NOTE:** In CentOS, you need the [EPEL repository installed](https://fedoraproject.org/wiki/EPEL) to install FreeTDS
+**NOTE:** You need the [EPEL repository installed](https://fedoraproject.org/wiki/EPEL) to install FreeTDS
 
 ```bash
 sudo yum install epel-release
 sudo yum install freetds-devel
 ```
 
-## IMPORTANT: CentOS7/Oracle7 and PostgreSQL >= 11
+Some other dependencies are also needed to install PostgreSQL and then compile tds_fdw:
+
+```bash
+sudo yum install clang llvm make redhat-rpm-config wget
+```
+
+#### IMPORTANT: CentOS7/Oracle7 and PostgreSQL >= 11
 
 When using the official PostgreSQL packages from postgresql.org, JIT with bitcode is enabled by default and will require llvm5 and `clang` from LLVM5 installed at `/opt/rh/llvm-toolset-7/root/usr/bin/clang` to be able to compile.
 
@@ -89,12 +71,6 @@ You can easily do it with the following commands:
 
 ```bash
 sudo yum install centos-release-scl
-```
-
-Some other dependencies are also needed to install PostgreSQL and then compile tds_fdw:
-
-```bash
-sudo yum install gcc make wget
 ```
 
 ##### Build from release package
