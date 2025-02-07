@@ -3437,9 +3437,10 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 							appendStringInfo(&buf, " numeric(%d, %d)",
 											 numeric_precision, numeric_scale);
 					}
-					else if (strcmp(data_type, "money") == 0 ||
-							 strcmp(data_type, "smallmoney") == 0)
-						appendStringInfoString(&buf, " money");
+					 else if (strcmp(data_type, "money") == 0)
+					     appendStringInfoString(&buf, " numeric(19,4)");
+					  else if (strcmp(data_type, "smallmoney") == 0)
+					      appendStringInfoString(&buf, " numeric(10,4)");
 
 					/* Floating-point types */
 					else if (strcmp(data_type, "float") == 0)
