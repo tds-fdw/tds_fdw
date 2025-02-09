@@ -1,0 +1,9 @@
+{
+    "test_desc" : "smallmoney data type, minimum value",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}
