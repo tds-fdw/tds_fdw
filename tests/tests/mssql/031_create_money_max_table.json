@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation with money data type, maximum value",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}
