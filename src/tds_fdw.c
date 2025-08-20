@@ -37,7 +37,12 @@
 #include "catalog/pg_user_mapping.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
+#if PG_VERSION_NUM < 180000
 #include "commands/explain.h"
+#else
+#include "commands/explain_format.h"
+#include "commands/explain_state.h"
+#endif
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
 #include "miscadmin.h"
@@ -2617,9 +2622,20 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								   NULL,		/* no outer rel either */
 								   NULL,		/* no extra plan */
 								   NIL);		/* no fdw_private list */
+#elif PG_VERSION_NUM < 180000
+	path = create_foreignscan_path(root, baserel, NULL,
+								   fpinfo->rows,
+								   fpinfo->startup_cost,
+								   fpinfo->total_cost,
+								   NIL, /* no pathkeys */
+								   NULL,                /* no outer rel either */
+								   NULL,                /* no extra plan */
+								   NIL,                 /* no fdw_restrictinfo list */
+								   NIL);                /* no fdw_private list */
 #else
 	path = create_foreignscan_path(root, baserel, NULL,
 								   fpinfo->rows,
+								   0,                   /* no disabled plan nodes */
 								   fpinfo->startup_cost,
 								   fpinfo->total_cost,
 								   NIL, /* no pathkeys */
@@ -2703,10 +2719,22 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 										 NULL,
 										 NULL,
 										 NIL));
+#elif PG_VERSION_NUM < 180000
+				 create_foreignscan_path(root, baserel,
+										 NULL,
+										 rows,
+										 startup_cost,
+										 total_cost,
+										 usable_pathkeys,
+										 NULL,
+										 NULL,
+										 NIL,
+										 NIL));
 #else
 				 create_foreignscan_path(root, baserel,
 										 NULL,
 										 rows,
+										 0,
 										 startup_cost,
 										 total_cost,
 										 usable_pathkeys,
@@ -2905,10 +2933,22 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 									   param_info->ppi_req_outer,
 									   NULL,
 									   NIL);	/* no fdw_private list */
+#elif PG_VERSION_NUM < 180000
+		path = create_foreignscan_path(root, baserel,
+									   NULL,
+									   rows,
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NULL,
+									   NIL,		/* no fdw_restrictinfo list */
+									   NIL);	/* no fdw_private list */
 #else
 		path = create_foreignscan_path(root, baserel,
 									   NULL,
 									   rows,
+									   0,		/* no disabled plan nodes */
 									   startup_cost,
 									   total_cost,
 									   NIL,		/* no pathkeys */
