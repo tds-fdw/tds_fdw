@@ -70,7 +70,7 @@ The client character set to use for the connection, if you need to set this
 for some reason.  
   
 For TDS protocol versions 7.0+, the connection always uses UCS-2, so
-this parameter does nothing in those cases. See [Localization and TDS 7.0](https://www.freetds.org/userguide/Localization.html).		
+this parameter does nothing in those cases. See [Localization and TDS 7.0](https://www.freetds.org/userguide/configs.html#Localization).		
 
 * *tds_version*  
   
