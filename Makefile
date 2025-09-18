@@ -30,7 +30,7 @@ EXTVERSION = $(shell grep default_version $(EXTENSION).control | sed -e "s/defau
 
 DOCS         = README.${EXTENSION}.md
 
-DATA = tds_fdw--2.0.1--2.0.2.sql tds_fdw--2.0.2--2.0.3.sql tds_fdw--2.0.3--2.0.4.sql sql/$(EXTENSION)--$(EXTVERSION).sql
+DATA = tds_fdw--2.0.1--2.0.2.sql tds_fdw--2.0.2--2.0.3.sql tds_fdw--2.0.3--2.0.4.sql tds_fdw--2.0.4--2.0.5.sql sql/$(EXTENSION)--$(EXTVERSION).sql
 
 PG_CONFIG    = pg_config
 
