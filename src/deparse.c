@@ -2051,7 +2051,11 @@ appendOrderByClause(StringInfo buf, PlannerInfo *root, RelOptInfo *baserel,
 
 		appendStringInfoString(buf, delim);
 		deparseExpr(em_expr, &context);
+#if PG_VERSION_NUM < 180000
 		if (pathkey->pk_strategy == BTLessStrategyNumber)
+#else
+		if (pathkey->pk_cmptype == COMPARE_LT)
+#endif
 			appendStringInfoString(buf, " ASC");
 		else
 			appendStringInfoString(buf, " DESC");
