@@ -37,11 +37,17 @@
 #include "catalog/pg_user_mapping.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
+#if PG_VERSION_NUM < 180000
 #include "commands/explain.h"
+#else
+#include "commands/explain_format.h"
+#include "commands/explain_state.h"
+#endif
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
 #include "miscadmin.h"
 #include "mb/pg_wchar.h"
+#include "libpq/pqsignal.h"
 #include "optimizer/cost.h"
 #include "optimizer/paths.h"
 #include "optimizer/prep.h"
@@ -105,6 +111,29 @@ static char* last_error_message = NULL;
 static int tds_err_capture(DBPROCESS *dbproc, int severity, int dberr, int oserr, char *dberrstr, char *oserrstr);
 static char *tds_err_msg(int severity, int dberr, int oserr, char *dberrstr, char *oserrstr);
 
+/* signal handling */
+static volatile bool interrupt_flag = false;
+static void tds_signal_handler(int signum);
+static void tds_clear_signals(void);
+static int tds_chkintr_func(void* vdbproc);
+static int tds_hndlintr_func(void* vdbproc);
+
+/* Executes server query */
+static bool
+tdsExecuteQuery(char *query, DBPROCESS *dbproc);
+
+/*
+ * Checks database vendor being either Microsoft or Sybase.
+ * Returns 1 in case the connected instance is SQL Server.
+ */
+static bool tdsIsSqlServer(DBPROCESS *dbproc);
+
+/*
+ * Internal helper to set ANSI compatible server-side settings for SQL Server
+ * in case foreign server was configured with sqlserver_ansi_mode 'true'.
+ */
+static void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc);
+
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
  *
@@ -157,6 +186,8 @@ PGDLLEXPORT Datum tds_fdw_handler(PG_FUNCTION_ARGS)
 #ifdef IMPORT_API
 	fdwroutine->ImportForeignSchema = tdsImportForeignSchema;
 #endif  /* IMPORT_API */
+
+    pqsignal(SIGINT, tds_signal_handler);
 
 	#ifdef DEBUG
 		ereport(NOTICE,
@@ -426,6 +457,119 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
 	#endif	
 }
 
+/* helper function, check database vendor is Microsoft or not */
+bool tdsIsSqlServer(DBPROCESS *dbproc)
+{
+	char *check_vendor_query = "SELECT CHARINDEX('Microsoft', @@version) AS is_sql_server";
+	bool result = true;
+
+	if (!tdsExecuteQuery(check_vendor_query, dbproc))
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_ERROR),
+				errmsg("Failed to check server version")
+			));
+	else
+	{
+		RETCODE		erc;
+		int			ret_code,
+					is_sql_server_pos;
+
+		erc = dbbind(dbproc, 1, INTBIND, sizeof(int), (BYTE *) &is_sql_server_pos);
+		if (erc == FAIL)
+		{
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					errmsg("Failed to bind results for column \"is_sql_server\" to a variable.")
+				));
+		}
+
+		/* Process result */
+		ret_code = dbnextrow(dbproc);
+		if (ret_code == NO_MORE_ROWS)
+			ereport(ERROR,
+				(errcode(ERRCODE_FDW_ERROR),
+					errmsg("Failed to check server version")
+				));
+
+		switch (ret_code)
+		{
+			case REG_ROW:
+				ereport(DEBUG3,
+					(errmsg("tds_fdw: is_sql_server %d", is_sql_server_pos)
+					));
+
+				if (is_sql_server_pos == 0)
+					result = false;
+
+				break;
+
+			case BUF_FULL:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+						errmsg("Buffer filled up while getting plan for query")
+					));
+
+			case FAIL:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+						errmsg("Failed to get row while getting plan for query")
+					));
+
+			default:
+				ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+						errmsg("Failed to get plan for query. Unknown return code.")
+					));
+		}
+	}
+
+	return result;
+}
+
+/* helper function to set ANSI options */
+void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc)
+{
+	char *set_ansi_options_query = "SET CONCAT_NULL_YIELDS_NULL, "
+		"ANSI_NULLS, "
+		"ANSI_WARNINGS, "
+		"QUOTED_IDENTIFIER, "
+		"ANSI_PADDING, "
+		"ANSI_NULL_DFLT_ON ON";
+	RETCODE erc;
+
+	elog(DEBUG3, "tds_fdw: checking for SQL Server");
+
+	if (!tdsIsSqlServer(*dbproc))
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				 errmsg("tds_fdw: option sqlserver_ansi_mode only supported for SQL Server"),
+				 errdetail("The foreign server is configured with sqlserver_ansi_mode=true"),
+				 errhint("use ALTER SERVER ... OPTIONS(DROP sqlserver_ansi_mode)")));
+	}
+
+	elog(DEBUG3, "tds_fdw: enabling ansi settings");
+
+	if ((erc = dbcmd(*dbproc, set_ansi_options_query)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to set %s", set_ansi_options_query)
+			));
+	}
+
+	ereport(DEBUG3,
+			(errmsg("tds_fdw: Executing the query \"%s\"", set_ansi_options_query)));
+
+	if ((erc = dbsqlexec(*dbproc)) == FAIL)
+	{
+		ereport(ERROR,
+			(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+				errmsg("Failed to execute query %s", set_ansi_options_query)
+			));
+	}
+
+}
 
 /* set up connection */
 
@@ -611,6 +755,9 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 	/* set the normal error handler again */
 	dberrhandle(tds_err_handler);
 
+	/* set a signal handler that cancels now that dbopen() is complete */
+	dbsetinterrupt(*dbproc, tds_chkintr_func, tds_hndlintr_func);
+	
 	if (option_set->database && option_set->dbuse)
 	{
 		ereport(DEBUG3,
@@ -629,13 +776,18 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
 			(errmsg("tds_fdw: Selected database")
 			));
 	}
+
+	/* Enable ANSI mode if requested */
+	if (option_set->sqlserver_ansi_mode) {
+		tdsSetSqlServerAnsiMode(dbproc);
+	}
 	
 	#ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> finishing tdsSetupConnection")
 			));
 	#endif	
-	
+
 	return 0;
 }
 
@@ -647,7 +799,7 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
 	char* show_plan_query = "SET SHOWPLAN_ALL ON";
 	char* show_plan_query_off = "SET SHOWPLAN_ALL OFF";
 	
-	#ifdef DEBUG
+    #ifdef DEBUG
 		ereport(NOTICE,
 			(errmsg("----> starting tdsGetRowCountShowPlanAll")
 			));
@@ -1276,6 +1428,8 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
 			(errmsg("----> starting tdsBeginForeignScan")
 			));
 	#endif
+	
+	tds_clear_signals();
 	
 	tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(node->ss.ss_currentRelation), &option_set);
 		
@@ -2002,6 +2156,8 @@ void tdsEndForeignScan(ForeignScanState *node)
 
 	MemoryContextSwitchTo(old_cxt);
 	MemoryContextReset(festate->mem_cxt);
+	
+	tds_clear_signals();
 }
 
 /*
@@ -2265,6 +2421,8 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 			));
 	#endif
 	
+	tds_clear_signals();
+	
 	/*
 	 * We use PgFdwRelationInfo to pass various information to subsequent
 	 * functions.
@@ -2470,7 +2628,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								   NULL,		/* no outer rel either */
 								   NULL,		/* no extra plan */
 								   NIL);		/* no fdw_private list */
-#else
+#elif PG_VERSION_NUM < 170000
 	path = create_foreignscan_path(root, baserel, NULL,
 								   fpinfo->rows,
 								   fpinfo->startup_cost,
@@ -2479,6 +2637,27 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 								   NULL,		/* no outer rel either */
 								   NULL,		/* no extra plan */
 								   NIL);		/* no fdw_private list */
+#elif PG_VERSION_NUM < 180000
+	path = create_foreignscan_path(root, baserel, NULL,
+								   fpinfo->rows,
+								   fpinfo->startup_cost,
+								   fpinfo->total_cost,
+								   NIL, /* no pathkeys */
+								   NULL,                /* no outer rel either */
+								   NULL,                /* no extra plan */
+								   NIL,                 /* no fdw_restrictinfo list */
+								   NIL);                /* no fdw_private list */
+#else
+	path = create_foreignscan_path(root, baserel, NULL,
+								   fpinfo->rows,
+								   0,                   /* no disabled plan nodes */
+								   fpinfo->startup_cost,
+								   fpinfo->total_cost,
+								   NIL, /* no pathkeys */
+								   NULL,                /* no outer rel either */
+								   NULL,                /* no extra plan */
+								   NIL,                 /* no fdw_restrictinfo list */
+								   NIL);                /* no fdw_private list */
 #endif /* PG_VERSION_NUM < 90500 */
 	
 	add_path(baserel, (Path *) path);
@@ -2545,7 +2724,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 										 NULL,
 										 NULL,
 										 NIL));
-#else
+#elif PG_VERSION_NUM < 170000
 				 create_foreignscan_path(root, baserel,
 										 NULL,
 										 rows,
@@ -2554,6 +2733,29 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 										 usable_pathkeys,
 										 NULL,
 										 NULL,
+										 NIL));
+#elif PG_VERSION_NUM < 180000
+				 create_foreignscan_path(root, baserel,
+										 NULL,
+										 rows,
+										 startup_cost,
+										 total_cost,
+										 usable_pathkeys,
+										 NULL,
+										 NULL,
+										 NIL,
+										 NIL));
+#else
+				 create_foreignscan_path(root, baserel,
+										 NULL,
+										 rows,
+										 0,
+										 startup_cost,
+										 total_cost,
+										 usable_pathkeys,
+										 NULL,
+										 NULL,
+										 NIL,
 										 NIL));
 #endif /* PG_VERSION_NUM < 90500 */
 	}
@@ -2736,7 +2938,7 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 									   param_info->ppi_req_outer,
 									   NULL,
 									   NIL);	/* no fdw_private list */
-#else
+#elif PG_VERSION_NUM < 170000
 		path = create_foreignscan_path(root, baserel,
 									   NULL,
 									   rows,
@@ -2745,6 +2947,29 @@ void tdsGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntable
 									   NIL,		/* no pathkeys */
 									   param_info->ppi_req_outer,
 									   NULL,
+									   NIL);	/* no fdw_private list */
+#elif PG_VERSION_NUM < 180000
+		path = create_foreignscan_path(root, baserel,
+									   NULL,
+									   rows,
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NULL,
+									   NIL,		/* no fdw_restrictinfo list */
+									   NIL);	/* no fdw_private list */
+#else
+		path = create_foreignscan_path(root, baserel,
+									   NULL,
+									   rows,
+									   0,		/* no disabled plan nodes */
+									   startup_cost,
+									   total_cost,
+									   NIL,		/* no pathkeys */
+									   param_info->ppi_req_outer,
+									   NULL,
+									   NIL,		/* no fdw_restrictinfo list */
 									   NIL);	/* no fdw_private list */
 #endif /* PG_VERSION_NUM < 90500 */
 		add_path(baserel, (Path *) path);
@@ -2996,6 +3221,8 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	RETCODE		erc;
 	int			ret_code;
 
+	tds_clear_signals();
+	
 	initStringInfo(&buf);
 
 	/* Check that the schema really exists */
@@ -3265,13 +3492,17 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 							appendStringInfo(&buf, " numeric(%d, %d)",
 											 numeric_precision, numeric_scale);
 					}
-					else if (strcmp(data_type, "money") == 0 ||
-							 strcmp(data_type, "smallmoney") == 0)
-						appendStringInfoString(&buf, " money");
+					 else if (strcmp(data_type, "money") == 0)
+					     appendStringInfoString(&buf, " numeric(19,4)");
+					  else if (strcmp(data_type, "smallmoney") == 0)
+					      appendStringInfoString(&buf, " numeric(10,4)");
 
 					/* Floating-point types */
 					else if (strcmp(data_type, "float") == 0)
-						appendStringInfo(&buf, " float(%d)", numeric_precision);
+						if (numeric_precision == 0)
+							appendStringInfoString(&buf, " float");
+						else
+							appendStringInfo(&buf, " float(%d)", numeric_precision);
 					else if (strcmp(data_type, "real") == 0)
 						appendStringInfoString(&buf, " real");
 
@@ -3664,7 +3895,10 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 
 					/* Floating-point types */
 					else if (strcmp(data_type, "float") == 0)
-						appendStringInfo(&buf, " float(%d)", numeric_precision);
+						if (numeric_precision == 0)
+							appendStringInfoString(&buf, " float");
+						else
+							appendStringInfo(&buf, " float(%d)", numeric_precision);
 					else if (strcmp(data_type, "real") == 0)
 						appendStringInfoString(&buf, " real");
 
@@ -3872,73 +4106,7 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 		goto cleanup;
 	}
 
-	/* Create workspace for strings */
-	initStringInfo(&buf);
-
-	/* Determine server: is MS Sql Server or Sybase */
-	appendStringInfoString(&buf, "SELECT CHARINDEX('Microsoft', @@version) AS is_sql_server");
-
-	if (!tdsExecuteQuery(buf.data, dbproc))
-		ereport(ERROR,
-			(errcode(ERRCODE_FDW_ERROR),
-				errmsg("Failed to check server version")
-			));
-	else
-	{
-		RETCODE		erc;
-		int			ret_code,
-					is_sql_server_pos;
-
-		erc = dbbind(dbproc, 1, INTBIND, sizeof(int), (BYTE *) &is_sql_server_pos);
-		if (erc == FAIL)
-		{
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-					errmsg("Failed to bind results for column \"is_sql_server\" to a variable.")
-				));
-		}
-
-		/* Process result */
-		ret_code = dbnextrow(dbproc);
-		if (ret_code == NO_MORE_ROWS)
-			ereport(ERROR,
-				(errcode(ERRCODE_FDW_ERROR),
-					errmsg("Failed to check server version")
-				));
-
-		switch (ret_code)
-		{
-			case REG_ROW:
-				ereport(DEBUG3,
-					(errmsg("tds_fdw: is_sql_server %d", is_sql_server_pos)
-					));
-
-				if (is_sql_server_pos == 0)
-					is_sql_server = false;
-
-				break;
-
-			case BUF_FULL:
-				ereport(ERROR,
-					(errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-						errmsg("Buffer filled up while getting plan for query")
-					));
-
-			case FAIL:
-				ereport(ERROR,
-					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-						errmsg("Failed to get row while getting plan for query")
-					));
-
-			default:
-				ereport(ERROR,
-					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-						errmsg("Failed to get plan for query. Unknown return code.")
-					));
-		}
-	}
-
-	if (is_sql_server)
+	if (tdsIsSqlServer(dbproc))
 		commands = tdsImportSqlServerSchema(stmt, dbproc, option_set,
 											import_default, import_not_null);
 	else
@@ -4043,4 +4211,30 @@ int tds_blackhole_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int 
 	#endif
 
 	return 0;
+}
+
+void tds_signal_handler(int signum)
+{
+	interrupt_flag = true;
+}
+
+void tds_clear_signals()
+{
+	interrupt_flag = false;
+}
+
+int tds_chkintr_func(void *vdbproc)
+{
+	int status = FALSE;
+	if(interrupt_flag)
+	{
+		status = TRUE;
+	}
+	return status;
+}
+
+int tds_hndlintr_func(void *vdbproc)
+{
+	tds_clear_signals();
+	return INT_CANCEL;
 }

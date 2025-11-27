@@ -70,7 +70,7 @@ The client character set to use for the connection, if you need to set this
 for some reason.  
   
 For TDS protocol versions 7.0+, the connection always uses UCS-2, so
-this parameter does nothing in those cases. See [Localization and TDS 7.0](https://www.freetds.org/userguide/Localization.html).		
+this parameter does nothing in those cases. See [Localization and TDS 7.0](https://www.freetds.org/userguide/configs.html#Localization).		
 
 * *tds_version*  
   
@@ -97,6 +97,26 @@ A cost that is used to represent the overhead of using this FDW used in query pl
 Required: No
 
 A cost that is used to represent the overhead of fetching rows from this server used in query planning.
+
+* *sqlserver_ansi_mode*
+
+Required: No
+
+This option is supported for SQL Server only. The default is "false". Setting this to "true" will enable the following server-side settings after a successful connection to the foreign server:
+
+	* CONCAT_NULLS_YIELDS_NULL ON
+	* ANSI_NULLS ON
+	* ANSI_WARNINGS ON
+	* QUOTED_IDENTIFIER ON
+	* ANSI_PADDING ON
+	* ANSI_NULL_DFLT_ON ON
+
+Those parameters in summary are comparable to the SQL Server option *ANSI_DEFAULTS*. In contrast, *sqlserver_ansi_mode* currently does not activate the following options:
+
+	* CURSOR_CLOSE_ON_COMMIT
+	* IMPLICIT_TRANSACTIONS
+
+This follows the behavior of the native ODBC and OLEDB driver for SQL Servers, which explicitly turn them `OFF` if not configured otherwise.
 
 #### Foreign table parameters accepted in server definition:
 

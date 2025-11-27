@@ -24,7 +24,11 @@
 
 #include "postgres.h"
 #include "funcapi.h"
+#if PG_VERSION_NUM < 180000
 #include "commands/explain.h"
+#else
+#include "commands/explain_state.h"
+#endif
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
 

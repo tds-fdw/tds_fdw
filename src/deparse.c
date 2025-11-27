@@ -709,20 +709,13 @@ static char* postgresql_type_to_tds_type(const char* postgresql_type)
 		|| strcmp(postgresql_type, "timestamp with time zone") == 0
 		|| strcmp(postgresql_type, "timestamp without time zone") == 0)
 	{
-		const char* tds_type_local = "datetime2";
-		size_t len = strlen(tds_type_local);
-		
-		tds_type = palloc(len);
-		strncpy(tds_type, tds_type_local, len);
+		tds_type = psprintf("%s", "datetime2");
 	}
 	
 	/* if no mapping defined, just copy postgresql type */
 	else
 	{
-		size_t len = strlen(postgresql_type);
-		
-		tds_type = palloc(len);
-		strncpy(tds_type, postgresql_type, len);
+		tds_type = psprintf("%s", postgresql_type);
 	}
 	
 	return tds_type;
@@ -2058,7 +2051,11 @@ appendOrderByClause(StringInfo buf, PlannerInfo *root, RelOptInfo *baserel,
 
 		appendStringInfoString(buf, delim);
 		deparseExpr(em_expr, &context);
+#if PG_VERSION_NUM < 180000
 		if (pathkey->pk_strategy == BTLessStrategyNumber)
+#else
+		if (pathkey->pk_cmptype == COMPARE_LT)
+#endif
 			appendStringInfoString(buf, " ASC");
 		else
 			appendStringInfoString(buf, " DESC");
