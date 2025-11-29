@@ -3605,7 +3605,8 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 static List *
 tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					  TdsFdwOptionSet option_set,
-					  bool import_default, bool import_not_null)
+					  bool import_default, bool import_not_null,
+					  bool keep_custom_types)
 {
 	List	   *commands = NIL;
 	ListCell   *lc;
@@ -3643,8 +3644,18 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 	 */
 	appendStringInfoString(&buf,
 						   "SELECT so.name AS table_name, "
-						   "  sc.name AS column_name, "
-						   "  st.name AS data_type, "
+						   "  sc.name AS column_name, ");
+    if (keep_custom_types)
+		appendStringInfoString(&buf, " st.name AS data_type, ");
+	else
+		appendStringInfoString(&buf,
+						   "  CASE WHEN st.usertype < 100 "
+						   "     THEN st.name "
+						   "     ELSE (SELECT s1.name FROM dbo.systypes s1 WHERE s1.usertype = "
+						   "       (SELECT min(s2.usertype) FROM dbo.systypes s2 WHERE s2.type = st.type)) "
+						   "  END AS data_type, ");
+
+	appendStringInfoString(&buf,
 						   "  SUBSTRING(sm.text, 10, 255) AS column_default, "
 						   "  CASE (sc.status & 0x08) "
 						   "    WHEN 8 THEN 'YES' ELSE 'NO' "
@@ -3915,6 +3926,11 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
 					/* Other types */
 					else if (strcmp(data_type, "xml") == 0)
 						appendStringInfoString(&buf, " xml");
+					else if (keep_custom_types)
+					{
+						appendStringInfoString(&buf, " ");
+						appendStringInfoString(&buf, data_type);
+					}
 					else
 					{
 						ereport(DEBUG3,
@@ -3991,7 +4007,7 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 	List	   *commands = NIL;
 	bool		import_default = false;
 	bool		import_not_null = true;
-	bool		is_sql_server = true;
+	bool		keep_custom_types = false;
 	StringInfoData buf;
 	ListCell   *lc;
 
@@ -4013,6 +4029,8 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 			import_default = defGetBoolean(def);
 		else if (strcmp(def->defname, "import_not_null") == 0)
 			import_not_null = defGetBoolean(def);
+		else if (strcmp(def->defname, "keep_custom_types") == 0)
+			keep_custom_types = defGetBoolean(def);
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_FDW_INVALID_OPTION_NAME),
@@ -4080,7 +4098,8 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 											import_default, import_not_null);
 	else
 		commands = tdsImportSybaseSchema(stmt, dbproc, option_set,
-										 import_default, import_not_null);
+										 import_default, import_not_null,
+										 keep_custom_types);
 
 cleanup:
 	dbclose(dbproc);

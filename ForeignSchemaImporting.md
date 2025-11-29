@@ -25,6 +25,22 @@ Default: true
 
 Controls whether column NOT NULL constraints are included in the definitions of foreign tables.
 
+* *keep_custom_types*
+
+Required: No
+
+Default: false
+
+Controls how user-defined datatypes from a remote schema are handled. This option only applies to Sybase.
+
+By default, all Sybase user-defined types are resolved to their underlying system types. When this option is enabled, the import preserves the original user-defined types instead of translating them.
+
+If you turn this on, make sure the equivalent domain types already exist in Postgres, e.g.:
+```SQL
+CREATE DOMAIN public.country_code AS char(2)
+    NOT NULL CHECK (VALUE ~ '^[A-Z]{2}$');
+```
+
 ### Example
 
 ```SQL
