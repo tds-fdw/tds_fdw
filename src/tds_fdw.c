@@ -1293,7 +1293,7 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
 {
     char* dest = NULL;
     int real_destlen = 0;
-    DBINT destlen;
+    DBINT destlen = 0;
     int desttype;
     int ret_value;
     #if (PG_VERSION_NUM >= 90400)
