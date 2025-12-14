@@ -1932,7 +1932,7 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
                     
                     src = dbdata(festate->dbproc, ncol + 1);
 
-                    if (srclen == 0 && src == NULL)
+                    if (srclen == 0)
                     {
                         ereport(DEBUG3,
                             (errmsg("tds_fdw: %s: Column value is NULL", column->name)
@@ -1946,6 +1946,8 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
                         ereport(DEBUG3,
                             (errmsg("tds_fdw: %s: Column value pointer is NULL, but probably shouldn't be", column->name)
                             ));
+                        festate->isnull[column->local_index] = true;
+                        continue;
                     }
                     else
                     {
