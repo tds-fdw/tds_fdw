@@ -493,12 +493,14 @@ bool tdsIsSqlServer(DBPROCESS *dbproc)
                     (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
                         errmsg("Buffer filled up while getting plan for query")
                     ));
+                break;
 
             case FAIL:
                 ereport(ERROR,
                     (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
                         errmsg("Failed to get row while getting plan for query")
                     ));
+                break;
 
             default:
                 ereport(ERROR,
@@ -960,13 +962,15 @@ double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, D
                     ereport(ERROR,
                         (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
                             errmsg("Buffer filled up while getting plan for query")
-                        ));                 
+                        ));
+                    break;
                         
                 case FAIL:
                     ereport(ERROR,
                         (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
                             errmsg("Failed to get row while getting plan for query")
-                        ));             
+                        ));
+                    break;
                 
                 default:
                     ereport(ERROR,
@@ -1125,13 +1129,15 @@ double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPRO
                     ereport(ERROR,
                         (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
                             errmsg("Buffer filled up while getting plan for query")
-                        ));                 
+                        ));
+                    break;
                         
                 case FAIL:
                     ereport(ERROR,
                         (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
                             errmsg("Failed to get row while getting plan for query")
-                        ));             
+                        ));
+                    break;
                 
                 default:
                     ereport(ERROR,
@@ -1299,13 +1305,16 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
     switch(srctype)
     {
         case SYBCHAR:
+            __attribute__ ((fallthrough));
         case SYBVARCHAR:
+            __attribute__ ((fallthrough));
         case SYBTEXT:
             real_destlen = srclen + 1; /* the size of the array */
             destlen = -2; /* the size to pass to dbconvert (-2 means to null terminate it) */
             desttype = SYBCHAR;
             break;
         case SYBBINARY:
+            __attribute__ ((fallthrough));
         case SYBVARBINARY:
             real_destlen = srclen;
             destlen = srclen;
@@ -1322,9 +1331,15 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
                 
                 dest = palloc(strlen(datetime_str) * sizeof(char));
                 strcpy(dest, datetime_str);
-                
+
                 use_tds_conversion = 0;
+                destlen = strlen(datetime_str);
+                real_destlen = destlen;
+                desttype = SYBCHAR;
             }
+
+            break;
+
         #endif
 
         default:
@@ -1885,8 +1900,6 @@ TupleTableSlot* tdsIterateForeignScan(ForeignScanState *node)
     
     if ((ret_code = dbnextrow(festate->dbproc)) != NO_MORE_ROWS)
     {
-        int ncol;
-        
         switch (ret_code)
         {
             case REG_ROW:
@@ -3576,12 +3589,14 @@ tdsImportSqlServerSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
                         (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
                             errmsg("Buffer filled up while getting plan for query")
                         ));
+                    break;
 
                 case FAIL:
                     ereport(ERROR,
                         (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
                             errmsg("Failed to get row while getting plan for query")
                         ));
+                    break;
 
                 default:
                     ereport(ERROR,
@@ -3975,12 +3990,14 @@ tdsImportSybaseSchema(ImportForeignSchemaStmt *stmt, DBPROCESS  *dbproc,
                         (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
                             errmsg("Buffer filled up while getting plan for query")
                         ));
+                    break;
 
                 case FAIL:
                     ereport(ERROR,
                         (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
                             errmsg("Failed to get row while getting plan for query")
                         ));
+                    break;
 
                 default:
                     ereport(ERROR,
@@ -4018,7 +4035,6 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
     bool        import_default = false;
     bool        import_not_null = true;
     bool        keep_custom_types = false;
-    StringInfoData buf;
     ListCell   *lc;
 
     LOGINREC   *login;

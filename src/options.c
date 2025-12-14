@@ -975,14 +975,6 @@ void tdsValidateForeignTableOptionSet(TdsFdwOptionSet *option_set)
             ));
     }
 
-    /* Check option ranges */
-    if (option_set->use_remote_estimate < 0 || option_set->use_remote_estimate > 1)
-    {
-        ereport(ERROR,
-            (errcode(ERRCODE_SYNTAX_ERROR),
-                errmsg("Invalid value for use_remote_estimate: %d", option_set->use_remote_estimate)
-            ));
-    }
     #ifdef DEBUG
         ereport(NOTICE,
             (errmsg("----> finishing tdsValidateForeignTableOptionSet")
