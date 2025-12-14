@@ -1292,7 +1292,7 @@ int tdsDatetimeToDatum(DBPROCESS *dbproc, DBDATETIME *src, Datum *datetime_out)
 char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen)
 {
     char* dest = NULL;
-    int real_destlen;
+    int real_destlen = 0;
     DBINT destlen;
     int desttype;
     int ret_value;
