@@ -35,7 +35,7 @@ typedef struct TdsFdwOptionSet
     char *character_set;
     int port;
     char *database;
-    int dbuse;
+    bool dbuse;
     char* tds_version;
     char* msg_handler;
     char *username;
@@ -45,8 +45,8 @@ typedef struct TdsFdwOptionSet
     char *table_name;
     char* row_estimate_method;
     bool sqlserver_ansi_mode;
-    int match_column_names;
-    int use_remote_estimate;
+    bool match_column_names;
+    bool use_remote_estimate;
     int fdw_startup_cost;
     int fdw_tuple_cost;
     int local_tuple_estimate;
