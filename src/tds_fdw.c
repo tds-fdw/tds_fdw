@@ -1294,7 +1294,7 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
     char* dest = NULL;
     int real_destlen = 0;
     DBINT destlen = 0;
-    int desttype;
+    int desttype = -1;
     int ret_value;
     #if (PG_VERSION_NUM >= 90400)
     Datum datetime_out;
