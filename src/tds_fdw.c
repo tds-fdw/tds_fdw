@@ -4164,12 +4164,24 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
             ));
     #endif
 
-    ereport(ERROR,
-        (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
-        errmsg("%s", tds_err_msg(severity, dberr, oserr, dberrstr, oserrstr))
-        )); 
+    /* Character set conversions should be non-fatal */
+    if (dberr == 2403)
+    {
+        ereport(NOTICE,
+            (errmsg("%s", tds_err_msg(severity, dberr, oserr, dberrstr, oserrstr))
+            )); 
+
+        return INT_CONTINUE;
+    }
+    else
+    {
+        ereport(ERROR,
+            (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+            errmsg("%s", tds_err_msg(severity, dberr, oserr, dberrstr, oserrstr))
+            )); 
     
-    return INT_CANCEL;
+        return INT_CANCEL;
+    }
 }
 
 int tds_notice_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int severity, char *msgtext, char *svr_name, char *proc_name, int line)
