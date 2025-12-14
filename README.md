@@ -64,13 +64,13 @@ See [installing tds_fdw on Alpine](InstallAlpine.md).
 ### Foreign server
 
 See [creating a foreign server](ForeignServerCreation.md).
-	
+    
 ### Foreign table
-	
+    
 See [creating a foreign table](ForeignTableCreation.md).
-	
+    
 ### User mapping
-	
+    
 See [creating a user mapping](UserMappingCreation.md).
 
 ### Foreign schema
@@ -83,8 +83,8 @@ See [variables](Variables.md).
 
 ### `EXPLAIN`
 
-`EXPLAIN (VERBOSE)` will show the query issued on the remote system.
-	
+`EXPLAIN (VERBOSE)` will show the query issued on the remote system. It also shows some cost-related parameters.
+    
 ## Notes about character sets/encoding
 
 1. If you get an error like this with MS SQL Server when working with Unicode data:
@@ -112,6 +112,22 @@ It is handled by FreeTDS, so this needs to be configured at the `freetds.conf`. 
 If you find any bugs, or you would like to request enhancements, please submit your comments on the [project's GitHub Issues page](https://github.com/tds-fdw/tds_fdw/issues).
 
 Additionally, I do subscribe to several [PostgreSQL mailing lists](https://www.postgresql.org/list/) including *pgsql-general* and *pgsql-hackers*. If tds_fdw is mentioned in an email sent to one of those lists, I typically see it.
+
+When submitting a ticket, it can be helpful to do the following:
+
+* Increase the verbosity of console messages:
+
+```
+SET client_min_messages TO DEBUG3;
+```
+
+* Set ``msg_handler`` to ``notice`` for your foreign server:
+
+```
+ALTER SERVER your_server_name OPTIONS (SET msg_handler 'notice');
+```
+
+* Then run your queries and provide the full output.
 
 ## Debugging
 
