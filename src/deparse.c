@@ -58,6 +58,7 @@
 #if (PG_VERSION_NUM >= 90300)
 #include "access/htup_details.h"
 #endif
+#include "access/reloptions.h"
 #include "access/sysattr.h"
 #include "catalog/pg_attribute.h"
 #include "catalog/pg_collation.h"
