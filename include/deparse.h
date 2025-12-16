@@ -123,6 +123,42 @@ deparseStringLiteral(StringInfo buf, const char *val);
  */
 void
 deparseAnalyzeSql(StringInfo buf, Relation rel, List **retrieved_attrs);
+
+/*
+ * Build the full INSERT SQL command including column values
+ * for TDS databases (SQL Server / Sybase).
+ * This replaces parameter placeholders with actual values since
+ * TDS doesn't support prepared statements with parameters in the same way as PostgreSQL.
+ */
+void
+deparseDirectInsertSql(StringInfo buf, Relation rel,
+					   List *targetAttrs, Datum *values, bool *nulls,
+					   TdsFdwOptionSet *option_set);
+
+/*
+ * Build the full UPDATE SQL command including column values and WHERE clause
+ * for TDS databases (SQL Server / Sybase).
+ */
+void
+deparseDirectUpdateSql(StringInfo buf, Relation rel,
+					   List *targetAttrs, Datum *values, bool *nulls,
+					   List *keyAttrs, Datum *keyValues, bool *keyNulls,
+					   TdsFdwOptionSet *option_set);
+
+/*
+ * Build the full DELETE SQL command with WHERE clause
+ * for TDS databases (SQL Server / Sybase).
+ */
+void
+deparseDirectDeleteSql(StringInfo buf, Relation rel,
+					   List *keyAttrs, Datum *keyValues, bool *keyNulls,
+					   TdsFdwOptionSet *option_set);
+
+/*
+ * Convert a Datum value to a SQL string literal suitable for TDS.
+ */
+char *
+datumToTdsString(Datum value, Oid type, bool isnull);
 				 			 
 /*
  * Deparse WHERE clauses in given list of RestrictInfos and append them to buf.
