@@ -51,17 +51,22 @@
  */
 #include "postgres.h"
 
+#include <float.h>
+#include <math.h>
+
 #include "access/heapam.h"
 #if (PG_VERSION_NUM >= 90300)
 #include "access/htup_details.h"
 #endif
 #include "access/sysattr.h"
+#include "catalog/pg_attribute.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_operator.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
+#include "foreign/foreign.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/clauses.h"
 #if (PG_VERSION_NUM < 120000)
@@ -71,9 +76,16 @@
 #endif
 #include "parser/parsetree.h"
 #include "utils/builtins.h"
+#include "utils/date.h"
+#include "utils/datetime.h"
+#include "utils/json.h"
+#include "utils/jsonb.h"
 #include "utils/lsyscache.h"
+#include "utils/numeric.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
+#include "utils/timestamp.h"
+#include "utils/uuid.h"
 
 #include "tds_fdw.h"
 #include "deparse.h"
@@ -2015,6 +2027,452 @@ printRemotePlaceholder(Oid paramtype, int32 paramtypmod,
 	char	   *ptypename = deparse_type_name(paramtype, paramtypmod);
 
 	appendStringInfo(buf, "(CAST((SELECT CAST(null as %s)) as %s))", ptypename, ptypename);
+}
+
+/*
+ * Convert a Datum value to a SQL string literal suitable for TDS databases.
+ * Handles proper escaping for strings, formatting for dates/timestamps,
+ * and conversion of various PostgreSQL types.
+ */
+char *
+datumToTdsString(Datum value, Oid type, bool isnull)
+{
+	StringInfoData buf;
+	
+	if (isnull)
+		return pstrdup("NULL");
+	
+	initStringInfo(&buf);
+	
+	switch (type)
+	{
+		case BOOLOID:
+			appendStringInfoString(&buf, DatumGetBool(value) ? "1" : "0");
+			break;
+			
+		case INT2OID:
+			appendStringInfo(&buf, "%d", DatumGetInt16(value));
+			break;
+			
+		case INT4OID:
+			appendStringInfo(&buf, "%d", DatumGetInt32(value));
+			break;
+			
+		case INT8OID:
+			appendStringInfo(&buf, INT64_FORMAT, DatumGetInt64(value));
+			break;
+			
+		case FLOAT4OID:
+			{
+				float4 fval = DatumGetFloat4(value);
+				if (isnan(fval))
+					appendStringInfoString(&buf, "'NaN'");
+				else if (isinf(fval))
+					appendStringInfo(&buf, "'%sInfinity'", fval > 0 ? "" : "-");
+				else
+					appendStringInfo(&buf, "%.*g", FLT_DIG + 3, fval);
+			}
+			break;
+			
+		case FLOAT8OID:
+			{
+				float8 fval = DatumGetFloat8(value);
+				if (isnan(fval))
+					appendStringInfoString(&buf, "'NaN'");
+				else if (isinf(fval))
+					appendStringInfo(&buf, "'%sInfinity'", fval > 0 ? "" : "-");
+				else
+					appendStringInfo(&buf, "%.*g", DBL_DIG + 3, fval);
+			}
+			break;
+			
+		case NUMERICOID:
+			{
+				Datum str = DirectFunctionCall1(numeric_out, value);
+				appendStringInfoString(&buf, DatumGetCString(str));
+			}
+			break;
+			
+		case TEXTOID:
+		case VARCHAROID:
+		case BPCHAROID:
+		case NAMEOID:
+			{
+				char *str = TextDatumGetCString(value);
+				const char *ptr;
+				
+				/* Use N prefix for Unicode strings in SQL Server */
+				appendStringInfoString(&buf, "N'");
+				for (ptr = str; *ptr; ptr++)
+				{
+					if (*ptr == '\'')
+						appendStringInfoString(&buf, "''");  /* escape single quote */
+					else
+						appendStringInfoChar(&buf, *ptr);
+				}
+				appendStringInfoChar(&buf, '\'');
+			}
+			break;
+			
+		case BYTEAOID:
+			{
+				bytea *bval = DatumGetByteaP(value);
+				int len = VARSIZE(bval) - VARHDRSZ;
+				unsigned char *data = (unsigned char *) VARDATA(bval);
+				int i;
+				
+				/* SQL Server hex format: 0x... */
+				appendStringInfoString(&buf, "0x");
+				for (i = 0; i < len; i++)
+					appendStringInfo(&buf, "%02X", data[i]);
+			}
+			break;
+			
+		case DATEOID:
+			{
+				Datum str = DirectFunctionCall1(date_out, value);
+				appendStringInfo(&buf, "'%s'", DatumGetCString(str));
+			}
+			break;
+			
+		case TIMEOID:
+			{
+				Datum str = DirectFunctionCall1(time_out, value);
+				appendStringInfo(&buf, "'%s'", DatumGetCString(str));
+			}
+			break;
+			
+		case TIMESTAMPOID:
+			{
+				Datum str = DirectFunctionCall1(timestamp_out, value);
+				appendStringInfo(&buf, "'%s'", DatumGetCString(str));
+			}
+			break;
+			
+		case TIMESTAMPTZOID:
+			{
+				Datum str = DirectFunctionCall1(timestamptz_out, value);
+				appendStringInfo(&buf, "'%s'", DatumGetCString(str));
+			}
+			break;
+			
+		case INTERVALOID:
+			{
+				/* Convert interval to string - TDS doesn't have native interval type */
+				Datum str = DirectFunctionCall1(interval_out, value);
+				appendStringInfo(&buf, "N'%s'", DatumGetCString(str));
+			}
+			break;
+			
+		case UUIDOID:
+			{
+				Datum str = DirectFunctionCall1(uuid_out, value);
+				appendStringInfo(&buf, "'%s'", DatumGetCString(str));
+			}
+			break;
+			
+		case JSONOID:
+		case JSONBOID:
+			{
+				Datum str;
+				char *jsonstr;
+				const char *ptr;
+				
+				if (type == JSONBOID)
+					str = DirectFunctionCall1(jsonb_out, value);
+				else
+					str = DirectFunctionCall1(json_out, value);
+				
+				jsonstr = DatumGetCString(str);
+				
+				/* Escape the JSON string for SQL */
+				appendStringInfoString(&buf, "N'");
+				for (ptr = jsonstr; *ptr; ptr++)
+				{
+					if (*ptr == '\'')
+						appendStringInfoString(&buf, "''");
+					else
+						appendStringInfoChar(&buf, *ptr);
+				}
+				appendStringInfoChar(&buf, '\'');
+			}
+			break;
+			
+		default:
+			{
+				/* For other types, use the output function */
+				Oid typoutput;
+				bool typisvarlena;
+				char *str;
+				const char *ptr;
+				
+				getTypeOutputInfo(type, &typoutput, &typisvarlena);
+				str = OidOutputFunctionCall(typoutput, value);
+				
+				/* Assume it needs to be a quoted string */
+				appendStringInfoString(&buf, "N'");
+				for (ptr = str; *ptr; ptr++)
+				{
+					if (*ptr == '\'')
+						appendStringInfoString(&buf, "''");
+					else
+						appendStringInfoChar(&buf, *ptr);
+				}
+				appendStringInfoChar(&buf, '\'');
+			}
+			break;
+	}
+	
+	return buf.data;
+}
+
+/*
+ * Helper function to get column name for a foreign table attribute.
+ * Uses the column_name FDW option if specified, otherwise uses the local name.
+ */
+static const char *
+get_attname_for_foreign_table(Relation rel, AttrNumber attnum)
+{
+	ForeignTable *table;
+	ListCell *lc;
+	const char *attname;
+	
+	/* Get the local attribute name */
+#if PG_VERSION_NUM >= 110000
+	attname = NameStr(TupleDescAttr(rel->rd_att, attnum - 1)->attname);
+#else
+	attname = NameStr(rel->rd_att->attrs[attnum - 1]->attname);
+#endif
+	
+	/* Check for column_name FDW option */
+	table = GetForeignTable(RelationGetRelid(rel));
+	foreach(lc, table->options)
+	{
+		DefElem *def = (DefElem *) lfirst(lc);
+		
+		/* The column options are stored in a sub-list, skip non-list items */
+		if (!IsA(def->arg, List))
+			continue;
+	}
+	
+	/* Check column-level options from pg_attribute */
+	{
+		List *options;
+		
+#if PG_VERSION_NUM >= 140000
+		options = GetForeignColumnOptions(RelationGetRelid(rel), attnum);
+#else
+		/* For older versions, we need to query pg_attribute directly */
+		HeapTuple tp;
+		Datum datum;
+		bool isnull;
+		
+		tp = SearchSysCache2(ATTNUM,
+							 ObjectIdGetDatum(RelationGetRelid(rel)),
+							 Int16GetDatum(attnum));
+		if (!HeapTupleIsValid(tp))
+			return attname;
+		
+		datum = SysCacheGetAttr(ATTNUM, tp, Anum_pg_attribute_attfdwoptions, &isnull);
+		if (isnull)
+		{
+			ReleaseSysCache(tp);
+			return attname;
+		}
+		
+		options = untransformRelOptions(datum);
+		ReleaseSysCache(tp);
+#endif
+		
+		foreach(lc, options)
+		{
+			DefElem *def = (DefElem *) lfirst(lc);
+			
+			if (strcmp(def->defname, "column_name") == 0)
+				return defGetString(def);
+		}
+	}
+	
+	return attname;
+}
+
+/*
+ * Build the full INSERT SQL command including column values
+ * for TDS databases (SQL Server / Sybase).
+ */
+void
+deparseDirectInsertSql(StringInfo buf, Relation rel,
+					   List *targetAttrs, Datum *values, bool *nulls,
+					   TdsFdwOptionSet *option_set)
+{
+	bool first;
+	ListCell *lc;
+	int i;
+	
+	appendStringInfoString(buf, "INSERT INTO ");
+	deparseRelation(buf, rel);
+	
+	if (targetAttrs != NIL)
+	{
+		/* Column list */
+		appendStringInfoChar(buf, '(');
+		first = true;
+		foreach(lc, targetAttrs)
+		{
+			int attnum = lfirst_int(lc);
+			const char *attname;
+			
+			if (!first)
+				appendStringInfoString(buf, ", ");
+			first = false;
+			
+			attname = get_attname_for_foreign_table(rel, attnum);
+			appendStringInfoString(buf, tds_quote_identifier(attname));
+		}
+		
+		/* VALUES clause */
+		appendStringInfoString(buf, ") VALUES (");
+		
+		first = true;
+		i = 0;
+		foreach(lc, targetAttrs)
+		{
+			int attnum = lfirst_int(lc);
+			Form_pg_attribute attr = TupleDescAttr(rel->rd_att, attnum - 1);
+			char *valstr;
+			
+			if (!first)
+				appendStringInfoString(buf, ", ");
+			first = false;
+			
+			valstr = datumToTdsString(values[i], attr->atttypid, nulls[i]);
+			appendStringInfoString(buf, valstr);
+			i++;
+		}
+		
+		appendStringInfoChar(buf, ')');
+	}
+	else
+	{
+		appendStringInfoString(buf, " DEFAULT VALUES");
+	}
+}
+
+/*
+ * Build the full UPDATE SQL command including column values and WHERE clause
+ * for TDS databases (SQL Server / Sybase).
+ */
+void
+deparseDirectUpdateSql(StringInfo buf, Relation rel,
+					   List *targetAttrs, Datum *values, bool *nulls,
+					   List *keyAttrs, Datum *keyValues, bool *keyNulls,
+					   TdsFdwOptionSet *option_set)
+{
+	bool first;
+	ListCell *lc;
+	int i;
+	
+	appendStringInfoString(buf, "UPDATE ");
+	deparseRelation(buf, rel);
+	appendStringInfoString(buf, " SET ");
+	
+	/* SET clause */
+	first = true;
+	i = 0;
+	foreach(lc, targetAttrs)
+	{
+		int attnum = lfirst_int(lc);
+		Form_pg_attribute attr = TupleDescAttr(rel->rd_att, attnum - 1);
+		const char *attname;
+		char *valstr;
+		
+		if (!first)
+			appendStringInfoString(buf, ", ");
+		first = false;
+		
+		attname = get_attname_for_foreign_table(rel, attnum);
+		appendStringInfoString(buf, tds_quote_identifier(attname));
+		appendStringInfoString(buf, " = ");
+		
+		valstr = datumToTdsString(values[i], attr->atttypid, nulls[i]);
+		appendStringInfoString(buf, valstr);
+		i++;
+	}
+	
+	/* WHERE clause using key columns */
+	appendStringInfoString(buf, " WHERE ");
+	first = true;
+	i = 0;
+	foreach(lc, keyAttrs)
+	{
+		int attnum = lfirst_int(lc);
+		Form_pg_attribute attr = TupleDescAttr(rel->rd_att, attnum - 1);
+		const char *attname;
+		char *valstr;
+		
+		if (!first)
+			appendStringInfoString(buf, " AND ");
+		first = false;
+		
+		attname = get_attname_for_foreign_table(rel, attnum);
+		appendStringInfoString(buf, tds_quote_identifier(attname));
+		
+		if (keyNulls[i])
+			appendStringInfoString(buf, " IS NULL");
+		else
+		{
+			valstr = datumToTdsString(keyValues[i], attr->atttypid, keyNulls[i]);
+			appendStringInfoString(buf, " = ");
+			appendStringInfoString(buf, valstr);
+		}
+		i++;
+	}
+}
+
+/*
+ * Build the full DELETE SQL command with WHERE clause
+ * for TDS databases (SQL Server / Sybase).
+ */
+void
+deparseDirectDeleteSql(StringInfo buf, Relation rel,
+					   List *keyAttrs, Datum *keyValues, bool *keyNulls,
+					   TdsFdwOptionSet *option_set)
+{
+	bool first;
+	ListCell *lc;
+	int i;
+	
+	appendStringInfoString(buf, "DELETE FROM ");
+	deparseRelation(buf, rel);
+	
+	/* WHERE clause using key columns */
+	appendStringInfoString(buf, " WHERE ");
+	first = true;
+	i = 0;
+	foreach(lc, keyAttrs)
+	{
+		int attnum = lfirst_int(lc);
+		Form_pg_attribute attr = TupleDescAttr(rel->rd_att, attnum - 1);
+		const char *attname;
+		char *valstr;
+		
+		if (!first)
+			appendStringInfoString(buf, " AND ");
+		first = false;
+		
+		attname = get_attname_for_foreign_table(rel, attnum);
+		appendStringInfoString(buf, tds_quote_identifier(attname));
+		
+		if (keyNulls[i])
+			appendStringInfoString(buf, " IS NULL");
+		else
+		{
+			valstr = datumToTdsString(keyValues[i], attr->atttypid, keyNulls[i]);
+			appendStringInfoString(buf, " = ");
+			appendStringInfoString(buf, valstr);
+		}
+		i++;
+	}
 }
 
 /*
