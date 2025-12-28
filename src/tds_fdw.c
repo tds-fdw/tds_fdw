@@ -3150,6 +3150,60 @@ ForeignScan* tdsGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel,
     #endif
 }
 
+/*
+ * Translate SQL Server/Sybase default expressions to PostgreSQL equivalents.
+ * Returns a newly allocated string with the translated expression, or NULL if
+ * the expression should be skipped.
+ */
+static char *
+translateSqlServerDefault(const char *sql_server_default)
+{
+    char *result;
+    const char *trimmed;
+    
+    if (sql_server_default == NULL || sql_server_default[0] == '\0')
+        return NULL;
+    
+    /* Skip leading/trailing parentheses and whitespace */
+    trimmed = sql_server_default;
+    while (*trimmed == '(' || *trimmed == ' ' || *trimmed == '\t')
+        trimmed++;
+    
+    /* Case-insensitive comparison for common SQL Server functions */
+    if (pg_strncasecmp(trimmed, "getdate()", 9) == 0)
+    {
+        result = pstrdup("CURRENT_TIMESTAMP");
+    }
+    else if (pg_strncasecmp(trimmed, "getutcdate()", 12) == 0)
+    {
+        result = pstrdup("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')");
+    }
+    else if (pg_strncasecmp(trimmed, "sysdatetime()", 13) == 0)
+    {
+        result = pstrdup("CURRENT_TIMESTAMP");
+    }
+    else if (pg_strncasecmp(trimmed, "sysutcdatetime()", 16) == 0)
+    {
+        result = pstrdup("(CURRENT_TIMESTAMP AT TIME ZONE 'UTC')");
+    }
+    else if (pg_strncasecmp(trimmed, "current_timestamp", 17) == 0)
+    {
+        result = pstrdup("CURRENT_TIMESTAMP");
+    }
+    else if (pg_strncasecmp(trimmed, "newid()", 7) == 0)
+    {
+        result = pstrdup("gen_random_uuid()");
+    }
+    else
+    {
+        /* For other expressions, try to use them as-is but wrapped in parentheses */
+        /* This includes numeric constants, string literals, etc. */
+        result = psprintf("%s", sql_server_default);
+    }
+    
+    return result;
+}
+
 static bool
 tdsExecuteQuery(char *query, DBPROCESS *dbproc)
 {
