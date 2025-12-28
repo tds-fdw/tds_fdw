@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Create table for testing write operations with various data types",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

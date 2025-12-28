@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Test complete INSERT/UPDATE/DELETE workflow with verification",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}
