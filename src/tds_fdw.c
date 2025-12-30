@@ -4674,6 +4674,12 @@ tdsExecForeignInsert(EState *estate,
 	MemoryContextSwitchTo(oldcontext);
 	MemoryContextReset(fmstate->temp_cxt);
 	
+	/*
+	 * Store an all-NULL tuple in the slot. Since we don't support RETURNING,
+	 * we need to provide a valid (but empty) tuple for PostgreSQL to work with.
+	 */
+	ExecStoreAllNullTuple(slot);
+	
 #ifdef DEBUG
 	ereport(NOTICE,
 			(errmsg("----> finishing tdsExecForeignInsert")));
@@ -4795,6 +4801,12 @@ tdsExecForeignUpdate(EState *estate,
 	MemoryContextSwitchTo(oldcontext);
 	MemoryContextReset(fmstate->temp_cxt);
 	
+	/*
+	 * Store an all-NULL tuple in the slot. Since we don't support RETURNING,
+	 * we need to provide a valid (but empty) tuple for PostgreSQL to work with.
+	 */
+	ExecStoreAllNullTuple(slot);
+	
 #ifdef DEBUG
 	ereport(NOTICE,
 			(errmsg("----> finishing tdsExecForeignUpdate")));
@@ -4897,6 +4909,12 @@ tdsExecForeignDelete(EState *estate,
 	/* Switch back to original context */
 	MemoryContextSwitchTo(oldcontext);
 	MemoryContextReset(fmstate->temp_cxt);
+	
+	/*
+	 * Store an all-NULL tuple in the slot. Since we don't support RETURNING,
+	 * we need to provide a valid (but empty) tuple for PostgreSQL to work with.
+	 */
+	ExecStoreAllNullTuple(slot);
 	
 #ifdef DEBUG
 	ereport(NOTICE,
