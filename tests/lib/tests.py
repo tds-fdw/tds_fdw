@@ -165,6 +165,11 @@ def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debuggin
                 tests['ok'] += 1
             except Exception as e:
                 print_error("Error running %s (%s)" % (test_desc, fname))
+                # Print any notices (e.g., SQL Server messages from tds_fdw)
+                if conn.notices:
+                    for notice in conn.notices:
+                        print_error(notice.strip())
+                    conn.notices.clear()
                 print_error("Query:")
                 print(sentence)
                 # Print any messages (notices, debug, SQL Server messages from tds_fdw, etc.)
