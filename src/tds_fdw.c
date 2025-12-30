@@ -391,56 +391,19 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
             appendOrderByClause(&sql, root, baserel, pathkeys);
         
         /*
-         * Add FOR UPDATE/SHARE if appropriate.  We apply locking during the
-         * initial row fetch, rather than later on as is done for local tables.
-         * The extra roundtrips involved in trying to duplicate the local
-         * semantics exactly don't seem worthwhile (see also comments for
-         * RowMarkType).
+         * Note: TDS servers (SQL Server, Sybase) do not support FOR UPDATE/SHARE
+         * clauses outside of cursor declarations. Unlike postgres_fdw (which this
+         * code was adapted from), we cannot use FOR UPDATE for row locking during
+         * UPDATE/DELETE operations.
          *
-         * Note: because we actually run the query as a cursor, this assumes that
-         * DECLARE CURSOR ... FOR UPDATE is supported, which it isn't before 8.3.
+         * This means UPDATE/DELETE operations on TDS foreign tables may have less
+         * strict isolation guarantees than PostgreSQL-to-PostgreSQL FDW connections,
+         * but this is a limitation of the TDS protocol. Row locking must be handled
+         * by the remote server's native isolation mechanisms (transaction isolation
+         * levels, etc.) rather than explicit FOR UPDATE clauses.
+         *
+         * The original FOR UPDATE logic has been disabled for TDS compatibility.
          */
-        if (baserel->relid == root->parse->resultRelation &&
-            (root->parse->commandType == CMD_UPDATE ||
-             root->parse->commandType == CMD_DELETE))
-        {
-            /* Relation is UPDATE/DELETE target, so use FOR UPDATE */
-            appendStringInfoString(&sql, " FOR UPDATE");
-        }
-        #if (PG_VERSION_NUM >= 90500)
-        else
-        {
-            PlanRowMark *rc = get_plan_rowmark(root->rowMarks, baserel->relid);
-
-            if (rc)
-            {
-                /*
-                 * Relation is specified as a FOR UPDATE/SHARE target, so handle
-                 * that.  (But we could also see LCS_NONE, meaning this isn't a
-                 * target relation after all.)
-                 *
-                 * For now, just ignore any [NO] KEY specification, since (a) it's
-                 * not clear what that means for a remote table that we don't have
-                 * complete information about, and (b) it wouldn't work anyway on
-                 * older remote servers.  Likewise, we don't worry about NOWAIT.
-                 */
-                switch (rc->strength)
-                {
-                    case LCS_NONE:
-                        /* No locking needed */
-                        break;
-                    case LCS_FORKEYSHARE:
-                    case LCS_FORSHARE:
-                        appendStringInfoString(&sql, " FOR SHARE");
-                        break;
-                    case LCS_FORNOKEYUPDATE:
-                    case LCS_FORUPDATE:
-                        appendStringInfoString(&sql, " FOR UPDATE");
-                        break;
-                }
-            }
-        }
-        #endif      
         
         /* now copy it to option_set->query */
 

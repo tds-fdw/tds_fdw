@@ -122,6 +122,7 @@ Uses `-fvisibility=hidden` and `visibility.h` macros to control exported symbols
 ## Key Limitations (Document Changes)
 
 - **No JOIN push-down support** - queries joining foreign tables execute locally in PostgreSQL
+- **No FOR UPDATE/SHARE support** - TDS protocol doesn't support FOR UPDATE outside cursor declarations; write operations use remote server's native isolation mechanisms (transaction isolation levels) instead
 - **Write operations are experimental** - INSERT/UPDATE/DELETE implemented but not thoroughly tested:
   - UPDATE/DELETE require primary key or use all columns in WHERE clause (via `tdsGetKeyAttrs`)
   - Values are inline in SQL (no prepared statement parameters) - potential SQL injection risk with user-provided data
