@@ -5,6 +5,7 @@ from os import listdir
 from os.path import basename, isfile, realpath
 from re import match
 from psycopg2.extensions import Diagnostics
+import os
 
 
 def version_to_array(version, dbtype):
@@ -134,6 +135,7 @@ def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debuggin
             print_info("Set client_min_messages to %s" % client_min_messages)
         except Exception as e:
             print_error("Failed to set client_min_messages: %s" % str(e))
+   
     for fname in files:
         test_file = open('%s.json' % fname.rsplit('.', 1)[0], 'r')
         test_properties = load(test_file)
@@ -154,7 +156,7 @@ def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debuggin
                 cursor = conn.cursor()
                 cursor.execute(sentence)
                 conn.commit()
-                # Print any notices (e.g., SQL Server messages from tds_fdw)
+                # Print any messages (notices, debug, SQL Server messages from tds_fdw, etc.)
                 # Note: only psycopg2 has notices attribute, not pymssql
                 if hasattr(conn, 'notices') and conn.notices:
                     for notice in conn.notices:
@@ -165,10 +167,11 @@ def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debuggin
                 tests['ok'] += 1
             except Exception as e:
                 print_error("Error running %s (%s)" % (test_desc, fname))
-                # Print any notices (e.g., SQL Server messages from tds_fdw)
+                # Print any messages (notices, debug, SQL Server messages from tds_fdw, etc.)
                 # Note: only psycopg2 has notices attribute, not pymssql
                 if hasattr(conn, 'notices') and conn.notices:
                     for notice in conn.notices:
+                        # Strip whitespace and print
                         print_error(notice.strip())
                     conn.notices.clear()
                 print_error("Query:")
