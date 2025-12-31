@@ -2234,67 +2234,37 @@ datumToTdsString(Datum value, Oid type, bool isnull)
 static const char *
 get_attname_for_foreign_table(Relation rel, AttrNumber attnum)
 {
-	ForeignTable *table;
+	Oid relid = RelationGetRelid(rel);
+	char *colname = NULL;
+	List *options;
 	ListCell *lc;
-	const char *attname;
 	
-	/* Get the local attribute name */
-#if PG_VERSION_NUM >= 110000
-	attname = NameStr(TupleDescAttr(rel->rd_att, attnum - 1)->attname);
-#else
-	attname = NameStr(rel->rd_att->attrs[attnum - 1]->attname);
-#endif
+	/* Get column-level FDW options */
+	options = GetForeignColumnOptions(relid, attnum);
 	
-	/* Check for column_name FDW option */
-	table = GetForeignTable(RelationGetRelid(rel));
-	foreach(lc, table->options)
+	/* Check for column_name option */
+	foreach(lc, options)
 	{
 		DefElem *def = (DefElem *) lfirst(lc);
 		
-		/* The column options are stored in a sub-list, skip non-list items */
-		if (!IsA(def->arg, List))
-			continue;
+		if (strcmp(def->defname, "column_name") == 0)
+		{
+			colname = defGetString(def);
+			break;
+		}
 	}
 	
-	/* Check column-level options from pg_attribute */
+	/* If no column_name option, use the local attribute name */
+	if (colname == NULL)
 	{
-		List *options;
-		
-#if PG_VERSION_NUM >= 140000
-		options = GetForeignColumnOptions(RelationGetRelid(rel), attnum);
+#if PG_VERSION_NUM >= 110000
+		colname = NameStr(TupleDescAttr(rel->rd_att, attnum - 1)->attname);
 #else
-		/* For older versions, we need to query pg_attribute directly */
-		HeapTuple tp;
-		Datum datum;
-		bool isnull;
-		
-		tp = SearchSysCache2(ATTNUM,
-							 ObjectIdGetDatum(RelationGetRelid(rel)),
-							 Int16GetDatum(attnum));
-		if (!HeapTupleIsValid(tp))
-			return attname;
-		
-		datum = SysCacheGetAttr(ATTNUM, tp, Anum_pg_attribute_attfdwoptions, &isnull);
-		if (isnull)
-		{
-			ReleaseSysCache(tp);
-			return attname;
-		}
-		
-		options = untransformRelOptions(datum);
-		ReleaseSysCache(tp);
+		colname = NameStr(rel->rd_att->attrs[attnum - 1]->attname);
 #endif
-		
-		foreach(lc, options)
-		{
-			DefElem *def = (DefElem *) lfirst(lc);
-			
-			if (strcmp(def->defname, "column_name") == 0)
-				return defGetString(def);
-		}
 	}
 	
-	return attname;
+	return colname;
 }
 
 /*
