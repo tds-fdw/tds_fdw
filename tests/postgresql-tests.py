@@ -57,6 +57,7 @@ def parse_options():
     parser.add_option('--tds_version', action="store", default=DEFAULT_TDS_VERSION,
                       help='Specifies th TDS protocol version, default="%s"'%DEFAULT_TDS_VERSION)
     parser.add_option('--tds_fdw_msg_handler', action="store", default='notice',
+                      dest='tds_fdw_msg_handler',
                       help='Message handler for foreign server: "notice" or "blackhole" (default: "notice")')
     parser.add_option('--postgres_min_messages', action="store", default='NOTICE',
                       help='PostgreSQL client_min_messages level: DEBUG5, DEBUG4, DEBUG3, DEBUG2, DEBUG1, LOG, NOTICE, WARNING, ERROR (default: NOTICE)')

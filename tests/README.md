@@ -22,35 +22,35 @@ The test program will stop just after connection creation and give you the backe
 
 Also, in case of test failure, `--debugging` will allow to define quite precisely where the script crashed using psycopg2 `Diagnostics` class information and will give the corresponding SQL injected in PostgreSQL.
 
-## Environment Variables
+## Command-Line Options
 
-The test framework supports several environment variables to control debugging and diagnostic output:
+The test framework supports the following command-line options to control debugging and diagnostic output:
 
-### POSTGRES_CLIENT_MIN_MESSAGES
+### --postgres_min_messages
 
 Controls the PostgreSQL `client_min_messages` setting for all test connections. This determines which message levels are sent to the client.
 
 - **Supported values**: `DEBUG5`, `DEBUG4`, `DEBUG3`, `DEBUG2`, `DEBUG1`, `LOG`, `NOTICE`, `WARNING`, `ERROR`
-- **Default**: `DEBUG3` (provides extensive diagnostic information)
-- **Example**: `export POSTGRES_CLIENT_MIN_MESSAGES=DEBUG1` for even more verbose output
+- **Default**: `NOTICE` (standard informational messages)
+- **Example**: `--postgres_min_messages DEBUG1` for highly verbose output
 - **Note**: Only affects PostgreSQL test connections, not MSSQL connections
 
 Lower numbered DEBUG levels provide more detailed output:
 - `DEBUG5`: Maximum verbosity (includes all debug messages)
-- `DEBUG3`: Default - good balance of detail vs. noise
+- `DEBUG3`: Very verbose (good for detailed troubleshooting)
 - `DEBUG1`: Highly verbose (includes query planning details)
 - `LOG`: Server operational messages
 - `NOTICE`: User-facing informational messages (includes tds_fdw SQL Server messages)
 - `WARNING`: Warnings only
 - `ERROR`: Errors only
 
-### TDS_FDW_MSG_HANDLER
+### --tds-fdw-msg-handler
 
 Controls the `msg_handler` option for the foreign server created in PostgreSQL tests. This determines how SQL Server messages are handled.
 
 - **Supported values**: `notice`, `blackhole`
 - **Default**: `notice` (SQL Server messages appear as PostgreSQL NOTICE messages)
-- **Example**: `export TDS_FDW_MSG_HANDLER=blackhole` to suppress SQL Server messages
+- **Example**: `--tds-fdw-msg-handler blackhole` to suppress SQL Server messages
 - **Note**: Invalid values default to `notice`
 
 Options:
@@ -61,10 +61,6 @@ Options:
 
 ```bash
 # Enable maximum debugging output
-export POSTGRES_CLIENT_MIN_MESSAGES=DEBUG1
-export TDS_FDW_MSG_HANDLER=notice
-
-# Run tests
 ./tests/postgresql-tests.py \
   --postgres_server localhost \
   --postgres_port 5432 \
@@ -77,7 +73,9 @@ export TDS_FDW_MSG_HANDLER=notice
   --mssql_database testdb \
   --mssql_schema tds_fdw_tests \
   --mssql_username sqluser \
-  --mssql_password sqlpass
+  --mssql_password sqlpass \
+  --postgres_min_messages DEBUG1 \
+  --tds-fdw-msg-handler notice
 ```
 
 # Adding or modifying tests
