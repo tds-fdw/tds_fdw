@@ -111,7 +111,7 @@ def get_logs_path(conn, dbtype):
     return(logs)
 
 
-def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debugging=False):
+def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debugging=False, client_min_messages='NOTICE'):
     """Run SQL tests over a connection, returns a dict with results.
 
     Keyword arguments:
@@ -119,9 +119,21 @@ def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debuggin
     conn     -- A db connection (according to Python DB API v2.0)
     replaces -- A dict with replaces to perform at testing code
     dbtype   -- A string with the database type (postgresql|mssql)
+    client_min_messages -- PostgreSQL client_min_messages level (default: 'NOTICE')
     """
     files = sorted(glob(path))
     tests = {'total': 0, 'ok': 0, 'errors': 0}
+    
+    # Set client_min_messages for PostgreSQL connections
+    if dbtype == 'postgresql':
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SET client_min_messages = %s", (client_min_messages,))
+            conn.commit()
+            cursor.close()
+            print_info("Set client_min_messages to %s" % client_min_messages)
+        except Exception as e:
+            print_error("Failed to set client_min_messages: %s" % str(e))
     for fname in files:
         test_file = open('%s.json' % fname.rsplit('.', 1)[0], 'r')
         test_properties = load(test_file)

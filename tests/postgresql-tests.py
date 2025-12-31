@@ -55,6 +55,10 @@ def parse_options():
                            'PostgreSQL logs at the end (useful for CI)')
     parser.add_option('--tds_version', action="store", default=DEFAULT_TDS_VERSION,
                       help='Specifies th TDS protocol version, default="%s"'%DEFAULT_TDS_VERSION)
+    parser.add_option('--tds_fdw_msg_handler', action="store", default='notice',
+                      help='Message handler for foreign server: "notice" or "blackhole" (default: "notice")')
+    parser.add_option('--postgres_min_messages', action="store", default='NOTICE',
+                      help='PostgreSQL client_min_messages level: DEBUG5, DEBUG4, DEBUG3, DEBUG2, DEBUG1, LOG, NOTICE, WARNING, ERROR (default: NOTICE)')
 
     (options, args) = parser.parse_args()
     # Check for test parameters
@@ -97,6 +101,20 @@ def main():
             if not args.unattended_debugging:
                 print("Press any key to launch tests.")
                 raw_input()
+        
+        # Validate msg_handler from command-line option
+        if args.tds_fdw_msg_handler not in ['notice', 'blackhole']:
+            print_error("Invalid --tds_fdw_msg_handler value '%s', using 'notice'" % args.tds_fdw_msg_handler)
+            args.tds_fdw_msg_handler = 'notice'
+        print_info("Using msg_handler: %s" % args.tds_fdw_msg_handler)
+        
+        # Validate postgres_min_messages from command-line option
+        valid_levels = ['DEBUG5', 'DEBUG4', 'DEBUG3', 'DEBUG2', 'DEBUG1', 'LOG', 'NOTICE', 'WARNING', 'ERROR']
+        if args.postgres_min_messages not in valid_levels:
+            print_error("Invalid --postgres_min_messages value '%s', using 'NOTICE'" % args.postgres_min_messages)
+            args.postgres_min_messages = 'NOTICE'
+        print_info("Using client_min_messages: %s" % args.postgres_min_messages)
+        
         replaces = {'@PSCHEMANAME': args.postgres_schema,
                     '@PUSER': args.postgres_username,
                     '@MSERVER': args.mssql_server,
@@ -105,9 +123,10 @@ def main():
                     '@MPASSWORD': args.mssql_password,
                     '@MDATABASE': args.mssql_database,
                     '@MSCHEMANAME': args.mssql_schema,
-                    '@TDSVERSION' : args.tds_version}
+                    '@TDSVERSION' : args.tds_version,
+                    '@MSG_HANDLER': args.tds_fdw_msg_handler}
         tests = run_tests('tests/postgresql/*.sql', conn, replaces, 'postgresql',
-                          args.debugging, args.unattended_debugging)
+                          args.debugging, args.unattended_debugging, args.postgres_min_messages)
         print_report(tests['total'], tests['ok'], tests['errors'])
         logs = get_logs_path(conn, 'postgresql')
         if (tests['errors'] != 0 or args.unattended_debugging) and not args.debugging:
