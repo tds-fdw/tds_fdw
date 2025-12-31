@@ -23,7 +23,7 @@ def version_to_array(version, dbtype):
         # Cleanup version, since Ubuntu decided to add their own
         # versioning starting with PostgreSQL 10.2:
         # '10.2 (Ubuntu 10.2-1.pgdg14.04+1' instead of '10.2'
-        version = match('(\d[\.\d]+).*', version).group(1)
+        version = match(r'(\d[\.\d]+).*', version).group(1)
         version = version.split('.')
         for i in range(0, len(version)):
             version[i] = int(version[i])
