@@ -4563,12 +4563,18 @@ tdsExecForeignInsert(EState *estate,
     values = (Datum *) palloc(nattrs * sizeof(Datum));
     nulls = (bool *) palloc(nattrs * sizeof(bool));
     
+    /* 
+     * Extract values from slot by position.
+     * The slot contains only the columns being inserted, in order,
+     * not necessarily matching the foreign table's attribute numbers.
+     */
+    slot_getallattrs(slot);
     i = 0;
     foreach(lc, fmstate->target_attrs)
     {
-        int attnum = lfirst_int(lc);
-        
-        values[i] = slot_getattr(slot, attnum, &nulls[i]);
+        /* Get value by slot position (i+1), not foreign table attnum */
+        values[i] = slot->tts_values[i];
+        nulls[i] = slot->tts_isnull[i];
         i++;
     }
     
@@ -4670,12 +4676,18 @@ tdsExecForeignUpdate(EState *estate,
     values = (Datum *) palloc(nattrs * sizeof(Datum));
     nulls = (bool *) palloc(nattrs * sizeof(bool));
     
+    /* 
+     * Extract values from slot by position.
+     * The slot contains only the columns being updated, in order,
+     * not necessarily matching the foreign table's attribute numbers.
+     */
+    slot_getallattrs(slot);
     i = 0;
     foreach(lc, fmstate->target_attrs)
     {
-        int attnum = lfirst_int(lc);
-        
-        values[i] = slot_getattr(slot, attnum, &nulls[i]);
+        /* Get value by slot position (i), not foreign table attnum */
+        values[i] = slot->tts_values[i];
+        nulls[i] = slot->tts_isnull[i];
         i++;
     }
     
@@ -4684,6 +4696,10 @@ tdsExecForeignUpdate(EState *estate,
     keyValues = (Datum *) palloc(nkeys * sizeof(Datum));
     keyNulls = (bool *) palloc(nkeys * sizeof(bool));
     
+    /* 
+     * For key values, we need to use slot_getattr with the foreign table attribute number
+     * because planSlot contains the full original row from the scan.
+     */
     i = 0;
     foreach(lc, fmstate->key_attrs)
     {
@@ -4789,6 +4805,10 @@ tdsExecForeignDelete(EState *estate,
     keyValues = (Datum *) palloc(nkeys * sizeof(Datum));
     keyNulls = (bool *) palloc(nkeys * sizeof(bool));
     
+    /* 
+     * For key values, we need to use slot_getattr with the foreign table attribute number
+     * because planSlot contains the full original row from the scan.
+     */
     i = 0;
     foreach(lc, fmstate->key_attrs)
     {
