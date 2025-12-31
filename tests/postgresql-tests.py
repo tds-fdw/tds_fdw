@@ -4,7 +4,6 @@ from lib.messages import print_usage_error, print_warning
 from lib.tests import get_logs_path, run_tests
 from optparse import OptionParser
 from os import path
-import os
 try:
     from psycopg2 import connect
 except:
