@@ -105,14 +105,14 @@ def main():
         
         # Validate msg_handler from command-line option
         if args.tds_fdw_msg_handler not in ['notice', 'blackhole']:
-            print_error("Invalid --tds_fdw_msg_handler value '%s', using 'notice'" % args.tds_fdw_msg_handler)
+            print_warning("Invalid --tds_fdw_msg_handler value '%s', using 'notice'" % args.tds_fdw_msg_handler)
             args.tds_fdw_msg_handler = 'notice'
         print_info("Using msg_handler: %s" % args.tds_fdw_msg_handler)
         
         # Validate postgres_min_messages from command-line option
         valid_levels = ['DEBUG5', 'DEBUG4', 'DEBUG3', 'DEBUG2', 'DEBUG1', 'LOG', 'NOTICE', 'WARNING', 'ERROR']
         if args.postgres_min_messages not in valid_levels:
-            print_error("Invalid --postgres_min_messages value '%s', using 'NOTICE'" % args.postgres_min_messages)
+            print_warning("Invalid --postgres_min_messages value '%s', using 'NOTICE'" % args.postgres_min_messages)
             args.postgres_min_messages = 'NOTICE'
         print_info("Using client_min_messages: %s" % args.postgres_min_messages)
         
