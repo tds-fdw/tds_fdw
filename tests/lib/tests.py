@@ -154,12 +154,26 @@ def run_tests(path, conn, replaces, dbtype, debugging=False, unattended_debuggin
                 cursor = conn.cursor()
                 cursor.execute(sentence)
                 conn.commit()
+                # Print any messages (notices, debug, SQL Server messages from tds_fdw, etc.)
+                # Note: only psycopg2 has notices attribute, not pymssql
+                if hasattr(conn, 'notices') and conn.notices:
+                    for notice in conn.notices:
+                        # Strip whitespace and print
+                        print_info(notice.strip())
+                    conn.notices.clear()
                 cursor.close()
                 tests['ok'] += 1
             except Exception as e:
                 print_error("Error running %s (%s)" % (test_desc, fname))
                 print_error("Query:")
                 print(sentence)
+                # Print any messages (notices, debug, SQL Server messages from tds_fdw, etc.)
+                # Note: only psycopg2 has notices attribute, not pymssql
+                if hasattr(conn, 'notices') and conn.notices:
+                    for notice in conn.notices:
+                        # Strip whitespace and print
+                        print_error(notice.strip())
+                    conn.notices.clear()
                 try:
                     print_error(e.pgcode)
                     print_error(e.pgerror)
