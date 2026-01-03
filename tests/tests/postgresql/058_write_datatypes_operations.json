@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Test INSERT/UPDATE/DELETE with various data types via FDW",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

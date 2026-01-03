@@ -2,26 +2,40 @@
 
 ## Project Overview
 
-tds_fdw is a PostgreSQL Foreign Data Wrapper (FDW) for **read-only** access to databases using the Tabular Data Stream (TDS) protocol (Microsoft SQL Server and Sybase). It bridges PostgreSQL's FDW API with FreeTDS's DB-Library interface.
+tds_fdw is a PostgreSQL Foreign Data Wrapper (FDW) for databases using the Tabular Data Stream (TDS) protocol (Microsoft SQL Server and Sybase). It bridges PostgreSQL's FDW API with FreeTDS's DB-Library interface.
 
-**Current Limitations**: No JOIN push-down support, no write operations (INSERT/UPDATE/DELETE).
+**Current Limitations**: No JOIN push-down support. Write operations (INSERT/UPDATE/DELETE) are **experimental**.
+
+**Note**: The README still states "does not yet support...write operations" but this branch has experimental implementation.
 
 ## Architecture
 
 ### Core Components
 
-- **[src/tds_fdw.c](../src/tds_fdw.c)** (4267 lines): Main FDW handler implementing PostgreSQL's `FdwRoutine` callbacks (`GetForeignRelSize`, `BeginForeignScan`, `IterateForeignScan`, etc.) and DB-Library connection management
-- **[src/deparse.c](../src/deparse.c)** (2529 lines): Query deparsing logic adapted from postgres_fdw - converts PostgreSQL query plans to TDS-compatible SQL with WHERE/column pushdown support
+- **[src/tds_fdw.c](../src/tds_fdw.c)** (5081 lines): Main FDW handler implementing PostgreSQL's `FdwRoutine` callbacks (read: `GetForeignRelSize`, `BeginForeignScan`, `IterateForeignScan`; write: `IsForeignRelUpdatable`, `PlanForeignModify`, `BeginForeignModify`, `ExecForeignInsert`, `ExecForeignUpdate`, `ExecForeignDelete`, `EndForeignModify`) and DB-Library connection management; includes `translateSqlServerDefault()` helper for converting SQL Server default expressions (GETDATE()→CURRENT_TIMESTAMP, GETUTCDATE()→CURRENT_TIMESTAMP AT TIME ZONE 'UTC', NEWID()→gen_random_uuid()) to PostgreSQL equivalents during IMPORT FOREIGN SCHEMA operations
+- **[src/deparse.c](../src/deparse.c)** (2529 lines): Query deparsing logic adapted from postgres_fdw - converts PostgreSQL query plans to TDS-compatible SQL with WHERE/column pushdown support, plus direct SQL generation for INSERT/UPDATE/DELETE via `deparseDirectInsertSql`, `deparseDirectUpdateSql`, `deparseDirectDeleteSql`, and `datumToTdsString` for value conversion
 - **[src/options.c](../src/options.c)** (1072 lines): FDW option validation and extraction for servers, tables, and user mappings
-- **[include/ (Read Operations Only)
+- **[include/tds_fdw.h](../include/tds_fdw.h)** (273 lines): Key data structures: `TdsFdwExecutionState` (scan state with DBPROCESS handle), `TdsFdwModifyState` (INSERT/UPDATE/DELETE state with target_attrs, key_attrs, temp_cxt), `TdsFdwRelationInfo` (query planning metadata for optimizer)
 
+### Data Flow
+
+**Read Operations:**
 1. PostgreSQL planner calls `tdsGetForeignRelSize` → `tdsGetForeignPaths` → `tdsGetForeignPlan`
 2. Deparse module converts WHERE clauses to TDS SQL (pushdown when `match_column_names` enabled)
 3. Executor calls `tdsBeginForeignScan` → establishes DB-Library connection via `dblogin()`/`dbopen()`
 4. `tdsIterateForeignScan` fetches rows using `dbnextrow()`, converts DB-Library types to PostgreSQL datums with direct binding for numeric types
-5. `tdsEndForeignScan` cleans up connection with `dbclose()`/`dbloginfree()`/`dbexitLibrary connection via `dblogin()`/`dbopen()`
-4. `tdsIterateForeignScan` fetches rows using `dbnextrow()`, converts DB-Library types to PostgreSQL datums
-5. `tdsEndForeignScan` cleans up connection with `dbclose()`
+5. `tdsEndForeignScan` cleans up connection with `dbclose()`/`dbloginfree()`/`dbexit()`
+
+**Write Operations (Experimental):**
+1. PostgreSQL planner calls `IsForeignRelUpdatable` (returns bitmask: CMD_INSERT | CMD_UPDATE | CMD_DELETE)
+2. `tdsPlanForeignModify` identifies target columns and key columns (via `tdsGetKeyAttrs` - uses primary key or all columns as fallback)
+3. `tdsBeginForeignModify` establishes DB-Library connection, allocates `TdsFdwModifyState` with temp context
+4. For each row:
+   - `tdsExecForeignInsert`: calls `deparseDirectInsertSql` → builds INSERT with inline values via `datumToTdsString`
+   - `tdsExecForeignUpdate`: calls `deparseDirectUpdateSql` → builds UPDATE with SET clause and WHERE using key columns
+   - `tdsExecForeignDelete`: calls `deparseDirectDeleteSql` → builds DELETE with WHERE using key columns
+   - All execute via `dbcmd()`/`dbsqlexec()`/`dbresults()` cycle with proper error handling
+5. `tdsEndForeignModify` cleans up connection and temp context
 
 ## PostgreSQL Version Compatibility
 
@@ -108,7 +122,13 @@ Uses `-fvisibility=hidden` and `visibility.h` macros to control exported symbols
 ## Key Limitations (Document Changes)
 
 - **No JOIN push-down support** - queries joining foreign tables execute locally in PostgreSQL
-- **No write operations** - INSERT/UPDATE/DELETE not supported in this branch
+- **No FOR UPDATE/SHARE support** - TDS protocol doesn't support FOR UPDATE outside cursor declarations; write operations use remote server's native isolation mechanisms (transaction isolation levels) instead
+- **Write operations are experimental** - INSERT/UPDATE/DELETE implemented but not thoroughly tested:
+  - UPDATE/DELETE require primary key or use all columns in WHERE clause (via `tdsGetKeyAttrs`)
+  - Values are inline in SQL (no prepared statement parameters) - potential SQL injection risk with user-provided data
+  - `datumToTdsString` converts PostgreSQL Datums to TDS-compatible SQL literals
+  - No RETURNING clause support despite structure field
+  - Transaction handling relies on PostgreSQL's transaction management
 - Column/WHERE pushdown requires `match_column_names` option enabled
 - Character encoding depends on FreeTDS `freetds.conf` settings (`client charset`, `tds version`)
 - ANSI mode support via `sqlserver_ansi_mode` option (SQL Server only)
