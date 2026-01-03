@@ -4543,7 +4543,6 @@ tdsExecForeignInsert(EState *estate,
     bool *nulls;
     int nattrs;
     int i;
-    ListCell *lc;
     RETCODE erc;
     
 #ifdef DEBUG
@@ -4569,13 +4568,11 @@ tdsExecForeignInsert(EState *estate,
      * not necessarily matching the foreign table's attribute numbers.
      */
     slot_getallattrs(slot);
-    i = 0;
-    foreach(lc, fmstate->target_attrs)
+    for (i = 0; i < nattrs; i++)
     {
-        /* Get value by slot position (i+1), not foreign table attnum */
+        /* Get value by slot position (i), not foreign table attnum */
         values[i] = slot->tts_values[i];
         nulls[i] = slot->tts_isnull[i];
-        i++;
     }
     
     /* Build the INSERT SQL */
