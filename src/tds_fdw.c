@@ -2467,6 +2467,27 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
     }
 
     /*
+     * For UPDATE/DELETE operations, we need to ensure key columns are included
+     * in the scan's select list so they can be used in WHERE clauses.
+     * We add all key columns here regardless of whether this scan will be used
+     * for modification, because we don't know that at this planning stage.
+     */
+    {
+        List *key_attrs = tdsGetKeyAttrs(baserel->relid);
+        ListCell *key_lc;
+        
+        foreach(key_lc, key_attrs)
+        {
+            int attnum = lfirst_int(key_lc);
+            /* Add to attrs_used bitmapset (using offset for InvalidAttrNumber) */
+            fpinfo->attrs_used = bms_add_member(fpinfo->attrs_used,
+                                                attnum - FirstLowInvalidHeapAttributeNumber);
+        }
+        
+        list_free(key_attrs);
+    }
+
+    /*
      * Compute the selectivity and cost of the local_conds, so we don't have
      * to do it over again for each path.  The best we can do for these
      * conditions is to estimate selectivity on the basis of local statistics.
@@ -4739,20 +4760,39 @@ tdsExecForeignUpdate(EState *estate,
             (errmsg("tds_fdw: UPDATE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
                     planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
     
-    i = 0;
-    foreach(lc, fmstate->key_attrs)
-    {
-        int attnum = lfirst_int(lc);
-        
-        ereport(DEBUG3,
-                (errmsg("tds_fdw: UPDATE trying to get attribute %d from planSlot (natts=%d)",
-                        attnum, planSlot->tts_tupleDescriptor->natts)));
-        
-        keyValues[i] = slot_getattr(planSlot, attnum, &keyNulls[i]);
-        i++;
-    }
-    
-    /* Build the UPDATE SQL */
+	/* Extract key values from planSlot by finding the matching attribute */
+	i = 0;
+	foreach(lc, fmstate->key_attrs)
+	{
+		int attnum = lfirst_int(lc);
+		int slot_attno = -1;
+		int j;
+		
+		/* Find which slot position corresponds to this attribute number */
+		for (j = 0; j < planSlot->tts_tupleDescriptor->natts; j++)
+		{
+			Form_pg_attribute attr = TupleDescAttr(planSlot->tts_tupleDescriptor, j);
+			if (attr->attnum == attnum)
+			{
+				slot_attno = j + 1;  /* slot_getattr uses 1-based indexing */
+				break;
+			}
+		}
+		
+		if (slot_attno == -1)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					 errmsg("Could not find key attribute %d in planSlot for UPDATE", attnum)));
+		}
+		
+		ereport(DEBUG3,
+				(errmsg("tds_fdw: UPDATE extracting foreign table attnum=%d from planSlot position=%d (natts=%d)",
+						attnum, slot_attno, planSlot->tts_tupleDescriptor->natts)));
+		
+		keyValues[i] = slot_getattr(planSlot, slot_attno, &keyNulls[i]);
+		i++;
+	}
     initStringInfo(&sql);
     deparseDirectUpdateSql(&sql, fmstate->rel, fmstate->target_attrs, values, nulls,
                            fmstate->key_attrs, keyValues, keyNulls, &option_set);
@@ -4884,20 +4924,39 @@ tdsExecForeignDelete(EState *estate,
             (errmsg("tds_fdw: DELETE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
                     planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
     
-    i = 0;
-    foreach(lc, fmstate->key_attrs)
-    {
-        int attnum = lfirst_int(lc);
-        
-        ereport(DEBUG3,
-                (errmsg("tds_fdw: DELETE trying to get attribute %d from planSlot (natts=%d)",
-                        attnum, planSlot->tts_tupleDescriptor->natts)));
-        
-        keyValues[i] = slot_getattr(planSlot, attnum, &keyNulls[i]);
-        i++;
-    }
-    
-    /* Build the DELETE SQL */
+	/* Extract key values from planSlot by finding the matching attribute */
+	i = 0;
+	foreach(lc, fmstate->key_attrs)
+	{
+		int attnum = lfirst_int(lc);
+		int slot_attno = -1;
+		int j;
+		
+		/* Find which slot position corresponds to this attribute number */
+		for (j = 0; j < planSlot->tts_tupleDescriptor->natts; j++)
+		{
+			Form_pg_attribute attr = TupleDescAttr(planSlot->tts_tupleDescriptor, j);
+			if (attr->attnum == attnum)
+			{
+				slot_attno = j + 1;  /* slot_getattr uses 1-based indexing */
+				break;
+			}
+		}
+		
+		if (slot_attno == -1)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					 errmsg("Could not find key attribute %d in planSlot for DELETE", attnum)));
+		}
+		
+		ereport(DEBUG3,
+				(errmsg("tds_fdw: DELETE extracting foreign table attnum=%d from planSlot position=%d (natts=%d)",
+						attnum, slot_attno, planSlot->tts_tupleDescriptor->natts)));
+		
+		keyValues[i] = slot_getattr(planSlot, slot_attno, &keyNulls[i]);
+		i++;
+	}
     initStringInfo(&sql);
     deparseDirectDeleteSql(&sql, fmstate->rel, fmstate->key_attrs, keyValues, keyNulls, &option_set);
     
