@@ -4631,8 +4631,12 @@ tdsExecForeignInsert(EState *estate,
             (errmsg("----> finishing tdsExecForeignInsert")));
 #endif
     
-    /* Return NULL since we don't support RETURNING clause */
-    return NULL;
+    /*
+     * Return the input slot so PostgreSQL can access attributes for
+     * triggers, constraints, or other post-modification processing.
+     * The slot already contains the correct values that were inserted.
+     */
+    return slot;
 }
 
 /*
@@ -4763,8 +4767,12 @@ tdsExecForeignUpdate(EState *estate,
             (errmsg("----> finishing tdsExecForeignUpdate")));
 #endif
     
-    /* Return NULL since we don't support RETURNING clause */
-    return NULL;
+    /*
+     * Return the input slot so PostgreSQL can access attributes for
+     * triggers, constraints, or other post-modification processing.
+     * The slot already contains the correct values that were updated.
+     */
+    return slot;
 }
 
 /*
@@ -4871,8 +4879,12 @@ tdsExecForeignDelete(EState *estate,
             (errmsg("----> finishing tdsExecForeignDelete")));
 #endif
     
-    /* Return NULL since we don't support RETURNING clause */
-    return NULL;
+    /*
+     * Return the planSlot so PostgreSQL can access attributes for
+     * triggers, constraints, or other post-modification processing.
+     * The planSlot contains the original row values before deletion.
+     */
+    return planSlot;
 }
 
 /*
