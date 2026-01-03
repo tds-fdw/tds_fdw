@@ -2467,29 +2467,6 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
     }
 
     /*
-     * For UPDATE/DELETE operations, we need key columns in the scan so they
-     * can be used in WHERE clauses. Check if this scan is for a modification
-     * and this is the target relation being modified.
-     */
-    if ((root->parse->commandType == CMD_UPDATE ||
-         root->parse->commandType == CMD_DELETE) &&
-        root->parse->resultRelation > 0 &&
-        baserel->relid == (Index) root->parse->resultRelation)
-    {
-        List *key_attrs = tdsGetKeyAttrs(foreigntableid);
-        ListCell *key_lc;
-        
-        foreach(key_lc, key_attrs)
-        {
-            int attnum = lfirst_int(key_lc);
-            fpinfo->attrs_used = bms_add_member(fpinfo->attrs_used,
-                                                attnum - FirstLowInvalidHeapAttributeNumber);
-        }
-        
-        list_free(key_attrs);
-    }
-
-    /*
      * Compute the selectivity and cost of the local_conds, so we don't have
      * to do it over again for each path.  The best we can do for these
      * conditions is to estimate selectivity on the basis of local statistics.
@@ -4762,37 +4739,75 @@ tdsExecForeignUpdate(EState *estate,
             (errmsg("tds_fdw: UPDATE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
                     planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
     
-	/* Extract key values from planSlot by finding the matching attribute */
+	/*
+	 * Extract key values from planSlot. Key columns may not be individual
+	 * attributes in planSlot - they may only be available via wholerow reference.
+	 * We need to extract them from the tuple using the relation's tuple descriptor.
+	 */
 	i = 0;
 	foreach(lc, fmstate->key_attrs)
 	{
 		int attnum = lfirst_int(lc);
-		int slot_attno = -1;
+		bool found = false;
 		int j;
 		
-		/* Find which slot position corresponds to this attribute number */
+		/* First try to find as individual attribute in planSlot */
 		for (j = 0; j < planSlot->tts_tupleDescriptor->natts; j++)
 		{
 			Form_pg_attribute attr = TupleDescAttr(planSlot->tts_tupleDescriptor, j);
-			if (attr->attnum == attnum)
+			
+			/* Skip dropped columns */
+			if (attr->attisdropped)
+				continue;
+				
+			/* Check if this is the wholerow reference */
+			if (attr->attnum == InvalidAttrNumber)
 			{
-				slot_attno = j + 1;  /* slot_getattr uses 1-based indexing */
+				/* Extract value from wholerow datum */
+				Datum wholerow = planSlot->tts_values[j];
+				bool isnull = planSlot->tts_isnull[j];
+				
+				if (!isnull)
+				{
+					HeapTupleHeader td = DatumGetHeapTupleHeader(wholerow);
+					TupleDesc tupdesc = RelationGetDescr(fmstate->rel);
+					HeapTupleData tmptup;
+					
+					/* Build a temporary HeapTuple from the datum */
+					tmptup.t_len = HeapTupleHeaderGetDatumLength(td);
+					tmptup.t_data = td;
+					
+					/* Extract the key attribute value */
+					keyValues[i] = heap_getattr(&tmptup, attnum, tupdesc, &keyNulls[i]);
+					found = true;
+					
+					ereport(DEBUG3,
+							(errmsg("tds_fdw: UPDATE extracted key attnum=%d from wholerow",
+									attnum)));
+					break;
+				}
+			}
+			/* Check if this individual attribute matches our key */
+			else if (attr->attnum == attnum)
+			{
+				keyValues[i] = planSlot->tts_values[j];
+				keyNulls[i] = planSlot->tts_isnull[j];
+				found = true;
+				
+				ereport(DEBUG3,
+						(errmsg("tds_fdw: UPDATE extracted key attnum=%d from individual attribute",
+								attnum)));
 				break;
 			}
 		}
 		
-		if (slot_attno == -1)
+		if (!found)
 		{
 			ereport(ERROR,
 					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 					 errmsg("Could not find key attribute %d in planSlot for UPDATE", attnum)));
 		}
 		
-		ereport(DEBUG3,
-				(errmsg("tds_fdw: UPDATE extracting foreign table attnum=%d from planSlot position=%d (natts=%d)",
-						attnum, slot_attno, planSlot->tts_tupleDescriptor->natts)));
-		
-		keyValues[i] = slot_getattr(planSlot, slot_attno, &keyNulls[i]);
 		i++;
 	}
     initStringInfo(&sql);
@@ -4926,37 +4941,75 @@ tdsExecForeignDelete(EState *estate,
             (errmsg("tds_fdw: DELETE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
                     planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
     
-	/* Extract key values from planSlot by finding the matching attribute */
+	/*
+	 * Extract key values from planSlot. Key columns may not be individual
+	 * attributes in planSlot - they may only be available via wholerow reference.
+	 * We need to extract them from the tuple using the relation's tuple descriptor.
+	 */
 	i = 0;
 	foreach(lc, fmstate->key_attrs)
 	{
 		int attnum = lfirst_int(lc);
-		int slot_attno = -1;
+		bool found = false;
 		int j;
 		
-		/* Find which slot position corresponds to this attribute number */
+		/* First try to find as individual attribute in planSlot */
 		for (j = 0; j < planSlot->tts_tupleDescriptor->natts; j++)
 		{
 			Form_pg_attribute attr = TupleDescAttr(planSlot->tts_tupleDescriptor, j);
-			if (attr->attnum == attnum)
+			
+			/* Skip dropped columns */
+			if (attr->attisdropped)
+				continue;
+				
+			/* Check if this is the wholerow reference */
+			if (attr->attnum == InvalidAttrNumber)
 			{
-				slot_attno = j + 1;  /* slot_getattr uses 1-based indexing */
+				/* Extract value from wholerow datum */
+				Datum wholerow = planSlot->tts_values[j];
+				bool isnull = planSlot->tts_isnull[j];
+				
+				if (!isnull)
+				{
+					HeapTupleHeader td = DatumGetHeapTupleHeader(wholerow);
+					TupleDesc tupdesc = RelationGetDescr(fmstate->rel);
+					HeapTupleData tmptup;
+					
+					/* Build a temporary HeapTuple from the datum */
+					tmptup.t_len = HeapTupleHeaderGetDatumLength(td);
+					tmptup.t_data = td;
+					
+					/* Extract the key attribute value */
+					keyValues[i] = heap_getattr(&tmptup, attnum, tupdesc, &keyNulls[i]);
+					found = true;
+					
+					ereport(DEBUG3,
+							(errmsg("tds_fdw: DELETE extracted key attnum=%d from wholerow",
+									attnum)));
+					break;
+				}
+			}
+			/* Check if this individual attribute matches our key */
+			else if (attr->attnum == attnum)
+			{
+				keyValues[i] = planSlot->tts_values[j];
+				keyNulls[i] = planSlot->tts_isnull[j];
+				found = true;
+				
+				ereport(DEBUG3,
+						(errmsg("tds_fdw: DELETE extracted key attnum=%d from individual attribute",
+								attnum)));
 				break;
 			}
 		}
 		
-		if (slot_attno == -1)
+		if (!found)
 		{
 			ereport(ERROR,
 					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
 					 errmsg("Could not find key attribute %d in planSlot for DELETE", attnum)));
 		}
 		
-		ereport(DEBUG3,
-				(errmsg("tds_fdw: DELETE extracting foreign table attnum=%d from planSlot position=%d (natts=%d)",
-						attnum, slot_attno, planSlot->tts_tupleDescriptor->natts)));
-		
-		keyValues[i] = slot_getattr(planSlot, slot_attno, &keyNulls[i]);
 		i++;
 	}
     initStringInfo(&sql);
