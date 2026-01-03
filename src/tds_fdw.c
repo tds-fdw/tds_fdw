@@ -2468,10 +2468,13 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
 
     /*
      * For UPDATE/DELETE operations, we need key columns in the scan so they
-     * can be used in WHERE clauses. Check if this scan is for a modification.
+     * can be used in WHERE clauses. Check if this scan is for a modification
+     * and this is the target relation being modified.
      */
-    if (root->parse->commandType == CMD_UPDATE ||
-        root->parse->commandType == CMD_DELETE)
+    if ((root->parse->commandType == CMD_UPDATE ||
+         root->parse->commandType == CMD_DELETE) &&
+        root->parse->resultRelation > 0 &&
+        baserel->relid == (Index) root->parse->resultRelation)
     {
         List *key_attrs = tdsGetKeyAttrs(foreigntableid);
         ListCell *key_lc;
