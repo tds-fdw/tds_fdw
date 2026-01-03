@@ -2467,6 +2467,26 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
     }
 
     /*
+     * For UPDATE/DELETE operations, we need key columns in the scan so they
+     * can be used in WHERE clauses. Check if this scan is for a modification.
+     */
+    if (root->parse->commandType == CMD_UPDATE ||
+        root->parse->commandType == CMD_DELETE)
+    {
+        List *key_attrs = tdsGetKeyAttrs(baserel->relid);
+        ListCell *key_lc;
+        
+        foreach(key_lc, key_attrs)
+        {
+            int attnum = lfirst_int(key_lc);
+            fpinfo->attrs_used = bms_add_member(fpinfo->attrs_used,
+                                                attnum - FirstLowInvalidHeapAttributeNumber);
+        }
+        
+        list_free(key_attrs);
+    }
+
+    /*
      * Compute the selectivity and cost of the local_conds, so we don't have
      * to do it over again for each path.  The best we can do for these
      * conditions is to estimate selectivity on the basis of local statistics.
