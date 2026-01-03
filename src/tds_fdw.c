@@ -4568,6 +4568,11 @@ tdsExecForeignInsert(EState *estate,
      * not necessarily matching the foreign table's attribute numbers.
      */
     slot_getallattrs(slot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: INSERT slot info: nattrs=%d, slot->tts_tupleDescriptor->natts=%d, slot->tts_nvalid=%d",
+                    nattrs, slot->tts_tupleDescriptor->natts, slot->tts_nvalid)));
+    
     for (i = 0; i < nattrs; i++)
     {
         /* Get value by slot position (i), not foreign table attnum */
@@ -4683,6 +4688,11 @@ tdsExecForeignUpdate(EState *estate,
      * not necessarily matching the foreign table's attribute numbers.
      */
     slot_getallattrs(slot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: UPDATE slot info: nattrs=%d, slot->tts_tupleDescriptor->natts=%d, slot->tts_nvalid=%d",
+                    nattrs, slot->tts_tupleDescriptor->natts, slot->tts_nvalid)));
+    
     i = 0;
     foreach(lc, fmstate->target_attrs)
     {
@@ -4814,6 +4824,11 @@ tdsExecForeignDelete(EState *estate,
      * For key values, we need to use slot_getattr with the foreign table attribute number
      * because planSlot contains the full original row from the scan.
      */
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: DELETE planSlot info: nkeys=%d, planSlot->tts_tupleDescriptor->natts=%d, planSlot->tts_nvalid=%d",
+                    nkeys, planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
     i = 0;
     foreach(lc, fmstate->key_attrs)
     {
