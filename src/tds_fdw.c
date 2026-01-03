@@ -4634,11 +4634,14 @@ tdsExecForeignInsert(EState *estate,
 #endif
     
     /*
-     * Return the input slot so PostgreSQL can access attributes for
-     * triggers, constraints, or other post-modification processing.
-     * The slot already contains the correct values that were inserted.
+     * Return NULL since we don't support RETURNING clause yet.
+     * The 'slot' parameter only contains columns from the VALUES clause,
+     * not a complete row. Returning this partial slot causes "invalid
+     * attribute number" errors when the executor tries to access columns
+     * not included in the INSERT. Without RETURNING support, NULL is
+     * acceptable for FDWs.
      */
-    return slot;
+    return NULL;
 }
 
 /*
@@ -4711,10 +4714,39 @@ tdsExecForeignUpdate(EState *estate,
      * For key values, we need to use slot_getattr with the foreign table attribute number
      * because planSlot contains the full original row from the scan.
      */
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: UPDATE planSlot before extraction: natts=%d, nvalid=%d",
+                    planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
+    /* Debug: show what attributes are in the tuple descriptor */
+    {
+        TupleDesc tupdesc = planSlot->tts_tupleDescriptor;
+        int j;
+        ereport(DEBUG3, (errmsg("tds_fdw: UPDATE planSlot tuple descriptor has %d attributes:", tupdesc->natts)));
+        for (j = 0; j < tupdesc->natts; j++)
+        {
+            Form_pg_attribute attr = TupleDescAttr(tupdesc, j);
+            ereport(DEBUG3, (errmsg("  attr[%d]: attnum=%d, attname=%s, attisdropped=%d",
+                                    j, attr->attnum, NameStr(attr->attname), attr->attisdropped)));
+        }
+    }
+    
+    /* Make sure planSlot is materialized */
+    slot_getallattrs(planSlot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: UPDATE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
+                    planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
     i = 0;
     foreach(lc, fmstate->key_attrs)
     {
         int attnum = lfirst_int(lc);
+        
+        ereport(DEBUG3,
+                (errmsg("tds_fdw: UPDATE trying to get attribute %d from planSlot (natts=%d)",
+                        attnum, planSlot->tts_tupleDescriptor->natts)));
         
         keyValues[i] = slot_getattr(planSlot, attnum, &keyNulls[i]);
         i++;
@@ -4775,11 +4807,14 @@ tdsExecForeignUpdate(EState *estate,
 #endif
     
     /*
-     * Return the input slot so PostgreSQL can access attributes for
-     * triggers, constraints, or other post-modification processing.
-     * The slot already contains the correct values that were updated.
+     * Return NULL since we don't support RETURNING clause yet.
+     * The 'slot' parameter only contains columns from the SET clause,
+     * not a complete row. Returning this partial slot causes "invalid
+     * attribute number" errors when the executor tries to access columns
+     * not included in the UPDATE. Without RETURNING support, NULL is
+     * acceptable for FDWs.
      */
-    return slot;
+    return NULL;
 }
 
 /*
@@ -4829,10 +4864,34 @@ tdsExecForeignDelete(EState *estate,
             (errmsg("tds_fdw: DELETE planSlot info: nkeys=%d, planSlot->tts_tupleDescriptor->natts=%d, planSlot->tts_nvalid=%d",
                     nkeys, planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
     
+    /* Debug: show what attributes are in the tuple descriptor */
+    {
+        TupleDesc tupdesc = planSlot->tts_tupleDescriptor;
+        int j;
+        ereport(DEBUG3, (errmsg("tds_fdw: DELETE planSlot tuple descriptor has %d attributes:", tupdesc->natts)));
+        for (j = 0; j < tupdesc->natts; j++)
+        {
+            Form_pg_attribute attr = TupleDescAttr(tupdesc, j);
+            ereport(DEBUG3, (errmsg("  attr[%d]: attnum=%d, attname=%s, attisdropped=%d",
+                                    j, attr->attnum, NameStr(attr->attname), attr->attisdropped)));
+        }
+    }
+    
+    /* Make sure planSlot is materialized */
+    slot_getallattrs(planSlot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: DELETE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
+                    planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
     i = 0;
     foreach(lc, fmstate->key_attrs)
     {
         int attnum = lfirst_int(lc);
+        
+        ereport(DEBUG3,
+                (errmsg("tds_fdw: DELETE trying to get attribute %d from planSlot (natts=%d)",
+                        attnum, planSlot->tts_tupleDescriptor->natts)));
         
         keyValues[i] = slot_getattr(planSlot, attnum, &keyNulls[i]);
         i++;
@@ -4892,11 +4951,14 @@ tdsExecForeignDelete(EState *estate,
 #endif
     
     /*
-     * Return the planSlot so PostgreSQL can access attributes for
-     * triggers, constraints, or other post-modification processing.
-     * The planSlot contains the original row values before deletion.
+     * Return NULL since we don't support RETURNING clause yet.
+     * The 'planSlot' from the scan has no columns (natts=0) because
+     * the scan query uses "SELECT NULL FROM table WHERE...".
+     * Returning this empty slot causes "invalid attribute number" errors
+     * when the executor tries to access any attributes. Without RETURNING
+     * support, NULL is acceptable for FDWs.
      */
-    return planSlot;
+    return NULL;
 }
 
 /*
