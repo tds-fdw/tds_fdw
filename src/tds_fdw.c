@@ -2473,7 +2473,7 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
     if (root->parse->commandType == CMD_UPDATE ||
         root->parse->commandType == CMD_DELETE)
     {
-        List *key_attrs = tdsGetKeyAttrs(baserel->relid);
+        List *key_attrs = tdsGetKeyAttrs(foreigntableid);
         ListCell *key_lc;
         
         foreach(key_lc, key_attrs)
