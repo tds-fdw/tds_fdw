@@ -2467,27 +2467,6 @@ void tdsGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntab
     }
 
     /*
-     * For UPDATE/DELETE operations, we need to ensure key columns are included
-     * in the scan's select list so they can be used in WHERE clauses.
-     * We add all key columns here regardless of whether this scan will be used
-     * for modification, because we don't know that at this planning stage.
-     */
-    {
-        List *key_attrs = tdsGetKeyAttrs(baserel->relid);
-        ListCell *key_lc;
-        
-        foreach(key_lc, key_attrs)
-        {
-            int attnum = lfirst_int(key_lc);
-            /* Add to attrs_used bitmapset (using offset for InvalidAttrNumber) */
-            fpinfo->attrs_used = bms_add_member(fpinfo->attrs_used,
-                                                attnum - FirstLowInvalidHeapAttributeNumber);
-        }
-        
-        list_free(key_attrs);
-    }
-
-    /*
      * Compute the selectivity and cost of the local_conds, so we don't have
      * to do it over again for each path.  The best we can do for these
      * conditions is to estimate selectivity on the basis of local statistics.
