@@ -110,7 +110,11 @@ static char *tds_err_msg(int severity, int dberr, int oserr, char *dberrstr, cha
 
 /* signal handling */
 static volatile bool interrupt_flag = false;
+#if PG_VERSION_NUM >= 190000
+static void tds_signal_handler(int signum, const pg_signal_info *siginfo);
+#else
 static void tds_signal_handler(int signum);
+#endif
 static void tds_clear_signals(void);
 static int tds_chkintr_func(void* vdbproc);
 static int tds_hndlintr_func(void* vdbproc);
@@ -4307,7 +4311,11 @@ int tds_blackhole_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int 
     return 0;
 }
 
+#if PG_VERSION_NUM >= 190000
+void tds_signal_handler(int signum, const pg_signal_info *siginfo)
+#else
 void tds_signal_handler(int signum)
+#endif
 {
     interrupt_flag = true;
 }
