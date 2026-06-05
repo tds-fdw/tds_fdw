@@ -31,6 +31,9 @@
 #endif
 #include "foreign/fdwapi.h"
 #include "foreign/foreign.h"
+#include "nodes/execnodes.h"
+#include "nodes/plannodes.h"
+#include "executor/executor.h"
 
 #if (PG_VERSION_NUM >= 90200)
 #include "optimizer/pathnode.h"
@@ -104,7 +107,7 @@ typedef struct TdsFdwRelationInfo
 	UserMapping *user;			/* only set in use_remote_estimate mode */
 } TdsFdwRelationInfo;
 
-/* this maintains state */
+/* this maintains state for scan operations */
 
 typedef struct TdsFdwExecutionState
 {
@@ -121,6 +124,31 @@ typedef struct TdsFdwExecutionState
 	int row;
 	MemoryContext mem_cxt;
 } TdsFdwExecutionState;
+
+/* this maintains state for modify operations (INSERT/UPDATE/DELETE) */
+
+typedef struct TdsFdwModifyState
+{
+	LOGINREC *login;
+	DBPROCESS *dbproc;
+	Relation rel;				/* relcache entry for the foreign table */
+	AttInMetadata *attinmeta;	/* attribute datatype conversion info */
+	
+	/* for INSERT/UPDATE */
+	List *target_attrs;			/* list of target attribute numbers */
+	
+	/* for UPDATE/DELETE */
+	List *key_attrs;			/* list of key attribute numbers */
+	bool has_returning;			/* is there a RETURNING clause? */
+	List *retrieved_attrs;		/* attrs to retrieve in RETURNING */
+	
+	/* for building SQL */
+	char *query;				/* the base SQL query */
+	
+	/* working state */
+	int p_nums;					/* number of parameters */
+	MemoryContext temp_cxt;		/* context for per-tuple temporary data */
+} TdsFdwModifyState;
 
 /* Callback argument for ec_member_matches_foreign */
 typedef struct
@@ -161,6 +189,45 @@ FdwPlan* tdsPlanForeignScan(Oid foreigntableid, PlannerInfo *root, RelOptInfo *b
 #ifdef IMPORT_API
 List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid);
 #endif  /* IMPORT_API */
+
+/* FDW callback routines for modifications (INSERT/UPDATE/DELETE) */
+int tdsIsForeignRelUpdatable(Relation rel);
+List *tdsPlanForeignModify(PlannerInfo *root,
+						   ModifyTable *plan,
+						   Index resultRelation,
+						   int subplan_index);
+void tdsBeginForeignModify(ModifyTableState *mtstate,
+						   ResultRelInfo *resultRelInfo,
+						   List *fdw_private,
+						   int subplan_index,
+						   int eflags);
+TupleTableSlot *tdsExecForeignInsert(EState *estate,
+									  ResultRelInfo *resultRelInfo,
+									  TupleTableSlot *slot,
+									  TupleTableSlot *planSlot);
+TupleTableSlot *tdsExecForeignUpdate(EState *estate,
+									  ResultRelInfo *resultRelInfo,
+									  TupleTableSlot *slot,
+									  TupleTableSlot *planSlot);
+TupleTableSlot *tdsExecForeignDelete(EState *estate,
+									  ResultRelInfo *resultRelInfo,
+									  TupleTableSlot *slot,
+									  TupleTableSlot *planSlot);
+void tdsEndForeignModify(EState *estate,
+						 ResultRelInfo *resultRelInfo);
+void tdsExplainForeignModify(ModifyTableState *mtstate,
+							 ResultRelInfo *rinfo,
+							 List *fdw_private,
+							 int subplan_index,
+							 ExplainState *es);
+
+/* Helper functions for modifications */
+List *tdsGetKeyAttrs(Oid relid);
+void tdsBuildModifyQuery(StringInfo buf, CmdType operation,
+						 Relation rel, List *targetAttrs, List *keyAttrs,
+						 TdsFdwOptionSet *option_set);
+char *tdsDatumToString(Datum datum, Oid type, bool isnull);
+bool tdsExecuteModifyQuery(DBPROCESS *dbproc, const char *query);
 
 /* compatibility with PostgreSQL 9.6+ */
 #ifndef ALLOCSET_DEFAULT_SIZES

@@ -32,8 +32,16 @@
 #include "postgres.h"
 #include "funcapi.h"
 #include "access/reloptions.h"
+#if PG_VERSION_NUM >= 120000
+#include "access/table.h"
+#else
+#include "access/heapam.h"
+#endif
+#include "catalog/indexing.h"
 #include "catalog/pg_foreign_server.h"
 #include "catalog/pg_foreign_table.h"
+#include "catalog/pg_index.h"
+#include "access/genam.h"
 #include "catalog/pg_user_mapping.h"
 #include "catalog/pg_type.h"
 #include "commands/defrem.h"
@@ -60,9 +68,15 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/rel.h"
+#include "utils/relcache.h"
 #include "utils/memutils.h"
 #include "utils/guc.h"
 #include "utils/timestamp.h"
+#include "utils/syscache.h"
+#include "parser/parsetree.h"
+#if PG_VERSION_NUM >= 160000
+#include "parser/parse_relation.h"
+#endif
 
 #if (PG_VERSION_NUM >= 90300)
 #include "access/htup_details.h"
@@ -179,6 +193,16 @@ PGDLLEXPORT Datum tds_fdw_handler(PG_FUNCTION_ARGS)
     fdwroutine->IterateForeignScan = tdsIterateForeignScan;
     fdwroutine->ReScanForeignScan = tdsReScanForeignScan;
     fdwroutine->EndForeignScan = tdsEndForeignScan;
+
+    /* Modification support (INSERT/UPDATE/DELETE) */
+    fdwroutine->IsForeignRelUpdatable = tdsIsForeignRelUpdatable;
+    fdwroutine->PlanForeignModify = tdsPlanForeignModify;
+    fdwroutine->BeginForeignModify = tdsBeginForeignModify;
+    fdwroutine->ExecForeignInsert = tdsExecForeignInsert;
+    fdwroutine->ExecForeignUpdate = tdsExecForeignUpdate;
+    fdwroutine->ExecForeignDelete = tdsExecForeignDelete;
+    fdwroutine->EndForeignModify = tdsEndForeignModify;
+    fdwroutine->ExplainForeignModify = tdsExplainForeignModify;
 
 #ifdef IMPORT_API
     fdwroutine->ImportForeignSchema = tdsImportForeignSchema;
@@ -367,56 +391,19 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
             appendOrderByClause(&sql, root, baserel, pathkeys);
         
         /*
-         * Add FOR UPDATE/SHARE if appropriate.  We apply locking during the
-         * initial row fetch, rather than later on as is done for local tables.
-         * The extra roundtrips involved in trying to duplicate the local
-         * semantics exactly don't seem worthwhile (see also comments for
-         * RowMarkType).
+         * Note: TDS servers (SQL Server, Sybase) do not support FOR UPDATE/SHARE
+         * clauses outside of cursor declarations. Unlike postgres_fdw (which this
+         * code was adapted from), we cannot use FOR UPDATE for row locking during
+         * UPDATE/DELETE operations.
          *
-         * Note: because we actually run the query as a cursor, this assumes that
-         * DECLARE CURSOR ... FOR UPDATE is supported, which it isn't before 8.3.
+         * This means UPDATE/DELETE operations on TDS foreign tables may have less
+         * strict isolation guarantees than PostgreSQL-to-PostgreSQL FDW connections,
+         * but this is a limitation of the TDS protocol. Row locking must be handled
+         * by the remote server's native isolation mechanisms (transaction isolation
+         * levels, etc.) rather than explicit FOR UPDATE clauses.
+         *
+         * The original FOR UPDATE logic has been disabled for TDS compatibility.
          */
-        if (baserel->relid == root->parse->resultRelation &&
-            (root->parse->commandType == CMD_UPDATE ||
-             root->parse->commandType == CMD_DELETE))
-        {
-            /* Relation is UPDATE/DELETE target, so use FOR UPDATE */
-            appendStringInfoString(&sql, " FOR UPDATE");
-        }
-        #if (PG_VERSION_NUM >= 90500)
-        else
-        {
-            PlanRowMark *rc = get_plan_rowmark(root->rowMarks, baserel->relid);
-
-            if (rc)
-            {
-                /*
-                 * Relation is specified as a FOR UPDATE/SHARE target, so handle
-                 * that.  (But we could also see LCS_NONE, meaning this isn't a
-                 * target relation after all.)
-                 *
-                 * For now, just ignore any [NO] KEY specification, since (a) it's
-                 * not clear what that means for a remote table that we don't have
-                 * complete information about, and (b) it wouldn't work anyway on
-                 * older remote servers.  Likewise, we don't worry about NOWAIT.
-                 */
-                switch (rc->strength)
-                {
-                    case LCS_NONE:
-                        /* No locking needed */
-                        break;
-                    case LCS_FORKEYSHARE:
-                    case LCS_FORSHARE:
-                        appendStringInfoString(&sql, " FOR SHARE");
-                        break;
-                    case LCS_FORNOKEYUPDATE:
-                    case LCS_FORUPDATE:
-                        appendStringInfoString(&sql, " FOR UPDATE");
-                        break;
-                }
-            }
-        }
-        #endif      
         
         /* now copy it to option_set->query */
 
@@ -4214,6 +4201,965 @@ cleanup_before_init:
     return commands;
 }
 #endif  /* IMPORT_API */
+
+/*
+ * =============================================================================
+ * Modification support (INSERT/UPDATE/DELETE)
+ * =============================================================================
+ */
+
+/*
+ * tdsIsForeignRelUpdatable
+ *      Indicate which operations are supported by the foreign table.
+ */
+int
+tdsIsForeignRelUpdatable(Relation rel)
+{
+    /*
+     * We support INSERT, UPDATE, and DELETE operations.
+     * The return value is a bitmask of supported operations.
+     */
+    return (1 << CMD_INSERT) | (1 << CMD_UPDATE) | (1 << CMD_DELETE);
+}
+
+/*
+ * tdsGetKeyAttrs
+ *      Get the list of primary key attributes for a relation.
+ *      If no primary key, returns all columns (requires WHERE on all columns).
+ */
+List *
+tdsGetKeyAttrs(Oid relid)
+{
+    List *key_attrs = NIL;
+    Relation rel;
+    Relation indexRel;
+    Oid pkoid;
+    int i;
+    
+    rel = table_open(relid, AccessShareLock);
+    
+    /* Try to get the primary key */
+    pkoid = RelationGetReplicaIndex(rel);
+    
+    if (!OidIsValid(pkoid))
+    {
+        /* No replica identity - look for a primary key index */
+        List *indexoidlist;
+        ListCell *lc;
+        
+        indexoidlist = RelationGetIndexList(rel);
+        foreach(lc, indexoidlist)
+        {
+            Oid indexoid = lfirst_oid(lc);
+            HeapTuple indexTuple;
+            Form_pg_index indexStruct;
+            
+            indexTuple = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(indexoid));
+            if (!HeapTupleIsValid(indexTuple))
+                continue;
+            
+            indexStruct = (Form_pg_index) GETSTRUCT(indexTuple);
+            
+            if (indexStruct->indisprimary)
+            {
+                pkoid = indexoid;
+                ReleaseSysCache(indexTuple);
+                break;
+            }
+            
+            ReleaseSysCache(indexTuple);
+        }
+        list_free(indexoidlist);
+    }
+    
+    if (OidIsValid(pkoid))
+    {
+        /* Get key columns from primary key index */
+        indexRel = index_open(pkoid, AccessShareLock);
+        
+        for (i = 0; i < indexRel->rd_index->indnatts; i++)
+        {
+            int attnum = indexRel->rd_index->indkey.values[i];
+            key_attrs = lappend_int(key_attrs, attnum);
+        }
+        
+        index_close(indexRel, AccessShareLock);
+    }
+    else
+    {
+        /*
+         * No primary key found. Use all non-generated columns.
+         * This is not ideal but allows basic UPDATE/DELETE to work.
+         */
+        TupleDesc tupdesc = RelationGetDescr(rel);
+        
+        for (i = 0; i < tupdesc->natts; i++)
+        {
+            Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
+            
+            if (attr->attisdropped)
+                continue;
+#if PG_VERSION_NUM >= 120000
+            if (attr->attgenerated)
+                continue;
+#endif
+            key_attrs = lappend_int(key_attrs, attr->attnum);
+        }
+        
+        if (key_attrs == NIL)
+        {
+            table_close(rel, AccessShareLock);
+            ereport(ERROR,
+                    (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                     errmsg("no columns found for foreign table \"%s\"",
+                            RelationGetRelationName(rel))));
+        }
+    }
+    
+    table_close(rel, AccessShareLock);
+    
+    return key_attrs;
+}
+
+/*
+ * tdsPlanForeignModify
+ *      Plan an INSERT/UPDATE/DELETE operation on a foreign table.
+ */
+List *
+tdsPlanForeignModify(PlannerInfo *root,
+                     ModifyTable *plan,
+                     Index resultRelation,
+                     int subplan_index)
+{
+    CmdType operation = plan->operation;
+    RangeTblEntry *rte = planner_rt_fetch(resultRelation, root);
+    Relation rel;
+    List *target_attrs = NIL;
+    List *key_attrs = NIL;
+    TupleDesc tupdesc;
+    int i;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> starting tdsPlanForeignModify")));
+#endif
+    
+    /* Open the relation to get its tuple descriptor */
+    rel = table_open(rte->relid, NoLock);
+    tupdesc = RelationGetDescr(rel);
+    
+    /*
+     * For INSERT and UPDATE, determine which columns are targets.
+     */
+    if (operation == CMD_INSERT || operation == CMD_UPDATE)
+    {
+        /* Get target columns from column update info */
+        Bitmapset *updatedCols;
+        int col;
+        
+#if PG_VERSION_NUM >= 160000
+        RTEPermissionInfo *perminfo = getRTEPermissionInfo(root->parse->rteperminfos, rte);
+        updatedCols = bms_union(perminfo->insertedCols, perminfo->updatedCols);
+#elif PG_VERSION_NUM >= 120000
+        updatedCols = bms_union(rte->insertedCols, rte->updatedCols);
+#else
+        updatedCols = bms_union(rte->insertedCols, rte->modifiedCols);
+#endif
+        
+        col = -1;
+        while ((col = bms_next_member(updatedCols, col)) >= 0)
+        {
+            /* bit numbers are offset by FirstLowInvalidHeapAttributeNumber */
+            AttrNumber attno = col + FirstLowInvalidHeapAttributeNumber;
+            
+            if (attno <= 0)
+                continue;       /* whole-row reference */
+            if (attno > tupdesc->natts)
+                continue;
+            
+            target_attrs = lappend_int(target_attrs, attno);
+        }
+        
+        if (target_attrs == NIL && operation == CMD_INSERT)
+        {
+            /*
+             * No target columns specified - use all non-generated columns
+             */
+            for (i = 0; i < tupdesc->natts; i++)
+            {
+                Form_pg_attribute attr = TupleDescAttr(tupdesc, i);
+                
+                if (attr->attisdropped)
+                    continue;
+#if PG_VERSION_NUM >= 120000
+                if (attr->attgenerated)
+                    continue;
+#endif
+                target_attrs = lappend_int(target_attrs, attr->attnum);
+            }
+        }
+    }
+    
+    /*
+     * For UPDATE and DELETE, we need key columns for the WHERE clause.
+     */
+    if (operation == CMD_UPDATE || operation == CMD_DELETE)
+    {
+        key_attrs = tdsGetKeyAttrs(rte->relid);
+    }
+    
+    table_close(rel, NoLock);
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> finishing tdsPlanForeignModify")));
+#endif
+    
+    /*
+     * Return target and key attrs as fdw_private.
+     * fdw_private structure: list of (target_attrs, key_attrs)
+     */
+    return list_make2(target_attrs, key_attrs);
+}
+
+/*
+ * tdsBeginForeignModify
+ *      Begin a modification operation on a foreign table.
+ */
+void
+tdsBeginForeignModify(ModifyTableState *mtstate,
+                      ResultRelInfo *resultRelInfo,
+                      List *fdw_private,
+                      int subplan_index,
+                      int eflags)
+{
+    TdsFdwModifyState *fmstate;
+    TdsFdwOptionSet option_set;
+    Relation rel = resultRelInfo->ri_RelationDesc;
+    Oid foreigntableid = RelationGetRelid(rel);
+    ForeignTable *table;
+    ForeignServer *server;
+    UserMapping *user;
+    LOGINREC *login;
+    DBPROCESS *dbproc;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> starting tdsBeginForeignModify")));
+#endif
+    
+    /* Skip if we're not actually modifying */
+    if (eflags & EXEC_FLAG_EXPLAIN_ONLY)
+        return;
+    
+    /* Initialize option set */
+    memset(&option_set, 0, sizeof(TdsFdwOptionSet));
+    
+    /* Get foreign table, server, and user mapping info */
+    table = GetForeignTable(foreigntableid);
+    server = GetForeignServer(table->serverid);
+    user = GetUserMapping(GetUserId(), server->serverid);
+    
+    /* Get options from catalog */
+    tdsGetForeignServerOptionsFromCatalog(server->serverid, &option_set);
+    tdsGetForeignTableOptionsFromCatalog(foreigntableid, &option_set);
+    
+    /* Get user mapping options */
+    {
+        ListCell *lc;
+        
+        foreach(lc, user->options)
+        {
+            DefElem *def = (DefElem *) lfirst(lc);
+            
+            if (strcmp(def->defname, "username") == 0)
+                option_set.username = defGetString(def);
+            else if (strcmp(def->defname, "password") == 0)
+                option_set.password = defGetString(def);
+        }
+    }
+    
+    /* Validate options */
+    tdsValidateOptionSet(&option_set);
+    
+    /* Initialize DB-Library */
+    if (dbinit() == FAIL)
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                 errmsg("Failed to initialize DB-Library")));
+    
+    /* Allocate login structure */
+    login = dblogin();
+    if (!login)
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                 errmsg("Failed to allocate login structure")));
+    
+    /* Set up connection */
+    if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_UNABLE_TO_ESTABLISH_CONNECTION),
+                 errmsg("Failed to connect to TDS server")));
+    
+    /* Allocate and initialize the modify state */
+    fmstate = (TdsFdwModifyState *) palloc0(sizeof(TdsFdwModifyState));
+    fmstate->login = login;
+    fmstate->dbproc = dbproc;
+    fmstate->rel = rel;
+    
+    /* Extract fdw_private elements */
+    fmstate->target_attrs = (List *) list_nth(fdw_private, 0);
+    fmstate->key_attrs = (List *) list_nth(fdw_private, 1);
+    
+    /* Create a temp memory context for per-tuple operations */
+    fmstate->temp_cxt = AllocSetContextCreate(CurrentMemoryContext,
+                                              "tds_fdw modify temp context",
+                                              ALLOCSET_DEFAULT_SIZES);
+    
+    /* Store the state in resultRelInfo */
+    resultRelInfo->ri_FdwState = fmstate;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> finishing tdsBeginForeignModify")));
+#endif
+}
+
+/*
+ * tdsExecForeignInsert
+ *      Execute an INSERT operation on a foreign table.
+ */
+TupleTableSlot *
+tdsExecForeignInsert(EState *estate,
+                     ResultRelInfo *resultRelInfo,
+                     TupleTableSlot *slot,
+                     TupleTableSlot *planSlot)
+{
+    TdsFdwModifyState *fmstate = (TdsFdwModifyState *) resultRelInfo->ri_FdwState;
+    TdsFdwOptionSet option_set;
+    StringInfoData sql;
+    MemoryContext oldcontext;
+    Datum *values;
+    bool *nulls;
+    int nattrs;
+    int i;
+    RETCODE erc;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> starting tdsExecForeignInsert")));
+#endif
+    
+    /* Get option set for table name info */
+    memset(&option_set, 0, sizeof(TdsFdwOptionSet));
+    tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(fmstate->rel), &option_set);
+    
+    /* Switch to temp context for per-tuple memory */
+    oldcontext = MemoryContextSwitchTo(fmstate->temp_cxt);
+    
+    /* Extract values from the slot */
+    nattrs = list_length(fmstate->target_attrs);
+    values = (Datum *) palloc(nattrs * sizeof(Datum));
+    nulls = (bool *) palloc(nattrs * sizeof(bool));
+    
+    /* 
+     * Extract values from slot by position.
+     * The slot contains only the columns being inserted, in order,
+     * not necessarily matching the foreign table's attribute numbers.
+     */
+    slot_getallattrs(slot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: INSERT slot info: nattrs=%d, slot->tts_tupleDescriptor->natts=%d, slot->tts_nvalid=%d",
+                    nattrs, slot->tts_tupleDescriptor->natts, slot->tts_nvalid)));
+    
+    for (i = 0; i < nattrs; i++)
+    {
+        /* Get value by slot position (i), not foreign table attnum */
+        values[i] = slot->tts_values[i];
+        nulls[i] = slot->tts_isnull[i];
+    }
+    
+    /* Build the INSERT SQL */
+    initStringInfo(&sql);
+    deparseDirectInsertSql(&sql, fmstate->rel, fmstate->target_attrs, values, nulls, &option_set);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: INSERT SQL: %s", sql.data)));
+    
+    /* Execute the query */
+    dberrhandle(tds_err_handler);
+    dbmsghandle(tds_notice_msg_handler);
+    
+    erc = dbcmd(fmstate->dbproc, sql.data);
+    if (erc == FAIL)
+    {
+        MemoryContextSwitchTo(oldcontext);
+        MemoryContextReset(fmstate->temp_cxt);
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                 errmsg("Failed to build INSERT command")));
+    }
+    
+    erc = dbsqlexec(fmstate->dbproc);
+    if (erc == FAIL)
+    {
+        MemoryContextSwitchTo(oldcontext);
+        MemoryContextReset(fmstate->temp_cxt);
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                 errmsg("Failed to execute INSERT command")));
+    }
+    
+    /* Process results (needed to complete the command) */
+    while ((erc = dbresults(fmstate->dbproc)) != NO_MORE_RESULTS)
+    {
+        if (erc == FAIL)
+        {
+            MemoryContextSwitchTo(oldcontext);
+            MemoryContextReset(fmstate->temp_cxt);
+            ereport(ERROR,
+                    (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                     errmsg("Failed to get results from INSERT command")));
+        }
+    }
+    
+    /* Switch back to original context */
+    MemoryContextSwitchTo(oldcontext);
+    MemoryContextReset(fmstate->temp_cxt);
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> finishing tdsExecForeignInsert")));
+#endif
+    
+    /*
+     * Return NULL since we don't support RETURNING clause yet.
+     * The 'slot' parameter only contains columns from the VALUES clause,
+     * not a complete row. Returning this partial slot causes "invalid
+     * attribute number" errors when the executor tries to access columns
+     * not included in the INSERT. Without RETURNING support, NULL is
+     * acceptable for FDWs.
+     */
+    return NULL;
+}
+
+/*
+ * tdsExecForeignUpdate
+ *      Execute an UPDATE operation on a foreign table.
+ */
+TupleTableSlot *
+tdsExecForeignUpdate(EState *estate,
+                     ResultRelInfo *resultRelInfo,
+                     TupleTableSlot *slot,
+                     TupleTableSlot *planSlot)
+{
+    TdsFdwModifyState *fmstate = (TdsFdwModifyState *) resultRelInfo->ri_FdwState;
+    TdsFdwOptionSet option_set;
+    StringInfoData sql;
+    MemoryContext oldcontext;
+    Datum *values;
+    bool *nulls;
+    Datum *keyValues;
+    bool *keyNulls;
+    int nattrs;
+    int nkeys;
+    int i;
+    ListCell *lc;
+    RETCODE erc;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> starting tdsExecForeignUpdate")));
+#endif
+    
+    /* Get option set for table name info */
+    memset(&option_set, 0, sizeof(TdsFdwOptionSet));
+    tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(fmstate->rel), &option_set);
+    
+    /* Switch to temp context for per-tuple memory */
+    oldcontext = MemoryContextSwitchTo(fmstate->temp_cxt);
+    
+    /* Extract values for SET clause */
+    nattrs = list_length(fmstate->target_attrs);
+    values = (Datum *) palloc(nattrs * sizeof(Datum));
+    nulls = (bool *) palloc(nattrs * sizeof(bool));
+    
+    /* 
+     * Extract values from slot by position.
+     * The slot contains only the columns being updated, in order,
+     * not necessarily matching the foreign table's attribute numbers.
+     */
+    slot_getallattrs(slot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: UPDATE slot info: nattrs=%d, slot->tts_tupleDescriptor->natts=%d, slot->tts_nvalid=%d",
+                    nattrs, slot->tts_tupleDescriptor->natts, slot->tts_nvalid)));
+    
+    i = 0;
+    foreach(lc, fmstate->target_attrs)
+    {
+        /* Get value by slot position (i), not foreign table attnum */
+        values[i] = slot->tts_values[i];
+        nulls[i] = slot->tts_isnull[i];
+        i++;
+    }
+    
+    /* Extract key values for WHERE clause from the original row (planSlot) */
+    nkeys = list_length(fmstate->key_attrs);
+    keyValues = (Datum *) palloc(nkeys * sizeof(Datum));
+    keyNulls = (bool *) palloc(nkeys * sizeof(bool));
+    
+    /* 
+     * For key values, we need to use slot_getattr with the foreign table attribute number
+     * because planSlot contains the full original row from the scan.
+     */
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: UPDATE planSlot before extraction: natts=%d, nvalid=%d",
+                    planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
+    /* Debug: show what attributes are in the tuple descriptor */
+    {
+        TupleDesc tupdesc = planSlot->tts_tupleDescriptor;
+        int j;
+        ereport(DEBUG3, (errmsg("tds_fdw: UPDATE planSlot tuple descriptor has %d attributes:", tupdesc->natts)));
+        for (j = 0; j < tupdesc->natts; j++)
+        {
+            Form_pg_attribute attr = TupleDescAttr(tupdesc, j);
+            ereport(DEBUG3, (errmsg("  attr[%d]: attnum=%d, attname=%s, attisdropped=%d",
+                                    j, attr->attnum, NameStr(attr->attname), attr->attisdropped)));
+        }
+    }
+    
+    /* Make sure planSlot is materialized */
+    slot_getallattrs(planSlot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: UPDATE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
+                    planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
+	/*
+	 * Extract key values from planSlot. Key columns may not be individual
+	 * attributes in planSlot - they may only be available via wholerow reference.
+	 * We need to extract them from the tuple using the relation's tuple descriptor.
+	 */
+	i = 0;
+	foreach(lc, fmstate->key_attrs)
+	{
+		int attnum = lfirst_int(lc);
+		bool found = false;
+		int j;
+		
+		/* First try to find as individual attribute in planSlot */
+		for (j = 0; j < planSlot->tts_tupleDescriptor->natts; j++)
+		{
+			Form_pg_attribute attr = TupleDescAttr(planSlot->tts_tupleDescriptor, j);
+			
+			/* Skip dropped columns */
+			if (attr->attisdropped)
+				continue;
+				
+			/* Check if this is the wholerow reference */
+			if (attr->attnum == InvalidAttrNumber)
+			{
+				/* Extract value from wholerow datum */
+				Datum wholerow = planSlot->tts_values[j];
+				bool isnull = planSlot->tts_isnull[j];
+				
+				if (!isnull)
+				{
+					HeapTupleHeader td = DatumGetHeapTupleHeader(wholerow);
+					TupleDesc tupdesc = RelationGetDescr(fmstate->rel);
+					HeapTupleData tmptup;
+					
+					/* Build a temporary HeapTuple from the datum */
+					tmptup.t_len = HeapTupleHeaderGetDatumLength(td);
+					tmptup.t_data = td;
+					
+					/* Extract the key attribute value */
+					keyValues[i] = heap_getattr(&tmptup, attnum, tupdesc, &keyNulls[i]);
+					found = true;
+					
+					ereport(DEBUG3,
+							(errmsg("tds_fdw: UPDATE extracted key attnum=%d from wholerow",
+									attnum)));
+					break;
+				}
+			}
+			/* Check if this individual attribute matches our key */
+			else if (attr->attnum == attnum)
+			{
+				keyValues[i] = planSlot->tts_values[j];
+				keyNulls[i] = planSlot->tts_isnull[j];
+				found = true;
+				
+				ereport(DEBUG3,
+						(errmsg("tds_fdw: UPDATE extracted key attnum=%d from individual attribute",
+								attnum)));
+				break;
+			}
+		}
+		
+		if (!found)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					 errmsg("Could not find key attribute %d in planSlot for UPDATE", attnum)));
+		}
+		
+		i++;
+	}
+    initStringInfo(&sql);
+    deparseDirectUpdateSql(&sql, fmstate->rel, fmstate->target_attrs, values, nulls,
+                           fmstate->key_attrs, keyValues, keyNulls, &option_set);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: UPDATE SQL: %s", sql.data)));
+    
+    /* Execute the query */
+    dberrhandle(tds_err_handler);
+    dbmsghandle(tds_notice_msg_handler);
+    
+    erc = dbcmd(fmstate->dbproc, sql.data);
+    if (erc == FAIL)
+    {
+        MemoryContextSwitchTo(oldcontext);
+        MemoryContextReset(fmstate->temp_cxt);
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                 errmsg("Failed to build UPDATE command")));
+    }
+    
+    erc = dbsqlexec(fmstate->dbproc);
+    if (erc == FAIL)
+    {
+        MemoryContextSwitchTo(oldcontext);
+        MemoryContextReset(fmstate->temp_cxt);
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                 errmsg("Failed to execute UPDATE command")));
+    }
+    
+    /* Process results */
+    while ((erc = dbresults(fmstate->dbproc)) != NO_MORE_RESULTS)
+    {
+        if (erc == FAIL)
+        {
+            MemoryContextSwitchTo(oldcontext);
+            MemoryContextReset(fmstate->temp_cxt);
+            ereport(ERROR,
+                    (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                     errmsg("Failed to get results from UPDATE command")));
+        }
+    }
+    
+    /* Switch back to original context */
+    MemoryContextSwitchTo(oldcontext);
+    MemoryContextReset(fmstate->temp_cxt);
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> finishing tdsExecForeignUpdate")));
+#endif
+    
+    /*
+     * Return NULL since we don't support RETURNING clause yet.
+     * The 'slot' parameter only contains columns from the SET clause,
+     * not a complete row. Returning this partial slot causes "invalid
+     * attribute number" errors when the executor tries to access columns
+     * not included in the UPDATE. Without RETURNING support, NULL is
+     * acceptable for FDWs.
+     */
+    return NULL;
+}
+
+/*
+ * tdsExecForeignDelete
+ *      Execute a DELETE operation on a foreign table.
+ */
+TupleTableSlot *
+tdsExecForeignDelete(EState *estate,
+                     ResultRelInfo *resultRelInfo,
+                     TupleTableSlot *slot,
+                     TupleTableSlot *planSlot)
+{
+    TdsFdwModifyState *fmstate = (TdsFdwModifyState *) resultRelInfo->ri_FdwState;
+    TdsFdwOptionSet option_set;
+    StringInfoData sql;
+    MemoryContext oldcontext;
+    Datum *keyValues;
+    bool *keyNulls;
+    int nkeys;
+    int i;
+    ListCell *lc;
+    RETCODE erc;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> starting tdsExecForeignDelete")));
+#endif
+    
+    /* Get option set for table name info */
+    memset(&option_set, 0, sizeof(TdsFdwOptionSet));
+    tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(fmstate->rel), &option_set);
+    
+    /* Switch to temp context for per-tuple memory */
+    oldcontext = MemoryContextSwitchTo(fmstate->temp_cxt);
+    
+    /* Extract key values for WHERE clause from the row to be deleted */
+    nkeys = list_length(fmstate->key_attrs);
+    keyValues = (Datum *) palloc(nkeys * sizeof(Datum));
+    keyNulls = (bool *) palloc(nkeys * sizeof(bool));
+    
+    /* 
+     * For key values, we need to use slot_getattr with the foreign table attribute number
+     * because planSlot contains the full original row from the scan.
+     */
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: DELETE planSlot info: nkeys=%d, planSlot->tts_tupleDescriptor->natts=%d, planSlot->tts_nvalid=%d",
+                    nkeys, planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
+    /* Debug: show what attributes are in the tuple descriptor */
+    {
+        TupleDesc tupdesc = planSlot->tts_tupleDescriptor;
+        int j;
+        ereport(DEBUG3, (errmsg("tds_fdw: DELETE planSlot tuple descriptor has %d attributes:", tupdesc->natts)));
+        for (j = 0; j < tupdesc->natts; j++)
+        {
+            Form_pg_attribute attr = TupleDescAttr(tupdesc, j);
+            ereport(DEBUG3, (errmsg("  attr[%d]: attnum=%d, attname=%s, attisdropped=%d",
+                                    j, attr->attnum, NameStr(attr->attname), attr->attisdropped)));
+        }
+    }
+    
+    /* Make sure planSlot is materialized */
+    slot_getallattrs(planSlot);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: DELETE planSlot after slot_getallattrs: natts=%d, nvalid=%d",
+                    planSlot->tts_tupleDescriptor->natts, planSlot->tts_nvalid)));
+    
+	/*
+	 * Extract key values from planSlot. Key columns may not be individual
+	 * attributes in planSlot - they may only be available via wholerow reference.
+	 * We need to extract them from the tuple using the relation's tuple descriptor.
+	 */
+	i = 0;
+	foreach(lc, fmstate->key_attrs)
+	{
+		int attnum = lfirst_int(lc);
+		bool found = false;
+		int j;
+		
+		/* First try to find as individual attribute in planSlot */
+		for (j = 0; j < planSlot->tts_tupleDescriptor->natts; j++)
+		{
+			Form_pg_attribute attr = TupleDescAttr(planSlot->tts_tupleDescriptor, j);
+			
+			/* Skip dropped columns */
+			if (attr->attisdropped)
+				continue;
+				
+			/* Check if this is the wholerow reference */
+			if (attr->attnum == InvalidAttrNumber)
+			{
+				/* Extract value from wholerow datum */
+				Datum wholerow = planSlot->tts_values[j];
+				bool isnull = planSlot->tts_isnull[j];
+				
+				if (!isnull)
+				{
+					HeapTupleHeader td = DatumGetHeapTupleHeader(wholerow);
+					TupleDesc tupdesc = RelationGetDescr(fmstate->rel);
+					HeapTupleData tmptup;
+					
+					/* Build a temporary HeapTuple from the datum */
+					tmptup.t_len = HeapTupleHeaderGetDatumLength(td);
+					tmptup.t_data = td;
+					
+					/* Extract the key attribute value */
+					keyValues[i] = heap_getattr(&tmptup, attnum, tupdesc, &keyNulls[i]);
+					found = true;
+					
+					ereport(DEBUG3,
+							(errmsg("tds_fdw: DELETE extracted key attnum=%d from wholerow",
+									attnum)));
+					break;
+				}
+			}
+			/* Check if this individual attribute matches our key */
+			else if (attr->attnum == attnum)
+			{
+				keyValues[i] = planSlot->tts_values[j];
+				keyNulls[i] = planSlot->tts_isnull[j];
+				found = true;
+				
+				ereport(DEBUG3,
+						(errmsg("tds_fdw: DELETE extracted key attnum=%d from individual attribute",
+								attnum)));
+				break;
+			}
+		}
+		
+		if (!found)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+					 errmsg("Could not find key attribute %d in planSlot for DELETE", attnum)));
+		}
+		
+		i++;
+	}
+    initStringInfo(&sql);
+    deparseDirectDeleteSql(&sql, fmstate->rel, fmstate->key_attrs, keyValues, keyNulls, &option_set);
+    
+    ereport(DEBUG3,
+            (errmsg("tds_fdw: DELETE SQL: %s", sql.data)));
+    
+    /* Execute the query */
+    dberrhandle(tds_err_handler);
+    dbmsghandle(tds_notice_msg_handler);
+    
+    erc = dbcmd(fmstate->dbproc, sql.data);
+    if (erc == FAIL)
+    {
+        MemoryContextSwitchTo(oldcontext);
+        MemoryContextReset(fmstate->temp_cxt);
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                 errmsg("Failed to build DELETE command")));
+    }
+    
+    erc = dbsqlexec(fmstate->dbproc);
+    if (erc == FAIL)
+    {
+        MemoryContextSwitchTo(oldcontext);
+        MemoryContextReset(fmstate->temp_cxt);
+        ereport(ERROR,
+                (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                 errmsg("Failed to execute DELETE command")));
+    }
+    
+    /* Process results */
+    while ((erc = dbresults(fmstate->dbproc)) != NO_MORE_RESULTS)
+    {
+        if (erc == FAIL)
+        {
+            MemoryContextSwitchTo(oldcontext);
+            MemoryContextReset(fmstate->temp_cxt);
+            ereport(ERROR,
+                    (errcode(ERRCODE_FDW_UNABLE_TO_CREATE_EXECUTION),
+                     errmsg("Failed to get results from DELETE command")));
+        }
+    }
+    
+    /* Switch back to original context */
+    MemoryContextSwitchTo(oldcontext);
+    MemoryContextReset(fmstate->temp_cxt);
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> finishing tdsExecForeignDelete")));
+#endif
+    
+    /*
+     * Return NULL since we don't support RETURNING clause yet.
+     * The 'planSlot' from the scan has no columns (natts=0) because
+     * the scan query uses "SELECT NULL FROM table WHERE...".
+     * Returning this empty slot causes "invalid attribute number" errors
+     * when the executor tries to access any attributes. Without RETURNING
+     * support, NULL is acceptable for FDWs.
+     */
+    return NULL;
+}
+
+/*
+ * tdsEndForeignModify
+ *      End a modification operation on a foreign table.
+ */
+void
+tdsEndForeignModify(EState *estate,
+                    ResultRelInfo *resultRelInfo)
+{
+    TdsFdwModifyState *fmstate = (TdsFdwModifyState *) resultRelInfo->ri_FdwState;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> starting tdsEndForeignModify")));
+#endif
+    
+    if (fmstate == NULL)
+        return;
+    
+    /* Close the connection */
+    if (fmstate->dbproc)
+        dbclose(fmstate->dbproc);
+    
+    /* Free the login structure */
+    if (fmstate->login)
+        dbloginfree(fmstate->login);
+    
+    /* Free the temp context */
+    if (fmstate->temp_cxt)
+        MemoryContextDelete(fmstate->temp_cxt);
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> finishing tdsEndForeignModify")));
+#endif
+}
+
+/*
+ * tdsExplainForeignModify
+ *      Produce extra output for EXPLAIN on a modification operation.
+ */
+void
+tdsExplainForeignModify(ModifyTableState *mtstate,
+                        ResultRelInfo *rinfo,
+                        List *fdw_private,
+                        int subplan_index,
+                        ExplainState *es)
+{
+    CmdType operation;
+    const char *op_name;
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> starting tdsExplainForeignModify")));
+#endif
+    
+#if PG_VERSION_NUM >= 140000
+    operation = mtstate->operation;
+#else
+    operation = mtstate->operation;
+#endif
+    
+    switch (operation)
+    {
+        case CMD_INSERT:
+            op_name = "INSERT";
+            break;
+        case CMD_UPDATE:
+            op_name = "UPDATE";
+            break;
+        case CMD_DELETE:
+            op_name = "DELETE";
+            break;
+        default:
+            op_name = "unknown";
+    }
+    
+    ExplainPropertyText("TDS Remote Operation", op_name, es);
+    
+#ifdef DEBUG
+    ereport(NOTICE,
+            (errmsg("----> finishing tdsExplainForeignModify")));
+#endif
+}
+
+/* End of modification support functions */
 
 char *tds_err_msg(int severity, int dberr, int oserr, char *dberrstr, char *oserrstr)
 {

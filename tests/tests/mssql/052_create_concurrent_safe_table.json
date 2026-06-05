@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Create table with timestamp-based name for concurrent execution safety",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}
