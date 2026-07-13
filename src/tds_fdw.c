@@ -110,7 +110,7 @@ static char *tds_err_msg(int severity, int dberr, int oserr, char *dberrstr, cha
 
 /* signal handling */
 static volatile bool interrupt_flag = false;
-static void tds_signal_handler(int signum);
+static void tds_signal_handler(SIGNAL_ARGS);
 static void tds_clear_signals(void);
 static int tds_chkintr_func(void* vdbproc);
 static int tds_hndlintr_func(void* vdbproc);
@@ -4307,7 +4307,7 @@ int tds_blackhole_msg_handler(DBPROCESS *dbproc, DBINT msgno, int msgstate, int 
     return 0;
 }
 
-void tds_signal_handler(int signum)
+void tds_signal_handler(SIGNAL_ARGS)
 {
     interrupt_flag = true;
 }
