@@ -35,9 +35,9 @@ It does support WHERE and column pushdowns when *match_column_names* is enabled.
 | **PostgreSQL 18**  |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=rockylinux9,PG_VER=18,label=x86_64-v2/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=rockylinux9,PG_VER=18,label=x86_64-v2)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu24.04,PG_VER=18,label=x86_64-v1/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu24.04,PG_VER=18,label=x86_64-v1)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=opensuseleap16.0,PG_VER=18,label=x86_64-v2/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=opensuseleap16.0,PG_VER=18,label=x86_64-v2)|
 | **PostgreSQL 19**  |[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=rockylinux9,PG_VER=19-testing,label=x86_64-v2/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=rockylinux9,PG_VER=19-testing,label=x86_64-v2)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu24.04,PG_VER=19-testing,label=x86_64-v1/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=ubuntu24.04,PG_VER=19-testing,label=x86_64-v1)|[![Build Status](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=opensuseleap16.0,PG_VER=19-testing,label=x86_64-v2/badge/icon)](https://jenkins.juliogonzalez.es/job/tds_fdw-build/DISTRO=opensuseleap16.0,PG_VER=19-testing,label=x86_64-v2)|
 
-## Installing on RHEL and clones (CentOS, Rocky Linux, AlmaLinux, Oracle...)
+## Installing on RHEL and clones (Rocky Linux, AlmaLinux, ...)
 
-See [installing tds_fdw on CentOS](InstallRHELandClones.md).
+See [installing tds_fdw on RHEL and clones](InstallRHELandClones.md).
 
 ## Installing on Ubuntu
 
@@ -47,7 +47,7 @@ See [installing tds_fdw on Ubuntu](InstallUbuntu.md).
 
 See [installing tds_fdw on Debian](InstallDebian.md).
 
-## Installing on openSUSE
+## Installing on SLES and OpenSuSE
 
 See [installing tds_fdw on openSUSE](InstallopenSUSE.md).
 
