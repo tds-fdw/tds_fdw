@@ -6,9 +6,27 @@
 
 ## Installing on openSUSE
 
-This document will show how to install tds_fdw on openSUSE Leap 15.1. Other openSUSE and SUSE distributions should be similar. 
+This document will show how to install tds_fdw on SLES 15, SLES 16 and openSUSE Leap 16.0.
 
-### Install FreeTDS and build dependencies
+### Option A: zypper (released versions)
+
+#### PostgreSQL
+
+If you need to install PostgreSQL, do so by following the [SLES/OpenSuSE PostgreSQL repo installation instructions](https://zypp.postgresql.org/howtozypp/).
+
+#### tds_fdw
+
+freetds is a part of SLES 16.0 and OpenSuSE 16.0. Please follow the instructions above to install freetds-config package on SLES 15.7.
+
+Install `tds_fdw`:
+
+```bash
+sudo zypper install tds_fdw_18
+```
+
+Replace 18 with the other supported PostgreSQL versions.
+
+### Option B: Compile tds_fdw
 
 The TDS foreign data wrapper requires a library that implements the DB-Library interface,
 such as [FreeTDS](http://www.freetds.org).
@@ -25,10 +43,10 @@ sudo zypper install gcc make
 
 ### Install PostgreSQL
 
-If you need to install PostgreSQL, for example, 10.X:
+If you need to install PostgreSQL, for example, 18.X:
 
 ```bash
-sudo zypper install postgresql10 postgresql10-server postgresql10-devel
+sudo zypper install postgresql18 postgresql18-server postgresql18-devel
 ```
 
 **NOTE**: If you already have PostgreSQL installed on your system be sure that the package postgresqlXX-devel is installed too (where XX stands for your PostgreSQL version). 
@@ -69,7 +87,9 @@ sudo make USE_PGXS=1 install
 If this is a fresh installation, then start the server:
 
 ```bash
-sudo service postgresql start
+sudo /usr/pgsql-18/bin/postgresql18-setup initdb
+sudo systemctl enable postgresql-18.service
+sudo systemctl start postgresql-18.service
 ```
 
 #### Install extension
