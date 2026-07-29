@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Test write operations with various data types",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

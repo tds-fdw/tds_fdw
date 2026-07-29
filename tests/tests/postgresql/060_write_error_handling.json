@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Test error handling in write operations",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

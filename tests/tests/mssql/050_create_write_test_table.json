@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Create table for write operations testing (INSERT/UPDATE/DELETE)",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

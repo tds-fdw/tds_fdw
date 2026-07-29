@@ -1,0 +1,9 @@
+{
+    "test_desc" : "Test UPDATE operation - multiple rows via FDW",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}
