@@ -6,4 +6,4 @@ CREATE TABLE @SCHEMANAME.varchar (
         value varchar(8000)
 );
 
-INSERT INTO @SCHEMANAME.varchar (id, value) VALUES (1, 'this is a string');
+INSERT INTO @SCHEMANAME.varchar (id, value) VALUES (1, 'this is a string with a \ backslash');

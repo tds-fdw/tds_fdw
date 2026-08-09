@@ -8,3 +8,5 @@ CREATE FOREIGN TABLE @PSCHEMANAME.varchar (
         OPTIONS (table '@MSCHEMANAME.varchar', row_estimate_method 'showplan_all');
 
 SELECT * FROM @PSCHEMANAME.varchar;
+
+SELECT * FROM @PSCHEMANAME.varchar WHERE value = 'this is a string with a \ backslash';
