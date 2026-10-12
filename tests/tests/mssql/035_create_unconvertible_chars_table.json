@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table creation with characters outside ISO-8859-1",
+    "server" : {
+        "version" : {
+            "min" : "7.0.623",
+            "max" : ""
+        }
+    }
+}

@@ -4255,7 +4255,7 @@ int tds_err_handler(DBPROCESS *dbproc, int severity, int dberr, int oserr, char 
             (errmsg("%s", tds_err_msg(severity, dberr, oserr, dberrstr, oserrstr))
             )); 
 
-        return INT_CONTINUE;
+        return INT_CANCEL;
     }
     else
     {

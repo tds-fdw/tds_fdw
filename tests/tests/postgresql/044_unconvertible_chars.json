@@ -1,0 +1,9 @@
+{
+    "test_desc" : "characters the client character set cannot represent",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}
