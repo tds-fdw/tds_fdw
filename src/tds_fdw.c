@@ -1329,8 +1329,7 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
             {
                 const char *datetime_str = timestamptz_to_str(DatumGetTimestamp(datetime_out));
                 
-                dest = palloc(strlen(datetime_str) * sizeof(char));
-                strcpy(dest, datetime_str);
+                dest = pstrdup(datetime_str);
 
                 use_tds_conversion = 0;
                 destlen = strlen(datetime_str);
