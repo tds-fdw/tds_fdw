@@ -1,0 +1,9 @@
+{
+    "test_desc" : "table options loaded repeatedly in one session",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

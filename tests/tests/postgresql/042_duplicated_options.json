@@ -1,0 +1,9 @@
+{
+    "test_desc" : "options given twice are rejected",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

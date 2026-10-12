@@ -12,20 +12,6 @@ typedef struct TdsFdwOption
     Oid optcontext;
 } TdsFdwOption;
 
-typedef enum {
-    UNSET,
-    DEFAULT,
-    FOREIGN_SERVER,
-    FOREIGN_TABLE,
-    USER_MAPPING
-} TdsFdwOptionSourceType;
-
-typedef struct TdsFdwOptionSource
-{
-    const char *optname;
-    TdsFdwOptionSourceType source;
-} TdsFdwOptionSource;
-
 /* option values will be put here */
 
 typedef struct TdsFdwOptionSet
@@ -56,7 +42,5 @@ void tdsValidateOptions(List *options_list, Oid context, TdsFdwOptionSet* option
 void tdsGetForeignServerOptionsFromCatalog(Oid foreignserverid, TdsFdwOptionSet* option_set);
 void tdsGetForeignTableOptionsFromCatalog(Oid foreigntableid, TdsFdwOptionSet* option_set);
 void tdsValidateOptionSet(TdsFdwOptionSet* option_set);
-TdsFdwOptionSourceType tdsGetOptionSource(char *optname);
-void tdsUpdateOptionSource(char *optname, TdsFdwOptionSourceType source);
 
 #endif
