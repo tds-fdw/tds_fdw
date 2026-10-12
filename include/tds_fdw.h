@@ -185,7 +185,7 @@ bool is_shippable(Oid objectId, Oid classId, TdsFdwRelationInfo *fpinfo);
 void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSet* option_set,
 	Bitmapset* attrs_used, List** retrieved_attrs, 
 	List* remote_conds, List* remote_join_conds, List* pathkeys);
-int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc);
+void tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC **login, DBPROCESS **dbproc);
 double tdsGetRowCount(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);
 double tdsGetRowCountExecute(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc);

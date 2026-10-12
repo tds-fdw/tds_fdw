@@ -558,9 +558,12 @@ void tdsSetSqlServerAnsiMode(DBPROCESS **dbproc)
 
 }
 
-/* set up connection */
+/*
+ * Initialize DB-Library and connect to the server. The caller must release
+ * the connection with dbclose(), dbloginfree() and dbexit().
+ */
 
-int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS **dbproc)
+void tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC **login, DBPROCESS **dbproc)
 {
     char *servers;
     RETCODE erc;
@@ -572,16 +575,63 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
     #endif      
     
     ereport(DEBUG3,
+        (errmsg("tds_fdw: Initiating DB-Library")
+        ));
+
+    if (dbinit() == FAIL)
+    {
+        ereport(ERROR,
+            (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                errmsg("Failed to initialize DB-Library environment")
+            ));
+    }
+
+    dberrhandle(tds_err_handler);
+
+    if (option_set->msg_handler)
+    {
+        if (strcmp(option_set->msg_handler, "notice") == 0)
+        {
+            dbmsghandle(tds_notice_msg_handler);
+        }
+
+        else if (strcmp(option_set->msg_handler, "blackhole") == 0)
+        {
+            dbmsghandle(tds_blackhole_msg_handler);
+        }
+
+        else
+        {
+            ereport(ERROR,
+                (errcode(ERRCODE_SYNTAX_ERROR),
+                    errmsg("Unknown msg handler: %s.", option_set->msg_handler)
+                ));
+        }
+    }
+
+    ereport(DEBUG3,
+        (errmsg("tds_fdw: Getting login structure")
+        ));
+
+    if ((*login = dblogin()) == NULL)
+    {
+        ereport(ERROR,
+            (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
+                errmsg("Failed to initialize DB-Library login structure")
+            ));
+    }
+
+    ereport(DEBUG3,
         (errmsg("tds_fdw: Setting login user to %s", option_set->username)
         ));
     
-    DBSETLUSER(login, option_set->username);
+    DBSETLUSER(*login, option_set->username);
     
     ereport(DEBUG3,
         (errmsg("tds_fdw: Setting login password to %s", option_set->password)
         ));
     
-    DBSETLPWD(login, option_set->password); 
+    DBSETLPWD(*login, option_set->password);
     
     if (option_set->character_set)
     {
@@ -589,12 +639,12 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
             (errmsg("tds_fdw: Setting login character set to %s", option_set->character_set)
             ));
     
-        DBSETLCHARSET(login, option_set->character_set);
+        DBSETLCHARSET(*login, option_set->character_set);
     }
     
     if (option_set->language)
     {
-        DBSETLNATLANG(login, option_set->language);
+        DBSETLNATLANG(*login, option_set->language);
         
         ereport(DEBUG3,
             (errmsg("tds_fdw: Setting login language to %s", option_set->language)
@@ -656,7 +706,7 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
                 ));
         }
         
-        dbsetlversion(login, tds_version);
+        dbsetlversion(*login, tds_version);
         
         ereport(DEBUG3,
             (errmsg("tds_fdw: Setting login tds version to %s", option_set->tds_version)
@@ -665,7 +715,7 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
     
     if (option_set->database && !option_set->dbuse)
     {
-        DBSETLDBNAME(login, option_set->database);
+        DBSETLDBNAME(*login, option_set->database);
         
         ereport(DEBUG3,
             (errmsg("tds_fdw: Setting login database to %s", option_set->database)
@@ -700,7 +750,7 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
             ));
 
         /* try to connect */
-        if ((*dbproc = dbopen(login, conn_string)) == NULL)
+        if ((*dbproc = dbopen(*login, conn_string)) == NULL)
         {
             /* failure, will continue with the next server */
             ereport(DEBUG3,
@@ -774,8 +824,6 @@ int tdsSetupConnection(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *
             (errmsg("----> finishing tdsSetupConnection")
             ));
     #endif  
-
-    return 0;
 }
 
 double tdsGetRowCountShowPlanAll(TdsFdwOptionSet* option_set, LOGINREC *login, DBPROCESS *dbproc)
@@ -1441,58 +1489,8 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
     
     tdsGetForeignTableOptionsFromCatalog(RelationGetRelid(node->ss.ss_currentRelation), &option_set);
         
-    ereport(DEBUG3,
-        (errmsg("tds_fdw: Initiating DB-Library")
-        ));
-    
-    if (dbinit() == FAIL)
-    {
-        ereport(ERROR,
-            (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                errmsg("Failed to initialize DB-Library environment")
-            ));
-    }
-    
-    dberrhandle(tds_err_handler);
-    
-    if (option_set.msg_handler)
-    {
-        if (strcmp(option_set.msg_handler, "notice") == 0)
-        {
-            dbmsghandle(tds_notice_msg_handler);
-        }
-        
-        else if (strcmp(option_set.msg_handler, "blackhole") == 0)
-        {
-            dbmsghandle(tds_blackhole_msg_handler);
-        }
-        
-        else
-        {
-            ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                    errmsg("Unknown msg handler: %s.", option_set.msg_handler)
-                ));
-        }
-    }
-    
-    ereport(DEBUG3,
-        (errmsg("tds_fdw: Getting login structure")
-        ));
-    
-    if ((login = dblogin()) == NULL)
-    {
-        ereport(ERROR,
-            (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                errmsg("Failed to initialize DB-Library login structure")
-            ));
-    }
-    
-    if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
-    {
-        goto cleanup;
-    }
-    
+    tdsSetupConnection(&option_set, &login, &dbproc);
+
     festate = (TdsFdwExecutionState *) palloc(sizeof(TdsFdwExecutionState));
     node->fdw_state = (void *) festate;
     festate->login = login;
@@ -1506,9 +1504,6 @@ void tdsBeginForeignScan(ForeignScanState *node, int eflags)
     festate->mem_cxt = AllocSetContextCreate(estate->es_query_cxt,
                                                "tds_fdw data",
                                                ALLOCSET_DEFAULT_SIZES);
-    
-cleanup:
-    ;
     
     #ifdef DEBUG
         ereport(NOTICE,
@@ -2257,60 +2252,8 @@ estimate_path_cost_size(PlannerInfo *root,
 
         /* Get the remote estimate */
 
-        ereport(DEBUG3,
-            (errmsg("tds_fdw: Initiating DB-Library")
-            ));
-        
-        if (dbinit() == FAIL)
-        {
-            ereport(ERROR,
-                (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                    errmsg("Failed to initialize DB-Library environment")
-                ));
-            goto cleanup_before_init;
-        }
-        
-        dberrhandle(tds_err_handler);
-        
-        if (option_set->msg_handler)
-        {
-            if (strcmp(option_set->msg_handler, "notice") == 0)
-            {
-                dbmsghandle(tds_notice_msg_handler);
-            }
-            
-            else if (strcmp(option_set->msg_handler, "blackhole") == 0)
-            {
-                dbmsghandle(tds_blackhole_msg_handler);
-            }
-            
-            else
-            {
-                ereport(ERROR,
-                    (errcode(ERRCODE_SYNTAX_ERROR),
-                        errmsg("Unknown msg handler: %s.", option_set->msg_handler)
-                    ));
-            }
-        }
-        
-        ereport(DEBUG3,
-            (errmsg("tds_fdw: Getting login structure")
-            ));
-        
-        if ((login = dblogin()) == NULL)
-        {
-            ereport(ERROR,
-                (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                    errmsg("Failed to initialize DB-Library login structure")
-                ));
-            goto cleanup_before_login;
-        }
-        
-        if (tdsSetupConnection(option_set, login, &dbproc) != 0)
-        {
-            goto cleanup;
-        }
-            
+        tdsSetupConnection(option_set, &login, &dbproc);
+
         rows = tdsGetRowCount(option_set, login, dbproc);
         retrieved_rows = rows;
         
@@ -2334,16 +2277,10 @@ estimate_path_cost_size(PlannerInfo *root,
         cost_qual_eval(&local_cost, join_conds, root);
         startup_cost += local_cost.startup;
         total_cost += local_cost.per_tuple * retrieved_rows;
-        
-cleanup:
-    dbclose(dbproc);
-    dbloginfree(login);
-        
-cleanup_before_login:
-    dbexit();
-    
-cleanup_before_init:
-    ;
+
+        dbclose(dbproc);
+        dbloginfree(login);
+        dbexit();
     }
     else
     {
@@ -4133,59 +4070,7 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
 
     tdsGetForeignServerOptionsFromCatalog(serverOid, &option_set);
 
-    ereport(DEBUG3,
-        (errmsg("tds_fdw: Initiating DB-Library")
-        ));
-
-    if (dbinit() == FAIL)
-    {
-        ereport(ERROR,
-            (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                errmsg("Failed to initialize DB-Library environment")
-            ));
-        goto cleanup_before_init;
-    }
-
-    dberrhandle(tds_err_handler);
-
-    if (option_set.msg_handler)
-    {
-        if (strcmp(option_set.msg_handler, "notice") == 0)
-        {
-            dbmsghandle(tds_notice_msg_handler);
-        }
-
-        else if (strcmp(option_set.msg_handler, "blackhole") == 0)
-        {
-            dbmsghandle(tds_blackhole_msg_handler);
-        }
-
-        else
-        {
-            ereport(ERROR,
-                (errcode(ERRCODE_SYNTAX_ERROR),
-                    errmsg("Unknown msg handler: %s.", option_set.msg_handler)
-                ));
-        }
-    }
-
-    ereport(DEBUG3,
-        (errmsg("tds_fdw: Getting login structure")
-        ));
-
-    if ((login = dblogin()) == NULL)
-    {
-        ereport(ERROR,
-            (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                errmsg("Failed to initialize DB-Library login structure")
-            ));
-        goto cleanup_before_login;
-    }
-
-    if (tdsSetupConnection(&option_set, login, &dbproc) != 0)
-    {
-        goto cleanup;
-    }
+    tdsSetupConnection(&option_set, &login, &dbproc);
 
     if (tdsIsSqlServer(dbproc))
         commands = tdsImportSqlServerSchema(stmt, dbproc, option_set,
@@ -4195,15 +4080,9 @@ List *tdsImportForeignSchema(ImportForeignSchemaStmt *stmt, Oid serverOid)
                                          import_default, import_not_null,
                                          keep_custom_types);
 
-cleanup:
     dbclose(dbproc);
     dbloginfree(login);
-
-cleanup_before_login:
     dbexit();
-
-cleanup_before_init:
-    ;
 
     #ifdef DEBUG
         ereport(NOTICE,
