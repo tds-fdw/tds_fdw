@@ -1,0 +1,9 @@
+{
+    "test_desc" : "binary data types read as text",
+    "server" : {
+        "version" : {
+            "min" : "9.2.0",
+            "max" : ""
+        }
+    }
+}

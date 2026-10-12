@@ -1292,8 +1292,7 @@ int tdsDatetimeToDatum(DBPROCESS *dbproc, DBDATETIME *src, Datum *datetime_out)
 char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT srclen)
 {
     char* dest = NULL;
-    int real_destlen = 0;
-    DBINT destlen = 0;
+    Size real_destlen = 0;
     int desttype = -1;
     int ret_value;
     #if (PG_VERSION_NUM >= 90400)
@@ -1309,15 +1308,13 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
         case SYBVARCHAR:
             __attribute__ ((fallthrough));
         case SYBTEXT:
-            real_destlen = srclen + 1; /* the size of the array */
-            destlen = -2; /* the size to pass to dbconvert (-2 means to null terminate it) */
+            real_destlen = (Size) srclen + 1;
             desttype = SYBCHAR;
             break;
         case SYBBINARY:
             __attribute__ ((fallthrough));
         case SYBVARBINARY:
-            real_destlen = srclen;
-            destlen = srclen;
+            real_destlen = (Size) srclen + 1;
             desttype = SYBBINARY;
             break;
 
@@ -1333,8 +1330,6 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
                 strcpy(dest, datetime_str);
 
                 use_tds_conversion = 0;
-                destlen = strlen(datetime_str);
-                real_destlen = destlen;
                 desttype = SYBCHAR;
             }
 
@@ -1343,8 +1338,13 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
         #endif
 
         default:
-            real_destlen = 1000; /* Probably big enough */
-            destlen = -2; 
+            /*
+             * Binary types such as image become two hex digits per byte.
+             * Every other type (numeric, money, datetime, uniqueidentifier...)
+             * has a short fixed-width text form. If this is still too small,
+             * dbconvert raises SYBECOFL instead of writing past the buffer.
+             */
+            real_destlen = (Size) srclen * 2 + 100;
             desttype = SYBCHAR;
             break;
     }
@@ -1353,29 +1353,31 @@ char* tdsConvertToCString(DBPROCESS* dbproc, int srctype, const BYTE* src, DBINT
         (errmsg("tds_fdw: Source type is %i. Destination type is %i", srctype, desttype)
         ));
     ereport(DEBUG3,
-        (errmsg("tds_fdw: Source length is %i. Destination length is %i. Real destination length is %i", srclen, destlen, real_destlen)
+        (errmsg("tds_fdw: Source length is %i. Real destination length is %zu", srclen, real_destlen)
         ));
     
     if (use_tds_conversion)
     {
         if (dbwillconvert(srctype, desttype) != FALSE)
         {
-            dest = palloc(real_destlen * sizeof(char));
-            ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, destlen);
-            
-            if (ret_value == FAIL)
+            /*
+             * palloc rejects anything over MaxAllocSize, so the length passed
+             * to dbconvert fits in a DBINT. One byte is held back for the
+             * terminator, because a positive destlen makes dbconvert pad
+             * instead of terminating.
+             */
+            dest = palloc(real_destlen);
+            ret_value = dbconvert(dbproc, srctype, src, srclen, desttype, (BYTE *) dest, real_destlen - 1);
+
+            if (ret_value < 0)
             {
-                ereport(DEBUG3,
-                    (errmsg("tds_fdw: Failed to convert column")
+                ereport(ERROR,
+                    (errcode(ERRCODE_FDW_INVALID_DATA_TYPE),
+                     errmsg("Failed to convert column of type %i", srctype)
                     ));
             }
-            
-            else if (ret_value == -1)
-            {
-                ereport(DEBUG3,
-                    (errmsg("tds_fdw: Failed to convert column. Could have been a NULL pointer or bad data type.")
-                    )); 
-            }
+
+            dest[ret_value] = '\0';
         }
         
         else
