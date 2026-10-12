@@ -418,17 +418,7 @@ void tdsBuildForeignQuery(PlannerInfo *root, RelOptInfo *baserel, TdsFdwOptionSe
         }
         #endif      
         
-        /* now copy it to option_set->query */
-
-        if ((option_set->query = palloc((sql.len + 1) * sizeof(char))) == NULL)
-        {
-            ereport(ERROR,
-                (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                errmsg("Failed to allocate memory for query")
-                ));
-        }
-        
-        strcpy(option_set->query, sql.data);
+        option_set->query = sql.data;
     }
     
     ereport(DEBUG3,

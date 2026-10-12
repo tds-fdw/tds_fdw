@@ -834,15 +834,7 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
             ));
     #endif
     
-    if ((option_set->servername = palloc((strlen(DEFAULT_SERVERNAME) + 1) * sizeof(char))) == NULL)
-        {
-                ereport(ERROR,
-                        (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                                errmsg("Failed to allocate memory for server name")
-                        ));
-        }
-
-    sprintf(option_set->servername, "%s", DEFAULT_SERVERNAME);
+    option_set->servername = pstrdup(DEFAULT_SERVERNAME);
     tdsUpdateOptionSource("servername", DEFAULT);
     
     #ifdef DEBUG
@@ -851,15 +843,7 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
             ));
     #endif
 
-    if ((option_set->row_estimate_method = palloc((strlen(DEFAULT_ROW_ESTIMATE_METHOD) + 1) * sizeof(char))) == NULL)
-        {
-                ereport(ERROR,
-                        (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                                errmsg("Failed to allocate memory for row estimate method")
-                        ));
-        }
-
-    sprintf(option_set->row_estimate_method, "%s", DEFAULT_ROW_ESTIMATE_METHOD);
+    option_set->row_estimate_method = pstrdup(DEFAULT_ROW_ESTIMATE_METHOD);
     tdsUpdateOptionSource("row_estimate_method", DEFAULT);
 
     #ifdef DEBUG
@@ -868,15 +852,7 @@ void tdsSetDefaultOptions(TdsFdwOptionSet *option_set)
             ));
     #endif
 
-    if ((option_set->msg_handler= palloc((strlen(DEFAULT_MSG_HANDLER) + 1) * sizeof(char))) == NULL)
-        {
-                ereport(ERROR,
-                        (errcode(ERRCODE_FDW_OUT_OF_MEMORY),
-                                errmsg("Failed to allocate memory for msg handler")
-                        ));
-        }
-
-    sprintf(option_set->msg_handler, "%s", DEFAULT_MSG_HANDLER);
+    option_set->msg_handler = pstrdup(DEFAULT_MSG_HANDLER);
     tdsUpdateOptionSource("msg_handler", DEFAULT);
 
     #ifdef DEBUG
