@@ -427,24 +427,13 @@ foreign_expr_walker(Node *node,
 			}
 			break;
 		case T_Param:
-			{
-				Param	   *p = (Param *) node;
-				
-				ereport(DEBUG3,
-					(errmsg("tds_fdw: it is a param expression")
-					)); 
-
-				/*
-				 * Collation rule is same as for Consts and non-foreign Vars.
-				 */
-				collation = p->paramcollid;
-				if (collation == InvalidOid ||
-					collation == DEFAULT_COLLATION_OID)
-					state = FDW_COLLATE_NONE;
-				else
-					state = FDW_COLLATE_UNSAFE;
-			}
-			break;
+			/*
+			 * The executor does not bind runtime parameter values.  Pushing
+			 * these expressions down would execute the NULL placeholders used
+			 * by the deparser instead.  Keep them local until parameter binding
+			 * is supported; constants in custom plans can still be shipped.
+			 */
+			return false;
 		case T_OpExpr:
 		case T_DistinctExpr:	/* struct-equivalent to OpExpr */
 			{

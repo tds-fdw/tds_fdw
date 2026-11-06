@@ -24,6 +24,10 @@ The current version does not yet support JOIN push-down, or write operations.
 
 It does support WHERE and column pushdowns when *match_column_names* is enabled.
 
+Predicates containing runtime parameters are evaluated locally because the
+executor does not bind parameter values on the remote server. Constant predicates,
+including parameters folded to constants in custom plans, can still be pushed down.
+
 ## Build Status
 
 |                |    Rocky Linux 9   |    Ubuntu 24.04   | openSUSE Leap 16.0 |
