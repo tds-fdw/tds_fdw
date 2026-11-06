@@ -1,0 +1,9 @@
+{
+    "test_desc": "runtime parameters are evaluated locally instead of NULL placeholders",
+    "server": {
+        "version": {
+            "min": "12.0.0",
+            "max": ""
+        }
+    }
+}
